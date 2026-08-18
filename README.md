@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'ab9d2b1a-6e4d-4b9f-90ef-4e74b2a053f8'
-  PropagateID: 'ab9d2b1a-6e4d-4b9f-90ef-4e74b2a053f8'
-  ReservedCode1: 'e29c7f96-115e-4b90-9dc2-5b9229c0119e'
-  ReservedCode2: 'e29c7f96-115e-4b90-9dc2-5b9229c0119e'
+  ProduceID: '3585ce1f-fc0d-4b22-a77a-9c26e9cd1710'
+  PropagateID: '3585ce1f-fc0d-4b22-a77a-9c26e9cd1710'
+  ReservedCode1: '7d464104-d0f5-4742-8beb-876144a1fbb2'
+  ReservedCode2: '7d464104-d0f5-4742-8beb-876144a1fbb2'
 ---
 
 # 巷子里的AI掌柜
@@ -38,9 +38,18 @@ AIGC:
 │   ├── pages/settings/ # 设置（AI 模型 + 收款账户）
 │   └── components/     # 底部导航
 └── server/             # Python FastAPI 后端
-    ├── main.py         # 接口路由
-    ├── ai.py           # AI 调用（记账解析 / 文案 / 提醒）
-    ├── db.py           # SQLite（熟客/记忆/交易/提醒）
+    ├── main.py         # 应用入口（组装路由/生命周期/静态挂载，约 80 行）
+    ├── schemas.py      # API 请求模型（Pydantic）
+    ├── routers/        # 业务路由（按域拆分）
+    │   ├── basic.py    # 健康检查 / AI 设置 / 文案生成
+    │   ├── orders.py   # 记账 / 流水 / 凭证
+    │   ├── customers.py# 熟客 / 记忆 / 提醒
+    │   ├── tax.py      # 税法计算 / 科目表
+    │   ├── store.py    # 单店经营模型
+    │   ├── report.py   # Excel 报表导出
+    │   └── payment.py  # 收款账户 / 账单同步
+    ├── ai.py           # AI 调用（记账解析 / 文案 / 提醒，无 Key 兜底模式）
+    ├── db.py           # SQLite（熟客/记忆/交易/提醒/收款账户）
     ├── categories.py   # 66 科目表（资产/负债/权益/收入/费用）
     ├── tax.py          # 税法计算（增值税/附加税/个税/企税/报税日历/边界护栏）
     ├── report.py       # Excel 报表导出（openpyxl，三工作表）
@@ -48,7 +57,7 @@ AIGC:
     ├── payment.py      # 收款流水同步统一入口（微信/聚合/演示模式）
     ├── wechat_pay.py   # 微信支付 v3 交易账单同步（真实对接 + DEMO 演示）
     ├── aggregate_pay.py# 聚合支付适配器（预留收钱吧/付桥等服务商）
-    ├── config.py       # 配置读取
+    ├── config.py       # 配置读取（环境变量 > config.local.json > 默认值）
     └── static/         # 网页版（手机浏览器可直接访问）
         ├── index.html
         ├── style.css

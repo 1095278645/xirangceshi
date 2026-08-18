@@ -277,7 +277,8 @@ async function savePaySource(sid) {
       sid: sid || null, source_type: f.source_type, name: f.name.trim(),
       mchid: f.mchid.trim(), appid: f.appid.trim(),
       cert_path: f.cert_path.trim(), private_key_path: f.private_key_path.trim(),
-      api_v3_key: f.api_v3_key.trim(), enabled: f.enabled,
+      // 后端已脱敏：回传 *** 或空串均表示「保留原 Key」，不覆盖
+      api_v3_key: f.api_v3_key.trim() === '***' ? '' : f.api_v3_key.trim(), enabled: f.enabled,
     });
     state.payForm = { source_type: 'wechat', name: '', mchid: '', appid: '',
       cert_path: '', private_key_path: '', api_v3_key: '', enabled: true };

@@ -160,7 +160,8 @@ Page({
       appid: (this.data.payAppid || '').trim(),
       cert_path: (this.data.payCertPath || '').trim(),
       private_key_path: (this.data.payPrivKeyPath || '').trim(),
-      api_v3_key: (this.data.payV3Key || '').trim(),
+      // 后端已脱敏：传 *** 或空串均表示「保留原 Key」，不覆盖
+      api_v3_key: (this.data.payV3Key || '').trim() === '***' ? '' : (this.data.payV3Key || '').trim(),
       enabled: this.data.payEnabled
     })
       .then(() => {

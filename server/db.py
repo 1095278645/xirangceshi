@@ -427,9 +427,16 @@ def store_ledger_stats(year=None, month=None):
 
 # ---------------- 收款账户（微信商户 / 聚合支付） ----------------
 def list_payment_sources():
+    """收款账户列表（供前端展示）。api_v3_key 脱敏：有值显示 ***，不回传明文。
+    内部同步流程请用 get_payment_source()（返回完整字段）。"""
     with get_conn() as conn:
         rows = conn.execute("SELECT * FROM payment_sources ORDER BY id").fetchall()
-        return [dict(r) for r in rows]
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["api_v3_key"] = "***" if d.get("api_v3_key") else ""
+            out.append(d)
+        return out
 
 
 def get_payment_source(sid):
@@ -441,9 +448,16 @@ def get_payment_source(sid):
 def save_payment_source(source_type="wechat", name="", mchid="", appid="",
                         cert_path="", private_key_path="", api_v3_key="",
                         enabled=0, sid=None):
-    """新增或更新收款账户（sid 有值则更新）"""
+    """新增或更新收款账户（sid 有值则更新）。
+
+    api_v3_key 传空串或脱敏占位 *** 时保留原值（防止前端回传覆盖真实 Key）。"""
     with get_conn() as conn:
         if sid:
+            if api_v3_key in ("", "***"):
+                cur = conn.execute(
+                    "SELECT api_v3_key FROM payment_sources WHERE id=?", (sid,)).fetchone()
+                if cur:
+                    api_v3_key = cur["api_v3_key"]
             conn.execute(
                 "UPDATE payment_sources SET source_type=?, name=?, mchid=?, appid=?, "
                 "cert_path=?, private_key_path=?, api_v3_key=?, enabled=? WHERE id=?",
