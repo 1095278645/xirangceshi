@@ -8,6 +8,11 @@ __pycache__/
 .venv/
 venv/
 
+# 后端本地数据与密钥
+server/data/
+server/config.local.json
+*.db
+
 # Office 临时文件
 ~$*.xlsx
 ~$*.docx

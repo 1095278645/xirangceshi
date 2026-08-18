@@ -1,0 +1,65 @@
+<!-- pages/index/index.wxml 语音记账 -->
+<view class="page">
+
+  <!-- 问候 -->
+  <view class="hero">
+    <view class="hero-title">老板，今天辛苦啦！</view>
+    <view class="hero-sub">{{shopName}} · AI掌柜已就位</view>
+  </view>
+
+  <!-- 今日汇总 -->
+  <view class="card">
+    <view class="card-title">今日账本</view>
+    <view class="summary-row">
+      <view class="summary-item">
+        <view class="summary-num">{{summary.total}}</view>
+        <view class="summary-label">营业额（元）</view>
+      </view>
+      <view class="summary-item">
+        <view class="summary-num">{{summary.cnt}}</view>
+        <view class="summary-label">记账笔数</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 语音记账 -->
+  <view class="voice-card {{recognizing ? 'recording' : ''}}">
+    <view class="voice-hint" wx:if="{{!recognizing}}">按住说话，记一笔</view>
+    <view class="voice-hint recording-hint" wx:else>正在听…说完了松手</view>
+    <view class="voice-btn {{recognizing ? 'pulse' : ''}}"
+          bindtouchstart="startRecord" bindtouchend="endRecord" bindtouchcancel="cancelRecord">
+      <text class="voice-icon">{{recognizing ? '🔴' : '🎤'}}</text>
+    </view>
+    <view class="voice-result" wx:if="{{result}}">{{result}}</view>
+  </view>
+
+  <!-- 解析结果 -->
+  <view class="card" wx:if="{{parsed}}">
+    <view class="card-title">已记下</view>
+    <view class="parsed-grid">
+      <view class="parsed-item">
+        <text class="parsed-label">顾客</text>
+        <text class="parsed-value">{{parsed.customer || '散客'}}</text>
+      </view>
+      <view class="parsed-item">
+        <text class="parsed-label">商品</text>
+        <text class="parsed-value">{{parsed.item}}</text>
+      </view>
+      <view class="parsed-item">
+        <text class="parsed-label">金额</text>
+        <text class="parsed-value">{{parsed.amount != null ? parsed.amount + ' 元' : '未提'}}</text>
+      </view>
+    </view>
+    <view class="tag" wx:for="{{parsed.tags.split(',')}}" wx:if="{{item}}" wx:key="index">{{item}}</view>
+  </view>
+
+  <!-- 手动输入兜底 -->
+  <view class="card">
+    <view class="card-title">不方便说话？直接打字</view>
+    <textarea class="manual-input" placeholder="比如：李师傅拿了两斤猪肉，38块" 
+              value="{{manualText}}" bindinput="onManualInput" maxlength="100"></textarea>
+    <view class="btn-primary manual-btn" bindtap="submitManual">记一笔</view>
+  </view>
+
+  <tabbar current="{{0}}" />
+</view>

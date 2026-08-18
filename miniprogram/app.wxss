@@ -1,0 +1,74 @@
+/* app.wxss 全局样式 */
+page {
+  background: #faf6f0;
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #3d2c1e;
+  padding-bottom: 120rpx;
+}
+
+/* 卡片 */
+.card {
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 30rpx;
+  margin: 20rpx 24rpx;
+  box-shadow: 0 4rpx 16rpx rgba(180, 83, 42, 0.06);
+}
+
+.card-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+  display: flex;
+  align-items: center;
+}
+
+.card-title::before {
+  content: "";
+  width: 8rpx;
+  height: 30rpx;
+  background: #e07b39;
+  border-radius: 4rpx;
+  margin-right: 14rpx;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #e07b39, #c9642a);
+  color: #fff;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+  padding: 20rpx 0;
+  text-align: center;
+  box-shadow: 0 6rpx 16rpx rgba(224, 123, 57, 0.3);
+}
+
+.btn-primary:active {
+  opacity: 0.85;
+}
+
+.btn-ghost {
+  background: #fff;
+  color: #b4532a;
+  border: 2rpx solid #e0a184;
+  border-radius: 44rpx;
+  font-size: 28rpx;
+  padding: 16rpx 0;
+  text-align: center;
+}
+
+.empty {
+  text-align: center;
+  color: #b9a897;
+  font-size: 26rpx;
+  padding: 60rpx 0;
+}
+
+.tag {
+  display: inline-block;
+  background: #fdeee3;
+  color: #c96a2e;
+  border-radius: 8rpx;
+  font-size: 22rpx;
+  padding: 4rpx 12rpx;
+  margin-right: 10rpx;
+}

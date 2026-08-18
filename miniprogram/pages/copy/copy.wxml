@@ -1,0 +1,41 @@
+<!-- pages/copy/copy.wxml 文案生成 -->
+<view class="page">
+  <view class="card">
+    <view class="card-title">一句话，出文案</view>
+
+    <view class="form-item">
+      <text class="form-label">店名</text>
+      <input class="form-input" placeholder="我的小店" value="{{shopName}}" bindinput="onShopInput" />
+    </view>
+
+    <view class="form-item">
+      <text class="form-label">场景</text>
+      <picker mode="selector" range="{{scenes}}" value="{{sceneIndex}}" bindchange="onSceneChange">
+        <view class="picker-value">{{scenes[sceneIndex]}} ▾</view>
+      </picker>
+    </view>
+
+    <view class="form-item">
+      <text class="form-label">补充信息</text>
+      <textarea class="form-textarea" placeholder="比如：今天新到了一批手打鱼丸，王阿姨留了2斤"
+                value="{{extra}}" bindinput="onExtraInput"></textarea>
+    </view>
+
+    <view class="form-item">
+      <text class="form-label">惦记的老主顾</text>
+      <input class="form-input" placeholder="选填，比如：李大爷" value="{{customerName}}" bindinput="onCustomerInput" />
+    </view>
+
+    <view class="btn-primary generate-btn" bindtap="generate">
+      {{generating ? 'AI正在磨墨…' : '✨ 生成朋友圈文案'}}
+    </view>
+  </view>
+
+  <view class="card result-card" wx:if="{{result}}">
+    <view class="card-title">写好了</view>
+    <view class="result-text">{{result}}</view>
+    <view class="btn-ghost" bindtap="copyResult">复制去发朋友圈</view>
+  </view>
+
+  <tabbar current="{{2}}" />
+</view>

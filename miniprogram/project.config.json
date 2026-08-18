@@ -1,0 +1,13 @@
+{
+  "compileType": "miniprogram",
+  "appid": "touristappid",
+  "projectname": "ai-shopkeeper",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true
+  },
+  "libVersion": "3.4.10"
+}

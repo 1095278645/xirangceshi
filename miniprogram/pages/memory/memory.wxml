@@ -1,0 +1,73 @@
+<!-- pages/memory/memory.wxml 熟客记忆 -->
+<view class="page">
+
+  <!-- 今日提醒 -->
+  <view class="card remind-card">
+    <view class="card-title">今日要惦记的事</view>
+    <view class="remind-item" wx:for="{{memories}}" wx:key="id">
+      <view class="remind-content">
+        <text class="remind-name">{{item.customer_name}}：</text>{{item.content}}
+      </view>
+      <view class="remind-done" data-id="{{item.id}}" catchtap="doneReminder">✓</view>
+    </view>
+    <view class="empty" wx:if="{{!memories.length}}">还没有提醒，点下面按钮让AI帮你想想</view>
+    <view class="btn-ghost" bindtap="generateReminders">✨ 一键生成今日提醒</view>
+  </view>
+
+  <!-- 熟客列表 -->
+  <view class="card">
+    <view class="card-title">我的熟客（{{customers.length}}人）</view>
+    <view class="customer-list">
+      <view class="customer-item" wx:for="{{customers}}" wx:key="id"
+            data-id="{{item.id}}" bindtap="openDetail">
+        <view class="avatar">{{item.name[0]}}</view>
+        <view class="customer-info">
+          <view class="customer-name">{{item.name}}
+            <text class="tag" wx:for="{{item.tags.split(',')}}" wx:if="{{item}}" wx:key="index">{{item}}</text>
+          </view>
+          <view class="customer-meta">常点：{{item.favorite || '待积累'}（光顾 {{item.orderCount}} 次）</view>
+        </view>
+        <view class="arrow">›</view>
+      </view>
+    </view>
+    <view class="empty" wx:if="{{!loading && !customers.length}}">还没有熟客，去记账页语音记一笔吧</view>
+  </view>
+
+  <!-- 熟客详情弹层 -->
+  <view class="mask" wx:if="{{detail}}" bindtap="closeDetail">
+    <view class="detail-panel" catchtap>
+      <view class="detail-head">
+        <view class="avatar big">{{detail.name[0]}}</view>
+        <view>
+          <view class="detail-name">{{detail.name}}</view>
+          <view class="detail-meta">常点：{{detail.favorite || '未积累'}}</view>
+        </view>
+        <view class="close" bindtap="closeDetail">✕</view>
+      </view>
+
+      <view class="detail-section">
+        <view class="section-title">记忆点</view>
+        <view class="memory-chip" wx:for="{{detail.memories}}" wx:key="id">💭 {{item.content}}</view>
+        <view class="empty" wx:if="{{!detail.memories.length}}">还没有记忆点</view>
+      </view>
+
+      <view class="detail-section">
+        <view class="section-title">最近消费</view>
+        <view class="tx-row" wx:for="{{detail.transactions}}" wx:key="id">
+          <text>{{item.item}}</text>
+          <text class="tx-amount">{{item.amount}}元</text>
+        </view>
+        <view class="empty" wx:if="{{!detail.transactions.length}}">暂无记录</view>
+      </view>
+
+      <view class="detail-section">
+        <view class="section-title">记一个新记忆点</view>
+        <textarea class="memory-input" placeholder="比如：王阿姨儿子下个月结婚"
+                  value="{{newMemory}}" bindinput="onMemoryInput"></textarea>
+        <view class="btn-primary" bindtap="saveMemory">记住它</view>
+      </view>
+    </view>
+  </view>
+
+  <tabbar current="{{1}}" />
+</view>

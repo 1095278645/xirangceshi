@@ -1,0 +1,180 @@
+/* pages/memory/memory.wxss */
+.remind-card {
+  border-left: 8rpx solid #e07b39;
+}
+
+.remind-item {
+  display: flex;
+  align-items: center;
+  padding: 14rpx 0;
+  border-bottom: 1rpx dashed #f0e4d8;
+}
+
+.remind-content {
+  flex: 1;
+  font-size: 27rpx;
+  line-height: 1.5;
+}
+
+.remind-name {
+  color: #b4532a;
+  font-weight: 600;
+}
+
+.remind-done {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  border: 2rpx solid #cfe3c0;
+  color: #5d9c3a;
+  text-align: center;
+  line-height: 44rpx;
+  font-size: 28rpx;
+  margin-left: 16rpx;
+}
+
+/* 熟客列表 */
+.customer-item {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f5ede4;
+}
+
+.customer-item:last-child {
+  border-bottom: none;
+}
+
+.avatar {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e07b39, #f0a04e);
+  color: #fff;
+  font-size: 34rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 20rpx;
+  flex-shrink: 0;
+}
+
+.avatar.big {
+  width: 100rpx;
+  height: 100rpx;
+  font-size: 42rpx;
+}
+
+.customer-info {
+  flex: 1;
+}
+
+.customer-name {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.customer-meta {
+  font-size: 24rpx;
+  color: #a08d7b;
+  margin-top: 6rpx;
+}
+
+.arrow {
+  color: #d8c6b4;
+  font-size: 40rpx;
+}
+
+/* 详情弹层 */
+.mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+}
+
+.detail-panel {
+  width: 100%;
+  background: #fff;
+  border-radius: 32rpx 32rpx 0 0;
+  padding: 36rpx 32rpx 60rpx;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24rpx;
+}
+
+.detail-name {
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.detail-meta {
+  font-size: 24rpx;
+  color: #a08d7b;
+  margin-top: 6rpx;
+}
+
+.close {
+  margin-left: auto;
+  color: #b9ab9c;
+  font-size: 34rpx;
+  padding: 10rpx;
+}
+
+.detail-section {
+  margin-top: 28rpx;
+}
+
+.section-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #b4532a;
+  margin-bottom: 14rpx;
+}
+
+.mem-chip {
+  background: #fff6ec;
+  border-radius: 12rpx;
+  padding: 14rpx 20rpx;
+  font-size: 26rpx;
+  margin-bottom: 12rpx;
+}
+
+.tx-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10rpx 0;
+  font-size: 26rpx;
+  border-bottom: 1rpx dashed #f0e4d8;
+}
+
+.tx-amount {
+  color: #b4532a;
+  font-weight: 600;
+}
+
+.memory-input {
+  width: 100%;
+  height: 100rpx;
+  background: #faf6f0;
+  border-radius: 12rpx;
+  padding: 16rpx;
+  font-size: 27rpx;
+  box-sizing: border-box;
+}
+
+.btn-primary {
+  margin-top: 18rpx;
+}
+
+/* 提醒生成按钮 */
+.btn-ghost {
+  margin-top: 20rpx;
+}

@@ -1,0 +1,6 @@
+{
+  "usingComponents": {
+    "tabbar": "/components/tabbar/index"
+  },
+  "navigationBarTitleText": "巷子里的AI掌柜"
+}

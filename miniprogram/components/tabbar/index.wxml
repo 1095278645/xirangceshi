@@ -1,0 +1,14 @@
+<view class="tabbar">
+  <view class="tab-item {{current === 0 ? 'active' : ''}}" data-index="0" bindtap="go">
+    <text class="tab-icon">🗣️</text>
+    <text class="tab-label">记账</text>
+  </view>
+  <view class="tab-item {{current === 1 ? 'active' : ''}}" data-index="1" bindtap="go">
+    <text class="tab-icon">❤️</text>
+    <text class="tab-label">熟客</text>
+  </view>
+  <view class="tab-item {{current === 2 ? 'active' : ''}}" data-index="2" bindtap="go">
+    <text class="tab-icon">✍️</text>
+    <text class="tab-label">文案</text>
+  </view>
+</view>
