@@ -22,3 +22,6 @@ server/config.local.json
 # IDE
 .vscode/
 .idea/
+
+# 微信开发者工具个人私有配置
+miniprogram/project.private.config.json

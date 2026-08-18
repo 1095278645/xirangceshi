@@ -91,6 +91,19 @@ def _extract_amount(text: str):
     return None
 
 
+def _extract_customer(text: str) -> str:
+    """从大白话里提取顾客称呼（兜底用）：王阿姨、李师傅、张大爷、陈哥……
+    只匹配'姓/名+称呼'结构，避免把'排骨''豆浆'等商品名误当顾客。
+    """
+    m = re.search(
+        r"([\u4e00-\u9fa5]{1,3}?"
+        r"(?:老板娘|师傅|阿姨|大爷|大妈|奶奶|叔叔|大姐|小妹|老板|经理|老师|老李|老王|老张|老陈|老赵|老刘|小张|小李|小王|"
+        r"哥|姐|叔|婶|伯|娘|爷|奶))",
+        text,
+    )
+    return m.group(1) if m else ""
+
+
 def parse_transaction(text: str) -> dict:
     """把一句大白话转成结构化记账：'王阿姨买了两个肉包和一杯豆浆，6块' / '今天进货花了两百块'"""
     if not ai_available():
@@ -98,7 +111,7 @@ def parse_transaction(text: str) -> dict:
         amount = _extract_amount(text)
         category, trans_type = detect_category(text)
         return {
-            "customer": "", "item": text, "amount": amount, "note": "",
+            "customer": _extract_customer(text), "item": text, "amount": amount, "note": "",
             "tags": "", "category": category, "trans_type": trans_type, "fallback": True,
         }
     prompt = (

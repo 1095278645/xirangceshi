@@ -51,9 +51,10 @@
 
   <!-- 语音记账 -->
   <view class="voice-card {{recognizing ? 'recording' : ''}}">
-    <view class="voice-hint" wx:if="{{!recognizing}}">按住说话，记一笔</view>
+    <view class="voice-hint" wx:if="{{!voiceEnabled}}">语音功能需正式AppID授权，请用下方手动输入</view>
+    <view class="voice-hint" wx:elif="{{!recognizing}}">按住说话，记一笔</view>
     <view class="voice-hint recording-hint" wx:else>正在听…说完了松手</view>
-    <view class="voice-btn {{recognizing ? 'pulse' : ''}}"
+    <view class="voice-btn {{recognizing ? 'pulse' : ''}} {{!voiceEnabled ? 'voice-btn-disabled' : ''}}"
           bindtouchstart="startRecord" bindtouchend="endRecord" bindtouchcancel="cancelRecord">
       <text class="voice-icon">{{recognizing ? '🔴' : '🎤'}}</text>
     </view>

@@ -86,6 +86,11 @@
   font-size: 64rpx;
 }
 
+.voice-btn-disabled {
+  background: #d8cfc6;
+  box-shadow: none;
+}
+
 .pulse {
   animation: pulse 1s infinite;
 }

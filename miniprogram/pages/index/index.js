@@ -1,8 +1,15 @@
 // pages/index/index.js 语音记账
 const api = require('../../utils/api')
 const app = getApp()
-const plugin = requirePlugin('WechatSI')
-const manager = plugin.getRecordRecognitionManager()
+
+// 同声传译插件为可选能力：正式 AppID 授权后可用，否则降级为手动输入
+let manager = null
+try {
+  const plugin = requirePlugin('WechatSI')
+  manager = plugin.getRecordRecognitionManager()
+} catch (e) {
+  console.warn('[AI掌柜] 同声传译插件不可用（需正式 AppID 并授权），语音已降级为手动输入')
+}
 
 Page({
   data: {
@@ -10,6 +17,7 @@ Page({
     summary: { income: 0, expense: 0, balance: 0, cnt: 0 },
     month: { period: '', income: 0, expense: 0, balance: 0 },
     recognizing: false,
+    voiceEnabled: !!manager,
     result: '',
     submitting: false,
     parsed: null,       // 解析结果
@@ -39,8 +47,9 @@ Page({
     api.monthlySummary().then(m => this.setData({ month: m })).catch(() => {})
   },
 
-  // 初始化语音识别（微信同声传译插件）
+  // 初始化语音识别（微信同声传译插件，可选）
   initRecognizer() {
+    if (!manager) return
     manager.onRecognize = (res) => {
       this.setData({ result: res.result })
     }
@@ -60,15 +69,21 @@ Page({
 
   // 按住说话
   startRecord() {
+    if (!manager) {
+      wx.showToast({ title: '语音需正式AppID授权，请用下方手动输入', icon: 'none' })
+      return
+    }
     this.setData({ recognizing: true, result: '', parsed: null })
     manager.start({ lang: 'zh_CN', duration: 10000 })
   },
 
   endRecord() {
+    if (!manager) return
     manager.stop()
   },
 
   cancelRecord() {
+    if (!manager) return
     manager.stop()
     this.setData({ recognizing: false })
   },
