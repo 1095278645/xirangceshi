@@ -15,11 +15,22 @@
 
 html, body {
   height: 100%;
-  background: var(--bg);
+  background: #e8ddd0;
   color: var(--ink);
   font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
   font-size: 16px;
   line-height: 1.5;
+}
+
+/* 手机宽度容器，桌面端居中 */
+body { display: flex; justify-content: center; }
+#page-wrap {
+  width: 100%;
+  max-width: 480px;
+  min-height: 100vh;
+  background: var(--bg);
+  position: relative;
+  box-shadow: 0 0 40px rgba(0,0,0,.08);
 }
 
 #app {
@@ -147,10 +158,11 @@ input[type=password] { -webkit-text-security: disc; }
 
 /* 底部导航 */
 .tabbar {
-  position: fixed; left: 0; right: 0; bottom: 0;
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: 0; width: 100%; max-width: 480px;
   height: calc(56px + var(--safe-bottom)); padding-bottom: var(--safe-bottom);
   background: #fff; display: flex; border-top: 1px solid #f0e6da;
-  z-index: 100;
+  z-index: 100; box-shadow: 0 -2px 12px rgba(0,0,0,.06);
 }
 .tab-item {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -162,7 +174,7 @@ input[type=password] { -webkit-text-security: disc; }
 
 /* 提示 toast */
 .toast {
-  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  position: fixed; top: 40%; left: 50%; transform: translate(-50%,-50%);
   background: rgba(0,0,0,.78); color: #fff; border-radius: 10px;
   padding: 12px 20px; font-size: 14px; z-index: 999; max-width: 80vw; text-align: center;
 }
