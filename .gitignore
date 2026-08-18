@@ -1,0 +1,19 @@
+# 临时文件
+.temp/
+*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Office 临时文件
+~$*.xlsx
+~$*.docx
+~$*.pptx
+.~lock.*
+
+# IDE
+.vscode/
+.idea/
