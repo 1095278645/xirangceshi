@@ -41,5 +41,9 @@ module.exports = {
   // 提醒
   generateReminders: () => request('/api/reminders/generate', 'POST'),
   reminders: () => request('/api/reminders'),
-  reminderDone: (id) => request('/api/reminders/' + id + '/done', 'POST')
+  reminderDone: (id) => request('/api/reminders/' + id + '/done', 'POST'),
+
+  // 设置（用户自填 API Key）
+  getSettings: () => request('/api/settings'),
+  saveSettings: (data) => request('/api/settings', 'POST', data)
 }

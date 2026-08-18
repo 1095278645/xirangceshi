@@ -4,26 +4,23 @@ import re
 
 from openai import OpenAI
 
-from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
+from config import load_settings
 from categories import detect_category
-
-_client = None
-
-
-def get_client():
-    global _client
-    if _client is None:
-        _client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
-    return _client
 
 
 def ai_available():
-    return bool(DEEPSEEK_API_KEY)
+    """是否已配置 API Key（每次实时读取，设置页保存后立即生效）"""
+    return bool(load_settings()["api_key"])
+
+
+def get_client():
+    s = load_settings()
+    return OpenAI(api_key=s["api_key"], base_url=s["base_url"])
 
 
 def chat(messages, temperature=0.7, max_tokens=1024):
     resp = get_client().chat.completions.create(
-        model=DEEPSEEK_MODEL, messages=messages, temperature=temperature, max_tokens=max_tokens
+        model=load_settings()["model"], messages=messages, temperature=temperature, max_tokens=max_tokens
     )
     return resp.choices[0].message.content
 

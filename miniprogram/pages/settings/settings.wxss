@@ -1,0 +1,69 @@
+/* pages/settings/settings.wxss */
+.form-item {
+  margin-bottom: 26rpx;
+}
+
+.form-label {
+  display: block;
+  font-size: 26rpx;
+  color: #a08d7b;
+  margin-bottom: 10rpx;
+}
+
+.form-input {
+  background: #faf6f0;
+  border-radius: 12rpx;
+  padding: 18rpx 20rpx;
+  font-size: 28rpx;
+}
+
+.mt-btn {
+  margin-top: 20rpx;
+}
+
+.btn-disabled {
+  opacity: 0.6;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+
+.status-dot {
+  width: 18rpx;
+  height: 18rpx;
+  border-radius: 50%;
+  background: #d8cfc6;
+  margin-right: 12rpx;
+}
+
+.status-dot.on {
+  background: #2e9e5b;
+  box-shadow: 0 0 0 6rpx rgba(46, 158, 91, 0.15);
+}
+
+.status-text {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.status-detail {
+  font-size: 24rpx;
+  color: #a08d7b;
+  line-height: 1.6;
+}
+
+.howto {
+  margin-top: 24rpx;
+  font-size: 24rpx;
+  color: #c96a2e;
+  text-align: center;
+}
+
+.howto-text {
+  font-size: 24rpx;
+  color: #a08d7b;
+  line-height: 1.8;
+}

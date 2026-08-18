@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 import db
 import ai
+import config
 from categories import is_known_category
 
 app = FastAPI(title="巷子里的AI掌柜", version="0.1.0")
@@ -50,10 +51,45 @@ class CopyIn(BaseModel):
     customer_name: str = ""
 
 
+class SettingsIn(BaseModel):
+    api_key: str = ""          # 传空串 = 清除 Key
+    base_url: str = ""
+    model: str = ""
+
+
 # ---------------- 基础接口 ----------------
 @app.get("/api/health")
 def health():
     return {"status": "ok", "ai": ai.ai_available()}
+
+
+# ---------------- 设置（用户自行填写 API Key） ----------------
+@app.get("/api/settings")
+def get_settings():
+    """查询当前 AI 配置状态（不返回 Key 本身）"""
+    s = config.load_settings()
+    return {
+        "ai_enabled": bool(s["api_key"]),
+        "has_key": bool(s["api_key"]),
+        "base_url": s["base_url"],
+        "model": s["model"],
+    }
+
+
+@app.post("/api/settings")
+def update_settings(data: SettingsIn):
+    """保存 AI 配置到 config.local.json，保存后立即生效（无需重启后端）"""
+    s = config.save_settings(
+        api_key=data.api_key,
+        base_url=data.base_url or None,
+        model=data.model or None,
+    )
+    return {
+        "ok": True,
+        "ai_enabled": bool(s["api_key"]),
+        "base_url": s["base_url"],
+        "model": s["model"],
+    }
 
 
 # ---------------- 记账 ----------------

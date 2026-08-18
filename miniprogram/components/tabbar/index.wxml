@@ -11,4 +11,8 @@
     <text class="tab-icon">✍️</text>
     <text class="tab-label">文案</text>
   </view>
+  <view class="tab-item {{current === 3 ? 'active' : ''}}" data-index="3" bindtap="go">
+    <text class="tab-icon">⚙️</text>
+    <text class="tab-label">设置</text>
+  </view>
 </view>
