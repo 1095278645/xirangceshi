@@ -25,3 +25,6 @@ server/config.local.json
 
 # 微信开发者工具个人私有配置
 miniprogram/project.private.config.json
+
+# Claude 本地设置
+.claude/
