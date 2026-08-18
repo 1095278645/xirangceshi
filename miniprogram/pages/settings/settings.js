@@ -107,8 +107,14 @@ Page({
   },
 
   howToGet() {
+    const p = this.data.providers[this.data.providerIndex]
+    const url = (p && p.key_url) || ''
+    if (!url) {
+      wx.showToast({ title: '自定义服务请到对应平台获取 Key', icon: 'none' })
+      return
+    }
     wx.setClipboardData({
-      data: 'https://platform.deepseek.com/api_keys',
+      data: url,
       success: () => wx.showToast({ title: '链接已复制，浏览器打开', icon: 'none' })
     })
   }

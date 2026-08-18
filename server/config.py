@@ -51,12 +51,12 @@ DB_PATH = DATA_DIR / "ai_shopkeeper.db"
 
 # 支持的大模型提供商（均为 OpenAI 兼容接口）
 PROVIDERS = [
-    {"id": "deepseek", "name": "DeepSeek（深度求索）", "base_url": "https://api.deepseek.com", "model": "deepseek-chat", "key_label": "API Key（sk- 开头）"},
-    {"id": "openai", "name": "OpenAI（GPT）", "base_url": "https://api.openai.com/v1", "model": "gpt-4o-mini", "key_label": "API Key（sk- 开头）"},
-    {"id": "qwen", "name": "通义千问（阿里）", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "model": "qwen-turbo", "key_label": "API Key（sk- 开头）"},
-    {"id": "zhipu", "name": "智谱AI（GLM）", "base_url": "https://open.bigmodel.cn/api/paas/v4", "model": "glm-4-flash", "key_label": "API Key"},
-    {"id": "moonshot", "name": "月之暗面（Kimi）", "base_url": "https://api.moonshot.cn/v1", "model": "moonshot-v1-8k", "key_label": "API Key（sk- 开头）"},
-    {"id": "custom", "name": "自定义", "base_url": "", "model": "", "key_label": "API Key"},
+    {"id": "deepseek", "name": "DeepSeek（深度求索）", "base_url": "https://api.deepseek.com", "model": "deepseek-chat", "key_label": "API Key（sk- 开头）", "key_url": "https://platform.deepseek.com/api_keys"},
+    {"id": "openai", "name": "OpenAI（GPT）", "base_url": "https://api.openai.com/v1", "model": "gpt-4o-mini", "key_label": "API Key（sk- 开头）", "key_url": "https://platform.openai.com/api-keys"},
+    {"id": "qwen", "name": "通义千问（阿里）", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "model": "qwen-turbo", "key_label": "API Key（sk- 开头）", "key_url": "https://bailian.console.aliyun.com/"},
+    {"id": "zhipu", "name": "智谱AI（GLM）", "base_url": "https://open.bigmodel.cn/api/paas/v4", "model": "glm-4-flash", "key_label": "API Key", "key_url": "https://open.bigmodel.cn/usercenter/apikeys"},
+    {"id": "moonshot", "name": "月之暗面（Kimi）", "base_url": "https://api.moonshot.cn/v1", "model": "moonshot-v1-8k", "key_label": "API Key（sk- 开头）", "key_url": "https://platform.moonshot.cn/console/api-keys"},
+    {"id": "custom", "name": "自定义", "base_url": "", "model": "", "key_label": "API Key", "key_url": ""},
 ]
 
 

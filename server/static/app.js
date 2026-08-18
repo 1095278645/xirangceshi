@@ -374,6 +374,7 @@ function renderSettings() {
   const provs = state.providers;
   const curProv = state.providers.find(p => p.id === state.provider) || provs.find(p => p.id === 'custom') || {};
   const keyLabel = curProv.key_label || 'API Key';
+  const keyUrl = curProv.key_url || '';
   return `
   <div class="hero"><div class="hero-title">设置</div><div class="hero-sub">选一个大模型，填 Key 即用</div></div>
   <div class="card">
@@ -409,7 +410,9 @@ function renderSettings() {
     </div>
     <button class="btn-primary" onclick="saveSettings()">保存并启用</button>
     ${state.hasKey ? '<button class="btn-ghost" onclick="clearKey()">清除 API Key</button>' : ''}
-    <span class="link-btn" onclick="copyLink('https://platform.deepseek.com/api_keys')">还没有 Key？去对应平台开通（复制链接）</span>
+    ${keyUrl
+      ? `<span class="link-btn" onclick="copyLink('${keyUrl}')">还没有 Key？去「${curProv.name}」开通（复制链接）</span>`
+      : '<div class="howto-text">自定义服务请到对应平台获取 API Key。</div>'}
   </div>
   <div class="card">
     <div class="card-title">说明</div>
