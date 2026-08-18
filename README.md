@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '0f08ca47-a631-4a43-9f95-fc78f4dd507b'
-  PropagateID: '0f08ca47-a631-4a43-9f95-fc78f4dd507b'
-  ReservedCode1: '050dfeaa-2f16-431e-b2f4-9b6c2c5b2b7c'
-  ReservedCode2: '050dfeaa-2f16-431e-b2f4-9b6c2c5b2b7c'
+  ProduceID: '98f6eeab-6938-45ff-8265-23c63dedae44'
+  PropagateID: '98f6eeab-6938-45ff-8265-23c63dedae44'
+  ReservedCode1: '8f1d6e0a-f431-40bc-bf5b-7dced0c93b70'
+  ReservedCode2: '8f1d6e0a-f431-40bc-bf5b-7dced0c93b70'
 ---
 
 # 巷子里的AI掌柜
@@ -72,8 +72,10 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8000
 
 | 接口 | 说明 |
 |------|------|
-| `POST /api/orders` | 一句话记账（AI 解析 + 熟客归档） |
-| `GET /api/orders/today` | 今日营业汇总 |
+| `POST /api/orders` | 一句话记账（AI 解析 + 熟客归档 + 借贷凭证） |
+| `GET /api/orders/today` | 今日收支汇总 |
+| `GET /api/orders/monthly` | 月度收支汇总（含分类明细） |
+| `GET /api/vouchers` | 记账凭证列表（借贷分录） |
 | `GET /api/customers` | 熟客列表 |
 | `GET /api/customers/{id}` | 熟客详情（记忆点 + 消费记录） |
 | `POST /api/memories` | 添加记忆点 |

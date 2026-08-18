@@ -1,65 +1,27 @@
 """
 SQLite 数据层：熟客档案、记忆点、交易流水（复式记账）、凭证、提醒
 基于省账通（shengzhangtong）能力：大白话 → 分类映射 → 借贷凭证
+分类映射等常量见 categories.py
 """
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, date
 
 from config import DB_PATH
-
-# ===== 大白话分类 → 借方/贷方科目（小企业会计准则，来自省账通） =====
-CATEGORY_TO_ACCOUNTS = {
-    # 支出类（借=费用科目，贷=银行存款）
-    "进货": ("5401", "100201", "进货"),
-    "业务招待费": ("560103", "100201", "请客吃饭"),
-    "办公费": ("560101", "100201", "日常办公"),
-    "快递物流费": ("560112", "100201", "寄收快递"),
-    "租赁及物业费": ("560104", "100201", "房租水电"),
-    "差旅费": ("560102", "100201", "出差交通"),
-    "车辆使用费": ("560105", "100201", "车子花销"),
-    "广告宣传费": ("560109", "100201", "广告推广"),
-    "软件服务费": ("560111", "100201", "买软件"),
-    "培训费": ("560110", "100201", "学习培训"),
-    "职工薪酬": ("560106", "2211", "发工资"),
-    # 收入类（借=银行存款，贷=收入科目）
-    "主营业务收入": ("1001", "5001", "卖东西收的钱"),
-    "其他收入": ("1001", "5051", "其他收入"),
-}
-
-ACCOUNT_NAMES = {
-    "1001": "库存现金", "100201": "银行存款-基本户", "2211": "应付职工薪酬",
-    "5001": "主营业务收入", "5051": "其他业务收入",
-    "5401": "主营业务成本", "560101": "管理费用-办公费", "560102": "管理费用-差旅费",
-    "560103": "管理费用-业务招待费", "560104": "管理费用-租赁及物业费",
-    "560105": "管理费用-车辆使用费", "560106": "管理费用-职工薪酬",
-    "560109": "管理费用-广告宣传费", "560110": "管理费用-培训费",
-    "560111": "管理费用-软件服务费", "560112": "管理费用-快递物流费",
-}
-
-# 关键词 → 分类（无 API Key 时的兜底映射）
-KEYWORD_TO_CATEGORY = [
-    (("饭", "请客", "喝酒", "聚餐", "招待"), "业务招待费"),
-    (("进", "采购", "批发", "拿货", "补货"), "进货"),
-    (("咖啡", "打印", "文具", "纸", "笔", "办公"), "办公费"),
-    (("快递", "物流", "邮"), "快递物流费"),
-    (("房租", "物业", "水费", "电费", "燃气"), "租赁及物业费"),
-    (("车", "油", "加油", "停车", "过路"), "车辆使用费"),
-    (("机票", "酒店", "高铁", "出差"), "差旅费"),
-    (("广告", "推广", "传单"), "广告宣传费"),
-    (("软件", "会员", "订阅", "云"), "软件服务费"),
-    (("培训", "课程", "学费"), "培训费"),
-    (("工资", "发薪", "社保"), "职工薪酬"),
-]
-
-FRIENDLY_NAMES = {k: v[2] for k, v in CATEGORY_TO_ACCOUNTS.items()}
+from categories import CATEGORY_TO_ACCOUNTS, ACCOUNT_NAMES, FRIENDLY_NAMES, detect_category
 
 
+@contextmanager
 def get_conn():
+    """返回连接并在退出时提交+关闭，避免 Windows 下文件句柄泄漏"""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    try:
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def init_db():
@@ -123,15 +85,6 @@ def init_db():
         """)
 
 
-# ---------------- 分类工具 ----------------
-def detect_category(text: str) -> tuple:
-    """关键词兜底分类：返回 (分类, 收支类型)"""
-    for keywords, category in KEYWORD_TO_CATEGORY:
-        if any(k in text for k in keywords):
-            return category, ("expense" if category != "其他收入" else "income")
-    return "主营业务收入", "income"
-
-
 # ---------------- 熟客 ----------------
 def list_customers():
     with get_conn() as conn:
@@ -190,19 +143,35 @@ def add_memory(customer_id, content):
         return cur.lastrowid
 
 
+def recent_memories(per_customer=3):
+    """每位熟客最近 N 条记忆点：单次查询返回 {customer_id: [content, ...]}，避免提醒生成时 N+1 查询"""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT m.customer_id, m.content FROM memories m "
+            "JOIN customers c ON c.id=m.customer_id "
+            "ORDER BY m.id DESC").fetchall()
+    seen, out = {}, {}
+    for r in rows:
+        cid = r["customer_id"]
+        if seen.get(cid, 0) < per_customer:
+            out.setdefault(cid, []).append(r["content"])
+            seen[cid] = seen.get(cid, 0) + 1
+    return out
+
+
 # ---------------- 交易 + 凭证（复式记账） ----------------
 def add_transaction(customer_id, item, amount, trans_type="income", category="主营业务收入",
                     counterparty="", note=""):
-    """记一笔：写交易流水 + 自动生成借贷凭证（省账通映射）"""
+    """记一笔：写交易流水；有金额时自动生成借贷凭证（省账通映射），无金额仅记流水"""
     with get_conn() as conn:
         cur = conn.execute(
             "INSERT INTO transactions(customer_id, item, amount, trans_type, category, counterparty, note) "
             "VALUES(?,?,?,?,?,?,?)",
-            (customer_id, item, amount, trans_type, category, counterparty, note))
+            (customer_id, item, amount if amount is not None else 0, trans_type, category, counterparty, note))
         txn_id = cur.lastrowid
         if customer_id:
             conn.execute("UPDATE customers SET last_visit=datetime('now','localtime') WHERE id=?", (customer_id,))
-        voucher = _auto_voucher(conn, txn_id, amount, trans_type, category, item, counterparty)
+        voucher = _auto_voucher(conn, txn_id, amount, trans_type, category, item, counterparty) if amount else None
         return txn_id, voucher
 
 

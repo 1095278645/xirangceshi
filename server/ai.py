@@ -5,7 +5,7 @@ import re
 from openai import OpenAI
 
 from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
-from db import detect_category
+from categories import detect_category
 
 _client = None
 

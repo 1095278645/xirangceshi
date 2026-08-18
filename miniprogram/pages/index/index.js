@@ -10,13 +10,12 @@ Page({
     summary: { income: 0, expense: 0, balance: 0, cnt: 0 },
     month: { period: '', income: 0, expense: 0, balance: 0 },
     recognizing: false,
-    voiceText: '',
+    result: '',
     submitting: false,
     parsed: null,       // 解析结果
     voucher: null,      // 凭证信息
     friendlyCategory: '',
-    manualText: '',
-    remindTip: ''
+    manualText: ''
   },
 
   onLoad() {
@@ -79,8 +78,13 @@ Page({
     this.setData({ submitting: true })
     api.createOrder(text)
       .then(res => {
+        // WXML 不支持方法调用：tags 在 JS 层拆成数组
+        const parsed = res.parsed
+        if (parsed && parsed.tags) {
+          parsed.tagsArr = String(parsed.tags).split(',').filter(Boolean)
+        }
         this.setData({
-          parsed: res.parsed,
+          parsed,
           voucher: res.voucher,
           friendlyCategory: res.friendly_category,
           submitting: false,
@@ -88,7 +92,9 @@ Page({
           manualText: ''
         })
         this.loadMonth()
-        if (res.customer_new) {
+        if (res.amount_missing) {
+          wx.showToast({ title: '金额没听清，只记了流水', icon: 'none' })
+        } else if (res.customer_new) {
           wx.showToast({ title: '新熟客已记住', icon: 'none' })
         }
       })

@@ -17,7 +17,13 @@ Page({
 
   loadCustomers() {
     api.customers().then(list => {
-      this.setData({ customers: list, loading: false })
+      // WXML 不支持方法调用：tags 先拆成数组；后端字段为 order_count
+      const customers = list.map(c => ({
+        ...c,
+        tagsArr: (c.tags || '').split(',').filter(Boolean),
+        orderCount: c.order_count || 0
+      }))
+      this.setData({ customers, loading: false })
     }).catch(() => {
       this.setData({ loading: false })
       wx.showToast({ title: '加载失败，请确认后端已启动', icon: 'none' })

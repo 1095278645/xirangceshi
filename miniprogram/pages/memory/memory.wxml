@@ -23,9 +23,9 @@
         <view class="avatar">{{item.name[0]}}</view>
         <view class="customer-info">
           <view class="customer-name">{{item.name}}
-            <text class="tag" wx:for="{{item.tags.split(',')}}" wx:if="{{item}}" wx:key="index">{{item}}</text>
+            <text class="tag" wx:for="{{item.tagsArr}}" wx:key="index">{{item}}</text>
           </view>
-          <view class="customer-meta">常点：{{item.favorite || '待积累'}（光顾 {{item.orderCount}} 次）</view>
+          <view class="customer-meta">常点：{{item.favorite || '待积累'}}（光顾 {{item.orderCount}} 次）</view>
         </view>
         <view class="arrow">›</view>
       </view>

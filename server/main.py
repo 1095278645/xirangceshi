@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 import db
 import ai
+from categories import is_known_category
 
 app = FastAPI(title="巷子里的AI掌柜", version="0.1.0")
 
@@ -67,12 +68,14 @@ def create_order(data: OrderIn):
         cid, is_new = db.find_or_create_customer(
             customer, tags=parsed.get("tags", ""), favorite=parsed.get("item", ""))
     amount = data.amount if data.amount is not None else parsed.get("amount")
+    amount_missing = amount is None
     trans_type = parsed.get("trans_type", "income")
     category = parsed.get("category", "")
-    if not category:
+    # 防御：AI 可能输出未知分类，落到凭证前必须校验，否则用关键词兜底
+    if not category or not is_known_category(category):
         category, trans_type = db.detect_category(data.text)
     tid, voucher = db.add_transaction(
-        cid, parsed.get("item", "") or data.text, amount or 0,
+        cid, parsed.get("item", "") or data.text, amount,
         trans_type=trans_type, category=category,
         counterparty=customer, note=parsed.get("note", ""))
     return {
@@ -80,6 +83,7 @@ def create_order(data: OrderIn):
         "parsed": parsed,
         "customer_id": cid,
         "customer_new": cid and is_new,
+        "amount_missing": amount_missing,
         "voucher": voucher,
         "friendly_category": db.FRIENDLY_NAMES.get(category, category),
         "summary": db.today_summary(),
@@ -141,12 +145,13 @@ def copywriting(data: CopyIn):
 def reminders_generate():
     """用 AI 生成今日提醒并入库"""
     customers = db.list_customers()
+    if not customers:
+        return {"reminders": []}
+    mem_map = db.recent_memories(3)          # 单次查询取全部熟客近期记忆，避免 N+1
     brief = "\n".join(
         f"{c['name']}（常点：{c['favorite'] or '未知'}）"
-        + ("，最近记忆：" + "；".join(m["content"] for m in db.get_customer(c["id"])["memories"][:3]) if db.get_customer(c["id"])["memories"] else "")
+        + (f"，最近记忆：{'；'.join(mem_map.get(c['id'], []))}" if mem_map.get(c['id']) else "")
         for c in customers[:20])
-    if not brief:
-        return {"reminders": []}
     items = ai.generate_reminders(brief)
     saved = []
     for it in items:

@@ -88,7 +88,7 @@
         <text class="parsed-value voucher-no">{{voucher.voucher_no}}（借:{{voucher.debit}} / 贷:{{voucher.credit}}）</text>
       </view>
     </view>
-    <view class="tag" wx:for="{{parsed.tags.split(',')}}" wx:if="{{item}}" wx:key="index">{{item}}</view>
+    <view class="tag" wx:for="{{parsed.tagsArr}}" wx:key="index">{{item}}</view>
   </view>
 
   <!-- 手动输入兜底 -->
