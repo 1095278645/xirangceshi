@@ -1,0 +1,70 @@
+/* pages/store/store.wxss 单店模型：保本线先行 */
+.page { padding-bottom: 140rpx; }
+
+.hero {
+  background: linear-gradient(135deg, #b4532a, #e07b39);
+  padding: 56rpx 40rpx 90rpx;
+  color: #fff;
+  border-radius: 0 0 56rpx 56rpx;
+}
+.hero-title { font-size: 44rpx; font-weight: 700; }
+.hero-sub { font-size: 26rpx; opacity: .9; margin-top: 8rpx; }
+
+.card {
+  background: #fff;
+  border-radius: 32rpx;
+  padding: 32rpx;
+  margin: 24rpx 30rpx 0;
+  box-shadow: 0 6rpx 24rpx rgba(180, 83, 42, .06);
+}
+.card-title { font-size: 32rpx; font-weight: 600; margin-bottom: 24rpx; }
+
+.row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18rpx 0; border-bottom: 1rpx solid #f5ede4;
+}
+.row-label { font-size: 26rpx; color: #8a7a6a; flex-shrink: 0; }
+.row-input { text-align: right; font-size: 28rpx; flex: 1; margin-left: 24rpx; }
+.picker-val { color: #3d2c1e; font-size: 28rpx; }
+.radio-line { display: flex; gap: 30rpx; }
+.radio { font-size: 26rpx; color: #3d2c1e; display: flex; align-items: center; }
+.radio radio { transform: scale(.8); }
+
+.note { font-size: 22rpx; color: #a08d7b; margin: 10rpx 0; line-height: 1.6; }
+
+.btn {
+  margin-top: 28rpx;
+  background: #b4532a; color: #fff; font-size: 30rpx;
+  border-radius: 16rpx; padding: 20rpx 0;
+}
+.btn[disabled] { background: #d9c6b8; color: #fff; }
+
+.score-tag {
+  float: right; font-size: 22rpx; font-weight: 400;
+  color: #a08d7b; background: #faf6f0; border-radius: 12rpx; padding: 4rpx 16rpx;
+}
+.verdict { font-size: 28rpx; line-height: 1.8; }
+.result {
+  background: #faf6f0; border-radius: 16rpx; padding: 20rpx;
+  font-size: 26rpx; margin-top: 16rpx; line-height: 1.6;
+}
+.result.warn { border-left: 6rpx solid #f0a63a; }
+
+.grid { display: flex; flex-wrap: wrap; gap: 20rpx; margin: 16rpx 0; }
+.grid-cell {
+  width: calc(50% - 10rpx);
+  background: #faf6f0; border-radius: 20rpx; padding: 24rpx 0; text-align: center;
+}
+.grid-num { font-size: 38rpx; font-weight: 700; color: #b4532a; }
+.grid-label { font-size: 22rpx; color: #a08d7b; margin-top: 6rpx; }
+
+.dim-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20rpx 0; border-bottom: 1rpx solid #f5ede4; font-size: 28rpx;
+}
+.dim-row:last-child { border-bottom: none; }
+.dim-level { font-size: 22rpx; padding: 4rpx 16rpx; border-radius: 12rpx; }
+.dim-level.健康 { color: #2e9e5b; background: #e7f6ec; }
+.dim-level.临界 { color: #c97b1f; background: #fdf3e3; }
+.dim-level.危险 { color: #d64545; background: #fbe9e9; }
+.dim-score { font-size: 24rpx; color: #a08d7b; }

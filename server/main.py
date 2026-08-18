@@ -18,6 +18,7 @@ import config
 import payment
 import report as reportlib
 import tax as taxcalc
+import store as storelib
 from categories import is_known_category, ACCOUNT_TITLES, ACCOUNT_CATEGORY_NAMES
 
 log = logging.getLogger("main")
@@ -119,6 +120,20 @@ class PaymentSourceIn(BaseModel):
     private_key_path: str = ""
     api_v3_key: str = ""
     enabled: bool = False
+
+
+class StoreModelIn(BaseModel):
+    """单店经营模型输入（多业态泛化）"""
+    daily_revenue: float = 0           # 实际日营业额（元）
+    gross_margin: float | None = None  # 毛利率（小数）；None 用业态默认
+    rent: float = 0                    # 月房租
+    salary: float = 0                  # 月人工
+    utilities: float = 0               # 月水电杂费
+    total_investment: float = 0        # 总投资
+    cash_on_hand: float = 0            # 现有现金
+    traffic: str = "一般"              # 商圈客流：差/一般/好
+    competitor: str = "一般"           # 周边竞争：多/一般/少
+    biz_type: str = "餐饮"             # 业态：餐饮/饮品/零售/生鲜/服务/摆摊
 
 
 # ---------------- 基础接口 ----------------
@@ -335,6 +350,37 @@ def tax_cit(data: CitIn):
 def tax_calendar(year: int | None = None, month: int | None = None):
     """当月报税日历提醒"""
     return taxcalc.get_filing_calendar(year, month)
+
+
+# ---------------- 单店经营模型（勇哥方法论泛化：保本线先行） ----------------
+@app.get("/api/store/presets")
+def store_presets():
+    """业态预设：参考毛利率区间 + 经营提示"""
+    return {
+        "presets": [
+            {"key": k, "name": v["name"], "margin_range": list(v["margin_range"]),
+             "margin_default": v["margin_default"], "note": v["note"]}
+            for k, v in storelib.BUSINESS_PRESETS.items()
+        ],
+        "rule": "保本线是店的命线：日销低于保本线，开门一天亏一天；低于目标线，白忙不赚钱",
+    }
+
+
+@app.post("/api/store/model")
+def store_model(data: StoreModelIn):
+    """单店模型计算：保本线 + 目标日销 + 回本周期 + 现金流 + 三维诊断"""
+    return storelib.calc_store_model(
+        daily_revenue=data.daily_revenue,
+        gross_margin=data.gross_margin,
+        rent=data.rent,
+        salary=data.salary,
+        utilities=data.utilities,
+        total_investment=data.total_investment,
+        cash_on_hand=data.cash_on_hand,
+        traffic=data.traffic,
+        competitor=data.competitor,
+        biz_type=data.biz_type,
+    )
 
 
 # ---------------- 报表导出（省账通能力） ----------------

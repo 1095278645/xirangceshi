@@ -279,3 +279,32 @@ input[type=password] { -webkit-text-security: disc; }
 }
 .btn-mini:active { background: #fff6ec; }
 .btn-mini.btn-danger { color: var(--red); border-color: #f3d5d5; }
+
+/* 单店模型（勇哥方法论泛化：保本线先行） */
+.store-score {
+  float: right; font-size: 12px; font-weight: 500; color: var(--brown);
+  background: var(--bg); border-radius: 8px; padding: 2px 8px;
+}
+.store-verdict { font-size: 14px; line-height: 1.7; color: var(--ink); }
+.warn-box { border-left: 3px solid #f0a63a; }
+.store-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;
+}
+.store-cell {
+  background: var(--bg); border-radius: 12px; padding: 12px; text-align: center;
+}
+.store-cell-num { font-size: 20px; font-weight: 700; color: var(--orange-dark); }
+.store-cell-label { font-size: 11px; color: var(--brown); margin-top: 3px; }
+.dim-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 0; border-bottom: 1px solid #f5ede4; font-size: 14px;
+}
+.dim-row:last-child { border-bottom: none; }
+.dim-name { flex: 1; }
+.dim-level {
+  font-size: 11px; border-radius: 6px; padding: 1px 8px;
+}
+.dim-level.健康 { color: var(--green); background: #e7f6ec; }
+.dim-level.临界 { color: #c97b1f; background: #fdf3e3; }
+.dim-level.危险 { color: var(--red); background: #fbe9e9; }
+.dim-score { color: var(--brown); font-size: 12px; }

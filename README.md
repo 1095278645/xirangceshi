@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'd64b9685-990b-4714-a199-715fa5d3cbcf'
-  PropagateID: 'd64b9685-990b-4714-a199-715fa5d3cbcf'
-  ReservedCode1: '382c27ac-2fec-44fc-902d-c5344ebec316'
-  ReservedCode2: '382c27ac-2fec-44fc-902d-c5344ebec316'
+  ProduceID: '38592420-a8ae-4db0-bcc9-99de4991f85b'
+  PropagateID: '38592420-a8ae-4db0-bcc9-99de4991f85b'
+  ReservedCode1: '4220ff6e-effb-4ed2-8e35-3e819d8fea05'
+  ReservedCode2: '4220ff6e-effb-4ed2-8e35-3e819d8fea05'
 ---
 
 # 巷子里的AI掌柜
@@ -23,6 +23,7 @@ AIGC:
 | 熟客记忆 | 记住熟客的暖心细节（"孙子考了一百分"），一键生成今日提醒，帮店主续上人情 |
 | 朋友圈文案 | 口语化、带烟火气的文案，拒绝网红词，保留小店的粗粝与真诚 |
 | 账本（省账通） | 查流水、算税费（增值税/个税/企税/报税日历）、66 科目表、一键导出 Excel 报表；大额记账自动预警 |
+| 单店模型 | 保本线先行：填日销/成本/投资，算出保本日销、目标日销、回本周期、现金流可扛月数，三维交叉验证（经营现金流/投资回本/商圈客流）给出健康/临界/危险结论与整改建议；覆盖餐饮/饮品/零售/生鲜/服务/摆摊六业态 |
 | 收款流水自动入账 | 二维码收付款流水自动同步进账本：微信支付商户号（有执照）+ 聚合支付（无执照，接入中）双通道；无商户资料可填 DEMO 体验演示模式 |
 
 ## 目录结构
@@ -33,6 +34,7 @@ AIGC:
 │   ├── pages/memory/   # 熟客记忆
 │   ├── pages/copy/     # 朋友圈文案
 │   ├── pages/books/    # 账本（流水/算税/科目/报表）
+│   ├── pages/store/    # 单店模型（保本线/现金流/三维诊断）
 │   ├── pages/settings/ # 设置（AI 模型 + 收款账户）
 │   └── components/     # 底部导航
 └── server/             # Python FastAPI 后端
@@ -42,6 +44,7 @@ AIGC:
     ├── categories.py   # 66 科目表（资产/负债/权益/收入/费用）
     ├── tax.py          # 税法计算（增值税/附加税/个税/企税/报税日历/边界护栏）
     ├── report.py       # Excel 报表导出（openpyxl，三工作表）
+    ├── store.py        # 单店经营模型（保本线/目标日销/回本/现金流/三维诊断，六业态预设）
     ├── payment.py      # 收款流水同步统一入口（微信/聚合/演示模式）
     ├── wechat_pay.py   # 微信支付 v3 交易账单同步（真实对接 + DEMO 演示）
     ├── aggregate_pay.py# 聚合支付适配器（预留收钱吧/付桥等服务商）
@@ -111,6 +114,8 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8000
 | `POST /api/tax/cit` | 企业所得税计算（小微/一般） |
 | `GET /api/tax/calendar` | 报税日历（月度申报提醒） |
 | `GET /api/report/monthly` | 月度 Excel 报表（收支汇总/分类明细/交易流水） |
+| `GET /api/store/presets` | 单店模型业态预设（六业态参考毛利率区间与经营提示） |
+| `POST /api/store/model` | 单店模型计算（保本线/目标日销/回本周期/现金流/三维诊断与建议） |
 | `GET /api/payment/sources` | 收款账户列表（微信商户/聚合支付） |
 | `POST /api/payment/sources` | 新增/更新收款账户（mchid 填 DEMO 即演示模式） |
 | `DELETE /api/payment/sources/{id}` | 删除收款账户 |

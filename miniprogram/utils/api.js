@@ -66,5 +66,9 @@ module.exports = {
   syncPaySource: (id) => request('/api/payment/sources/' + id + '/sync', 'POST'),
   payLogs: () => request('/api/payment/logs'),
   demoClear: () => request('/api/payment/demo-clear', 'POST'),
-  syncAllPay: () => request('/api/payment/sync-all', 'POST')
+  syncAllPay: () => request('/api/payment/sync-all', 'POST'),
+
+  // 单店模型（保本线先行）
+  storePresets: () => request('/api/store/presets'),
+  storeModel: (data) => request('/api/store/model', 'POST', data)
 }

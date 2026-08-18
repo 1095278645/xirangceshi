@@ -4,6 +4,7 @@
     "pages/memory/memory",
     "pages/copy/copy",
     "pages/books/books",
+    "pages/store/store",
     "pages/settings/settings"
   ],
   "window": {

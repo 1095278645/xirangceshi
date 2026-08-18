@@ -1,0 +1,132 @@
+<view class="page">
+  <view class="hero">
+    <view class="hero-title">单店模型</view>
+    <view class="hero-sub">保本线先行 · 赚不赚钱心里有数</view>
+  </view>
+
+  <!-- 输入区 -->
+  <view class="card">
+    <view class="card-title">你的店，如实填</view>
+
+    <view class="row">
+      <text class="row-label">业态</text>
+      <picker mode="selector" range="{{presets}}" range-key="name" value="{{bizTypeIndex}}" bindchange="onBizChange">
+        <view class="picker-val">{{bizTypeName || bizType}}</view>
+      </picker>
+    </view>
+    <view class="note" wx:if="{{presetNote}}">{{presetNote}}</view>
+
+    <view class="row">
+      <text class="row-label">实际日营业额（元）</text>
+      <input class="row-input" type="digit" placeholder="如 1200" value="{{dailyRevenue}}" data-key="dailyRevenue" bindinput="onInput" />
+    </view>
+    <view class="row">
+      <text class="row-label">毛利率 %（可不填）</text>
+      <input class="row-input" type="digit" placeholder="{{marginHint}}" value="{{grossMargin}}" data-key="grossMargin" bindinput="onInput" />
+    </view>
+    <view class="note" wx:if="{{marginHint}}">{{marginHint}}</view>
+
+    <view class="row">
+      <text class="row-label">月房租（元）</text>
+      <input class="row-input" type="digit" placeholder="如 6000" value="{{rent}}" data-key="rent" bindinput="onInput" />
+    </view>
+    <view class="row">
+      <text class="row-label">月人工（元，含自己）</text>
+      <input class="row-input" type="digit" placeholder="如 8000" value="{{salary}}" data-key="salary" bindinput="onInput" />
+    </view>
+    <view class="row">
+      <text class="row-label">月水电杂费（元）</text>
+      <input class="row-input" type="digit" placeholder="如 2000" value="{{utilities}}" data-key="utilities" bindinput="onInput" />
+    </view>
+    <view class="row">
+      <text class="row-label">总投资（元）</text>
+      <input class="row-input" type="digit" placeholder="含转让/装修/设备" value="{{totalInvestment}}" data-key="totalInvestment" bindinput="onInput" />
+    </view>
+    <view class="row">
+      <text class="row-label">现有现金（元）</text>
+      <input class="row-input" type="digit" placeholder="如 50000" value="{{cashOnHand}}" data-key="cashOnHand" bindinput="onInput" />
+    </view>
+
+    <view class="row">
+      <text class="row-label">商圈客流</text>
+      <radio-group class="radio-line" bindchange="onTrafficChange">
+        <label class="radio" wx:for="{{trafficOptions}}" wx:key="*this">
+          <radio value="{{item}}" checked="{{traffic === item}}" />{{item}}
+        </label>
+      </radio-group>
+    </view>
+    <view class="row">
+      <text class="row-label">周边竞争</text>
+      <radio-group class="radio-line" bindchange="onCompetitorChange">
+        <label class="radio" wx:for="{{competitorOptions}}" wx:key="*this">
+          <radio value="{{item}}" checked="{{competitor === item}}" />{{item}}
+        </label>
+      </radio-group>
+    </view>
+
+    <button class="btn" bindtap="calcModel" disabled="{{calcLoading}}">
+      {{calcLoading ? '算账中…' : '算账'}}
+    </button>
+  </view>
+
+  <!-- 结果区 -->
+  <block wx:if="{{result}}">
+    <view class="card">
+      <view class="card-title">
+        {{result.overall.level === '健康' ? '🟢' : (result.overall.level === '临界' ? '🟡' : '🔴')}}
+        诊断结论：{{result.overall.level}}
+        <text class="score-tag">综合分 {{result.overall.score}}</text>
+      </view>
+      <view class="result">
+        <view class="verdict">{{result.advice}}</view>
+      </view>
+      <view class="result warn" wx:for="{{result.cash_flags}}" wx:key="*this">{{item}}</view>
+      <view class="note">{{result.biz_rule}}</view>
+    </view>
+
+    <view class="card">
+      <view class="card-title">保本线（这是你店的命线）</view>
+      <view class="grid">
+        <view class="grid-cell">
+          <view class="grid-num">{{result.model.break_even_day}}</view>
+          <view class="grid-label">保本日销（元/天）</view>
+        </view>
+        <view class="grid-cell">
+          <view class="grid-num">{{result.model.target_day}}</view>
+          <view class="grid-label">目标日销 ×1.3（元/天）</view>
+        </view>
+        <view class="grid-cell">
+          <view class="grid-num">{{result.model.fixed_month}}</view>
+          <view class="grid-label">月固定支出（元）</view>
+        </view>
+        <view class="grid-cell">
+          <view class="grid-num">{{paybackText}}</view>
+          <view class="grid-label">回本周期（月）</view>
+        </view>
+      </view>
+      <view class="note">月毛利{{monthGrossText}}元 − 固定支出{{result.model.fixed_month}}元 = 月利润{{result.model.month_profit}}元</view>
+      <view class="note">现金流：现有现金可扛 {{cashText}} 个月</view>
+    </view>
+
+    <view class="card">
+      <view class="card-title">三维交叉验证</view>
+      <view class="dim-row">
+        <text>{{result.dimensions.a.level === '健康' ? '🟢' : (result.dimensions.a.level === '临界' ? '🟡' : '🔴')}} 经营现金流</text>
+        <text class="dim-level {{result.dimensions.a.level}}">{{result.dimensions.a.level}}</text>
+        <text class="dim-score">{{result.dimensions.a.score}}分</text>
+      </view>
+      <view class="dim-row">
+        <text>{{result.dimensions.b.level === '健康' ? '🟢' : (result.dimensions.b.level === '临界' ? '🟡' : '🔴')}} 投资回本</text>
+        <text class="dim-level {{result.dimensions.b.level}}">{{result.dimensions.b.level}}</text>
+        <text class="dim-score">{{result.dimensions.b.score}}分</text>
+      </view>
+      <view class="dim-row">
+        <text>{{result.dimensions.c.level === '健康' ? '🟢' : (result.dimensions.c.level === '临界' ? '🟡' : '🔴')}} 商圈客流</text>
+        <text class="dim-level {{result.dimensions.c.level}}">{{result.dimensions.c.level}}</text>
+        <text class="dim-score">{{result.dimensions.c.score}}分</text>
+      </view>
+    </view>
+  </block>
+
+  <tabbar current="{{4}}" />
+</view>
