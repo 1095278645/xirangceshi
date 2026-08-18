@@ -89,8 +89,9 @@ def init_db():
 def list_customers():
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT c.*, (SELECT COUNT(*) FROM transactions t WHERE t.customer_id=c.id) AS order_count "
-            "FROM customers c ORDER BY c.last_visit DESC").fetchall()
+            "SELECT c.*, COUNT(t.id) AS order_count "
+            "FROM customers c LEFT JOIN transactions t ON t.customer_id=c.id "
+            "GROUP BY c.id ORDER BY c.last_visit DESC").fetchall()
         return [dict(r) for r in rows]
 
 
@@ -188,7 +189,8 @@ def _auto_voucher(conn, txn_id, amount, trans_type, category, summary, counterpa
     seq = conn.execute(
         "SELECT COUNT(*) FROM vouchers WHERE voucher_date LIKE ?", (period + "%",)
     ).fetchone()[0] + 1
-    voucher_no = f"记-{seq:03d}"
+    # 凭证号带月份前缀：voucher_no 列全局 UNIQUE，若每月从 1 重新编号会在跨月时撞号
+    voucher_no = f"记-{period.replace('-', '')}-{seq:03d}"
 
     cur = conn.execute(
         "INSERT INTO vouchers(voucher_no, voucher_date, summary, transaction_id) VALUES(?,?,?,?)",
@@ -212,13 +214,16 @@ def list_vouchers(limit=50):
             "SELECT v.*, t.item, t.amount, t.trans_type, t.category "
             "FROM vouchers v LEFT JOIN transactions t ON t.id=v.transaction_id "
             "ORDER BY v.id DESC LIMIT ?", (limit,)).fetchall()
-        out = []
-        for r in rows:
-            d = dict(r)
-            d["entries"] = [dict(x) for x in conn.execute(
-                "SELECT * FROM voucher_entries WHERE voucher_id=?", (r["id"],))]
-            out.append(d)
-        return out
+        vids = [r["id"] for r in rows]
+        by_vid = {}
+        if vids:
+            ph = ",".join("?" * len(vids))
+            entries = conn.execute(
+                f"SELECT * FROM voucher_entries WHERE voucher_id IN ({ph}) ORDER BY voucher_id, id",
+                vids).fetchall()
+            for e in entries:
+                by_vid.setdefault(e["voucher_id"], []).append(dict(e))
+        return [dict(r) | {"entries": by_vid.get(r["id"], [])} for r in rows]
 
 
 def today_summary():

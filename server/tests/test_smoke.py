@@ -7,6 +7,7 @@ import re
 import sys
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -62,11 +63,17 @@ class TestLedger(unittest.TestCase):
     def test_transaction_with_voucher(self):
         _, v = db.add_transaction(None, "进了一批货", 120, "expense", "进货")
         self.assertIsNotNone(v)
-        self.assertRegex(v["voucher_no"], r"^记-\d{3}$")
+        self.assertRegex(v["voucher_no"], r"^记-\d{6}-\d{3}$")
         vs = db.list_vouchers(1)
         entries = vs[0]["entries"]
         self.assertEqual(len(entries), 2)                    # 借贷两笔分录
         self.assertEqual(sum(e["amount"] for e in entries), 240.0)  # 借贷平衡
+
+    def test_voucher_no_embeds_period(self):
+        """凭证号含月份前缀：voucher_no 全局 UNIQUE，否则每月从 1 重新编号会跨月撞号"""
+        _, v = db.add_transaction(None, "测试跨月", 1, "income", "主营业务收入")
+        period = date.today().isoformat()[:7].replace("-", "")
+        self.assertTrue(v["voucher_no"].startswith(f"记-{period}-"))
 
     def test_transaction_without_amount(self):
         _, v = db.add_transaction(None, "王阿姨买了包子，没记账单", None, "income", "主营业务收入")

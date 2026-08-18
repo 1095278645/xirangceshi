@@ -3,4 +3,3 @@ uvicorn>=0.30
 openai>=1.40
 pydantic>=2.7
 
-AI生成

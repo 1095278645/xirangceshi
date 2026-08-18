@@ -1,6 +1,8 @@
 """巷子里的AI掌柜 · 后端服务
 启动：uvicorn main:app --host 0.0.0.0 --port 8000
 """
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -12,7 +14,14 @@ import ai
 import config
 from categories import is_known_category
 
-app = FastAPI(title="巷子里的AI掌柜", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    db.init_db()
+    yield
+
+
+app = FastAPI(title="巷子里的AI掌柜", version="0.1.0", lifespan=lifespan)
 
 _STATIC_DIR = config.BASE_DIR / "static"
 
@@ -22,11 +31,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def startup():
-    db.init_db()
 
 
 # ---------------- 请求模型 ----------------
