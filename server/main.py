@@ -3,6 +3,8 @@
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 import db
@@ -11,6 +13,8 @@ import config
 from categories import is_known_category
 
 app = FastAPI(title="巷子里的AI掌柜", version="0.1.0")
+
+_STATIC_DIR = config.BASE_DIR / "static"
 
 app.add_middleware(
     CORSMiddleware,
@@ -211,3 +215,15 @@ def reminder_done(rid: int, done: int = 1):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+# ---------------- 网页端（手机浏览器访问） ----------------
+# 放在最后：API 路由优先匹配，静态资源兜底
+if _STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
+
+
+@app.get("/")
+def web_index():
+    """手机浏览器打开 http://电脑IP:8000/ 即用"""
+    return FileResponse(str(_STATIC_DIR / "index.html"))
