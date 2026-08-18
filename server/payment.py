@@ -10,6 +10,7 @@ import sqlite3
 from datetime import date, timedelta
 
 import db
+import aggregate_pay
 import wechat_pay
 
 log = logging.getLogger("payment")
@@ -46,7 +47,7 @@ def run_sync(source_id, bill_date=None):
         if source["source_type"] == "wechat":
             txns = wechat_pay.fetch_trade_bill(source, bill_date)
         else:
-            txns = aggregate_pay_stub(source, bill_date)
+            txns = aggregate_pay.fetch_aggregate_bill(source, bill_date)
     except Exception as e:  # noqa: BLE001
         log.error("sync fail source=%s date=%s: %s", source_id, bill_date, e)
         log_id = db.add_sync_log(source_id, bill_date, status="error", error=str(e)[:300])
@@ -81,10 +82,3 @@ def demo_clear():
     with db.get_conn() as conn:
         cur = conn.execute("DELETE FROM transactions WHERE wx_trade_id LIKE 'DEMO-%'")
         return cur.rowcount
-
-
-def aggregate_pay_stub(source, bill_date):
-    """聚合支付适配器占位：未接入服务商时给出明确提示（不静默失败）。"""
-    raise RuntimeError(
-        "聚合支付通道尚未接入服务商。当前可用方案："
-        "① 办理微信支付商户号（有执照） ② 用 mchid=DEMO 体验演示模式")

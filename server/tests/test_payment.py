@@ -89,7 +89,7 @@ class TestPaymentSync(unittest.TestCase):
             source_type="aggregate", name="聚合码", mchid="AGG001", enabled=1)
         r = payment.run_sync(aid, self.bill_date)
         self.assertFalse(r["ok"])
-        self.assertIn("聚合支付通道尚未接入", r["error"])
+        self.assertIn("聚合支付通道待接入", r["error"])
 
 
 class TestBillCsv(unittest.TestCase):
