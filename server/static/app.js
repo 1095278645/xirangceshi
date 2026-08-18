@@ -65,7 +65,7 @@ const state = {
   store: { presets: [], bizType: '餐饮', form: { daily_revenue: '', gross_margin: '',
     rent: '', salary: '', utilities: '', total_investment: '', cash_on_hand: '',
     traffic: '一般', competitor: '一般' },
-    result: null, loading: false },
+    result: null, loading: false, ledgering: false, ledgerNote: '' },
 };
 
 let recognition = null;
@@ -560,6 +560,30 @@ async function calcStoreModel() {
   render();
 }
 
+async function loadStoreLedger() {
+  state.store.ledgering = true;
+  state.store.ledgerNote = '';
+  render();
+  try {
+    const r = await api('/api/store/from-ledger');
+    if (!r.daily_revenue && r.daily_revenue !== 0) {
+      toast('账本里还没有收入流水，先去记几笔吧');
+      state.store.ledgering = false;
+      render();
+      return;
+    }
+    state.store.form.daily_revenue = r.daily_revenue;
+    state.store.form.gross_margin = r.gross_margin != null ? (r.gross_margin * 100).toFixed(0) : '';
+    state.store.ledgerNote = r.note;
+    state.store.result = null;
+    toast('已从账本带入');
+  } catch (e) {
+    toast(e.message);
+  }
+  state.store.ledgering = false;
+  render();
+}
+
 function renderStore() {
   const s = state.store;
   const f = s.form;
@@ -624,6 +648,8 @@ function renderStore() {
       <input class="form-input" type="number" placeholder="${marginHint}" value="${f.gross_margin}" oninput="state.store.form.gross_margin=this.value" />
       <div class="note">${marginHint}</div>
     </div>
+    ${s.ledgerNote ? `<div class="result-box ledger-box">📖 ${s.ledgerNote}</div>` : ''}
+    <button class="btn-secondary ${s.ledgering ? 'disabled' : ''}" onclick="loadStoreLedger()">${s.ledgering ? '读取中…' : '📖 从账本流水带入'}</button>
     <div class="form-item">
       <label class="form-label">月房租（元）</label>
       <input class="form-input" type="number" placeholder="如 6000" value="${f.rent}" oninput="state.store.form.rent=this.value" />

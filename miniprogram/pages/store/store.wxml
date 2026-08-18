@@ -26,6 +26,11 @@
     </view>
     <view class="note" wx:if="{{marginHint}}">{{marginHint}}</view>
 
+    <view class="note ledger-note" wx:if="{{ledgerNote}}">📖 {{ledgerNote}}</view>
+    <button class="btn-ghost" bindtap="fromLedger" disabled="{{ledgering}}">
+      {{ledgering ? '读取中…' : '📖 从账本流水带入'}}
+    </button>
+
     <view class="row">
       <text class="row-label">月房租（元）</text>
       <input class="row-input" type="digit" placeholder="如 6000" value="{{rent}}" data-key="rent" bindinput="onInput" />

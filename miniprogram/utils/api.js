@@ -70,5 +70,6 @@ module.exports = {
 
   // 单店模型（保本线先行）
   storePresets: () => request('/api/store/presets'),
-  storeModel: (data) => request('/api/store/model', 'POST', data)
+  storeModel: (data) => request('/api/store/model', 'POST', data),
+  storeFromLedger: () => request('/api/store/from-ledger')
 }

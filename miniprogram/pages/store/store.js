@@ -36,7 +36,9 @@ Page({
     paybackText: '',
     cashText: '',
     monthGrossText: '',
-    calcLoading: false
+    calcLoading: false,
+    ledgering: false,
+    ledgerNote: ''
   },
 
   onLoad() {
@@ -81,6 +83,31 @@ Page({
 
   onTrafficChange(e) { this.setData({ traffic: e.detail.value }) },
   onCompetitorChange(e) { this.setData({ competitor: e.detail.value }) },
+
+  // 从账本真实流水反推实际日销/毛利率，一键带入
+  fromLedger() {
+    this.setData({ ledgering: true, ledgerNote: '' })
+    api.storeFromLedger()
+      .then(r => {
+        if (r.daily_revenue == null) {
+          wx.showToast({ title: '账本里还没有收入流水，先去记几笔吧', icon: 'none' })
+          this.setData({ ledgering: false })
+          return
+        }
+        this.setData({
+          dailyRevenue: String(r.daily_revenue),
+          grossMargin: r.gross_margin != null ? String(Math.round(r.gross_margin * 100)) : '',
+          ledgerNote: r.note,
+          result: null,
+          ledgering: false
+        })
+        wx.showToast({ title: '已从账本带入', icon: 'success' })
+      })
+      .catch(() => {
+        this.setData({ ledgering: false })
+        wx.showToast({ title: '读取账本失败，请确认后端已启动', icon: 'none' })
+      })
+  },
 
   calcModel() {
     const d = this.data

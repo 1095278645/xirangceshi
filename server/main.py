@@ -383,6 +383,12 @@ def store_model(data: StoreModelIn):
     )
 
 
+@app.get("/api/store/from-ledger")
+def store_from_ledger(year: int | None = None, month: int | None = None):
+    """从账本真实流水反推单店输入：实际日销 + 毛利率（不传年月自动取最近有收入的月份）"""
+    return db.store_ledger_stats(year, month)
+
+
 # ---------------- 报表导出（省账通能力） ----------------
 @app.get("/api/report/monthly")
 def report_monthly(year: int | None = None, month: int | None = None):

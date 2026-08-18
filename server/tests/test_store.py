@@ -4,11 +4,14 @@
 运行：cd server && python -m unittest tests.test_store -v
 """
 import sys
+import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import db
 import store as storelib
 
 
@@ -114,6 +117,57 @@ class TestInputGuards(unittest.TestCase):
         r = storelib.calc_store_model(daily_revenue=1000, gross_margin=None,
                                       rent=1000, biz_type="零售")
         self.assertAlmostEqual(r["inputs"]["gross_margin"], 0.24, places=3)
+
+
+class TestLedgerReverseDerive(unittest.TestCase):
+    """从账本真实流水反推日销/毛利率（临时库）"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(cls._tmp.name) / "test.db"
+        db.init_db()
+        today = date.today()
+        d1 = today.isoformat()
+        d2 = (today - timedelta(days=1)).isoformat()
+        d3 = (today - timedelta(days=2)).isoformat()
+        with db.get_conn() as conn:
+            conn.executemany(
+                "INSERT INTO transactions(trans_type, category, item, amount, created_at) "
+                "VALUES(?,?,?,?,?)",
+                [
+                    ("expense", "进货", "进货", 1200, f"{d1} 08:00:00"),
+                    ("income", "主营业务收入", "卖货", 1000, f"{d1} 09:00:00"),
+                    ("income", "主营业务收入", "卖货", 1000, f"{d2} 09:00:00"),
+                    ("income", "主营业务收入", "卖货", 1000, f"{d3} 09:00:00"),
+                    # 房租不是直接成本
+                    ("expense", "租赁及物业费", "房租", 5000, f"{d1} 10:00:00"),
+                ])
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def test_daily_revenue_and_margin(self):
+        s = db.store_ledger_stats(date.today().year, date.today().month)
+        self.assertEqual(s["income_total"], 3000)
+        self.assertEqual(s["active_days"], 3)
+        self.assertAlmostEqual(s["daily_revenue"], 1000.0, places=1)
+        self.assertAlmostEqual(s["gross_margin"], 0.6, places=3)   # (3000-1200)/3000
+        # 房租不算直接成本
+        self.assertEqual(s["cost_total"], 1200)
+
+    def test_no_cost_returns_none_margin(self):
+        # 上个月无成本记录 → 毛利率 None（用业态默认）
+        s = db.store_ledger_stats(1999, 1)
+        self.assertEqual(s["income_total"], 0)
+        self.assertIsNone(s["daily_revenue"])
+        self.assertIsNone(s["gross_margin"])
+
+    def test_auto_locate_latest_month(self):
+        s = db.store_ledger_stats()   # 不传参数 → 自动定位最近有收入的月份
+        self.assertEqual(s["period"][:7], date.today().isoformat()[:7])
+        self.assertGreater(s["income_total"], 0)
 
 
 if __name__ == "__main__":

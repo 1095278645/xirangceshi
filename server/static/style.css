@@ -137,6 +137,14 @@ input[type=password] { -webkit-text-security: disc; }
   border-radius: 26px; font-size: 14px; padding: 11px 0; text-align: center;
   width: 100%; cursor: pointer; margin-top: 12px; font-family: inherit;
 }
+.btn-secondary {
+  background: #fdf3e3; color: var(--orange-dark); border: 1.5px solid #e0a184;
+  border-radius: 26px; font-size: 14px; padding: 11px 0; text-align: center;
+  width: 100%; cursor: pointer; margin-top: 12px; font-family: inherit;
+}
+.btn-secondary:active { opacity: .85; }
+.btn-secondary.disabled { opacity: .5; }
+.ledger-box { border-left: 6px solid #4a90c4; background: #eef5fb; }
 .link-btn { display: block; margin-top: 14px; font-size: 12px; color: #c96a2e; text-align: center; }
 
 /* 状态点 */

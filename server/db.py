@@ -356,6 +356,75 @@ def list_transactions(year=None, month=None, limit=100):
         return out
 
 
+# ---------------- 单店模型：从账本流水反推 ----------------
+# 「进货」→ 主营业务成本(5401)，属直接成本；房租/人工等固定成本不算在毛利率里
+_COST_CATEGORIES = {"进货"}
+
+
+def store_ledger_stats(year=None, month=None):
+    """从账本真实流水反推单店模型输入：实际日销 + 毛利率。
+
+    - 不传 year/month 时，自动定位「最近一个有收入流水」的月份（往前最多找 12 个月）
+    - 实际日销 = 该月收入合计 ÷ 有收入流水的天数
+    - 毛利率  = (收入 - 直接成本) / 收入；无直接成本记录时返回 None（用业态默认）
+    """
+    today = date.today()
+    y = year or today.year
+    m = month or today.month
+    period = f"{y}-{m:02d}"
+
+    with get_conn() as conn:
+        # 自动定位最近有收入的月份
+        if not year and not month:
+            for _ in range(12):
+                row = conn.execute(
+                    "SELECT COUNT(*) AS c FROM transactions "
+                    "WHERE substr(created_at,1,7)=? AND trans_type='income' AND amount>0",
+                    (period,)).fetchone()
+                if row["c"] > 0:
+                    break
+                m -= 1
+                if m == 0:
+                    m = 12
+                    y -= 1
+                period = f"{y}-{m:02d}"
+
+        inc = conn.execute(
+            "SELECT COALESCE(SUM(amount),0) AS total, "
+            "COUNT(DISTINCT substr(created_at,1,10)) AS days "
+            "FROM transactions WHERE substr(created_at,1,7)=? "
+            "AND trans_type='income' AND amount>0", (period,)).fetchone()
+        income_total = inc["total"] or 0
+        active_days = inc["days"] or 0
+
+        cost = conn.execute(
+            "SELECT COALESCE(SUM(amount),0) AS total FROM transactions "
+            "WHERE substr(created_at,1,7)=? AND trans_type='expense' AND category IN (%s)"
+            % ",".join("?" * len(_COST_CATEGORIES)),
+            (period, *_COST_CATEGORIES)).fetchone()
+        cost_total = cost["total"] or 0
+
+        daily_revenue = round(income_total / active_days, 1) if active_days else None
+        gross_margin = (round((income_total - cost_total) / income_total, 3)
+                        if income_total > 0 and cost_total > 0 else None)
+
+        note = f"按 {period} 账本流水反推：收入 {income_total:,.0f} 元 / {active_days} 天营业"
+        if cost_total > 0:
+            note += f"，直接成本 {cost_total:,.0f} 元"
+        else:
+            note += "，暂无进货成本记录（毛利率请按实际填）"
+
+        return {
+            "period": period,
+            "income_total": round(income_total, 2),
+            "cost_total": round(cost_total, 2),
+            "active_days": active_days,
+            "daily_revenue": daily_revenue,
+            "gross_margin": gross_margin,
+            "note": note,
+        }
+
+
 # ---------------- 收款账户（微信商户 / 聚合支付） ----------------
 def list_payment_sources():
     with get_conn() as conn:
