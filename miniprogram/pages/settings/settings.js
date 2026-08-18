@@ -1,4 +1,4 @@
-// pages/settings/settings.js 设置：填入自己的 DeepSeek API Key
+// pages/settings/settings.js 设置：选大模型 + 填 API Key
 const api = require('../../utils/api')
 
 Page({
@@ -8,7 +8,11 @@ Page({
     baseUrl: '',
     model: '',
     apiKey: '',
-    saving: false
+    saving: false,
+    providers: [],
+    providerNames: [],
+    providerIndex: 0,
+    keyLabel: 'API Key（sk- 开头）'
   },
 
   onLoad() {
@@ -20,17 +24,40 @@ Page({
   },
 
   load() {
-    api.getSettings()
-      .then(s => this.setData({
-        aiEnabled: s.ai_enabled,
-        hasKey: s.has_key,
-        baseUrl: s.base_url,
-        model: s.model
-      }))
+    Promise.all([api.getSettings(), api.getProviders()])
+      .then(([s, p]) => {
+        const providers = p.providers || []
+        const providerNames = providers.map(x => x.name)
+        let idx = providers.findIndex(x => x.id === s.provider)
+        if (idx < 0) idx = providers.length - 1 // 自定义
+        const cur = providers[idx] || {}
+        this.setData({
+          aiEnabled: s.ai_enabled,
+          hasKey: s.has_key,
+          baseUrl: s.base_url,
+          model: s.model,
+          providers,
+          providerNames,
+          providerIndex: idx,
+          keyLabel: cur.key_label || 'API Key'
+        })
+      })
       .catch(() => {})
   },
 
-  onApiInput(e) {
+  onProviderChange(e) {
+    const idx = Number(e.detail.value)
+    const p = this.data.providers[idx]
+    if (!p) return
+    this.setData({
+      providerIndex: idx,
+      keyLabel: p.key_label || 'API Key',
+      baseUrl: p.base_url || this.data.baseUrl,
+      model: p.model || this.data.model
+    })
+  },
+
+  onApiKeyInput(e) {
     this.setData({ apiKey: e.detail.value })
   },
 
@@ -79,10 +106,9 @@ Page({
     })
   },
 
-  // 顺手提供获取 Key 的指引
   howToGet() {
     wx.setClipboardData({
-      data: 'https://platform.deepseek.com',
+      data: 'https://platform.deepseek.com/api_keys',
       success: () => wx.showToast({ title: '链接已复制，浏览器打开', icon: 'none' })
     })
   }

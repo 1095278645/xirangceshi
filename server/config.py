@@ -48,3 +48,21 @@ def save_settings(api_key: str = "", base_url: str | None = None, model: str | N
 
 
 DB_PATH = DATA_DIR / "ai_shopkeeper.db"
+
+# 支持的大模型提供商（均为 OpenAI 兼容接口）
+PROVIDERS = [
+    {"id": "deepseek", "name": "DeepSeek（深度求索）", "base_url": "https://api.deepseek.com", "model": "deepseek-chat", "key_label": "API Key（sk- 开头）"},
+    {"id": "openai", "name": "OpenAI（GPT）", "base_url": "https://api.openai.com/v1", "model": "gpt-4o-mini", "key_label": "API Key（sk- 开头）"},
+    {"id": "qwen", "name": "通义千问（阿里）", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "model": "qwen-turbo", "key_label": "API Key（sk- 开头）"},
+    {"id": "zhipu", "name": "智谱AI（GLM）", "base_url": "https://open.bigmodel.cn/api/paas/v4", "model": "glm-4-flash", "key_label": "API Key"},
+    {"id": "moonshot", "name": "月之暗面（Kimi）", "base_url": "https://api.moonshot.cn/v1", "model": "moonshot-v1-8k", "key_label": "API Key（sk- 开头）"},
+    {"id": "custom", "name": "自定义", "base_url": "", "model": "", "key_label": "API Key"},
+]
+
+
+def detect_provider(base_url: str) -> str:
+    """根据 base_url 反推当前提供商 id（用于前端回显选中项）"""
+    for p in PROVIDERS:
+        if p["id"] != "custom" and p["base_url"] and p["base_url"] in (base_url or ""):
+            return p["id"]
+    return "custom"

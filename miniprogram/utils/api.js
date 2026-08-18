@@ -45,5 +45,6 @@ module.exports = {
 
   // 设置（用户自填 API Key）
   getSettings: () => request('/api/settings'),
-  saveSettings: (data) => request('/api/settings', 'POST', data)
+  saveSettings: (data) => request('/api/settings', 'POST', data),
+  getProviders: () => request('/api/providers')
 }

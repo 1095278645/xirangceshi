@@ -44,6 +44,8 @@ const state = {
   hasKey: false,
   baseUrl: '',
   model: '',
+  provider: '',
+  providers: [],
   apiKeyInput: '',
   baseUrlInput: '',
   modelInput: '',
@@ -180,11 +182,13 @@ async function generateCopy() {
 // ---------- 设置 ----------
 async function loadSettings() {
   try {
-    const s = await api('/api/settings');
+    const [s, p] = await Promise.all([api('/api/settings'), api('/api/providers')]);
     state.aiEnabled = s.ai_enabled;
     state.hasKey = s.has_key;
     state.baseUrl = s.base_url;
     state.model = s.model;
+    state.provider = s.provider || 'custom';
+    state.providers = p.providers || [];
     state.baseUrlInput = s.base_url;
     state.modelInput = s.model;
   } catch (_) {}
@@ -218,6 +222,16 @@ async function clearKey() {
     state.model = r.model;
     toast('已清除');
   } catch (e) { toast(e.message); }
+  render();
+}
+
+function selectProvider(id) {
+  state.provider = id;
+  const p = state.providers.find(x => x.id === id);
+  if (p) {
+    if (p.base_url) state.baseUrlInput = p.base_url;
+    if (p.model) state.modelInput = p.model;
+  }
   render();
 }
 
@@ -357,8 +371,11 @@ function renderCopy() {
 }
 
 function renderSettings() {
+  const provs = state.providers;
+  const curProv = state.providers.find(p => p.id === state.provider) || provs.find(p => p.id === 'custom') || {};
+  const keyLabel = curProv.key_label || 'API Key';
   return `
-  <div class="hero"><div class="hero-title">设置</div><div class="hero-sub">填入 DeepSeek API Key 启用 AI</div></div>
+  <div class="hero"><div class="hero-title">设置</div><div class="hero-sub">选一个大模型，填 Key 即用</div></div>
   <div class="card">
     <div class="card-title">AI 服务状态</div>
     <div class="status-row">
@@ -370,29 +387,36 @@ function renderSettings() {
     ${state.aiEnabled ? '' : '<div class="status-detail">兜底模式记账/熟客仍可用，智能解析与提醒受限。</div>'}
   </div>
   <div class="card">
-    <div class="card-title">填入你的 DeepSeek API Key</div>
+    <div class="card-title">AI 模型配置</div>
     <div class="form-item">
-      <label class="form-label">API Key（sk- 开头）</label>
+      <label class="form-label">选择大模型</label>
+      <select class="form-select" onchange="selectProvider(this.value)">
+        ${provs.map(p => `<option value="${p.id}" ${p.id === state.provider ? 'selected' : ''}>${p.name}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-item">
+      <label class="form-label">${keyLabel}</label>
       <input class="form-input" type="password" placeholder="粘贴你的 API Key"
         value="${state.apiKeyInput}" oninput="state.apiKeyInput=this.value" />
     </div>
     <div class="form-item">
-      <label class="form-label">Base URL（可选）</label>
+      <label class="form-label">Base URL${state.provider !== 'custom' ? '（已自动填充，可改）' : ''}</label>
       <input class="form-input" value="${state.baseUrlInput}" oninput="state.baseUrlInput=this.value" />
     </div>
     <div class="form-item">
-      <label class="form-label">模型（可选）</label>
+      <label class="form-label">模型${state.provider !== 'custom' ? '（已自动填充，可改）' : ''}</label>
       <input class="form-input" value="${state.modelInput}" oninput="state.modelInput=this.value" />
     </div>
     <button class="btn-primary" onclick="saveSettings()">保存并启用</button>
     ${state.hasKey ? '<button class="btn-ghost" onclick="clearKey()">清除 API Key</button>' : ''}
-    <span class="link-btn" onclick="copyLink('https://platform.deepseek.com')">还没有 Key？去 DeepSeek 平台开通（复制链接）</span>
+    <span class="link-btn" onclick="copyLink('https://platform.deepseek.com/api_keys')">还没有 Key？去对应平台开通（复制链接）</span>
   </div>
   <div class="card">
     <div class="card-title">说明</div>
-    <div class="howto-text">1. Key 只保存在你自己的电脑上，不会上传。</div>
-    <div class="howto-text">2. 保存后立即生效，无需重启后端。</div>
-    <div class="howto-text">3. 手机访问请用电脑局域网 IP，并确保防火墙放行 8000 端口。</div>
+    <div class="howto-text">1. 支持多家大模型，选好后填对应的 API Key 即可。</div>
+    <div class="howto-text">2. Key 只保存在你自己的电脑上，不会上传。</div>
+    <div class="howto-text">3. 保存后立即生效，无需重启后端。</div>
+    <div class="howto-text">4. 手机访问请用电脑局域网 IP，并确保防火墙放行 8000 端口。</div>
   </div>`;
 }
 

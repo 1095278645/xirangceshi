@@ -116,7 +116,7 @@ body { display: flex; justify-content: center; }
 /* 表单 */
 .form-item { margin-bottom: 14px; }
 .form-label { display: block; font-size: 13px; color: var(--brown); margin-bottom: 6px; }
-.form-input, .form-textarea, .picker-value {
+.form-input, .form-textarea, .form-select, .picker-value {
   width: 100%; background: var(--bg); border: 1px solid #efe2d4; border-radius: 10px;
   padding: 12px 14px; font-size: 15px; font-family: inherit;
 }

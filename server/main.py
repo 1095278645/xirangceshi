@@ -68,6 +68,12 @@ def health():
 
 
 # ---------------- 设置（用户自行填写 API Key） ----------------
+@app.get("/api/providers")
+def list_providers():
+    """返回支持的 AI 大模型提供商列表"""
+    return {"providers": config.PROVIDERS}
+
+
 @app.get("/api/settings")
 def get_settings():
     """查询当前 AI 配置状态（不返回 Key 本身）"""
@@ -77,6 +83,7 @@ def get_settings():
         "has_key": bool(s["api_key"]),
         "base_url": s["base_url"],
         "model": s["model"],
+        "provider": config.detect_provider(s["base_url"]),
     }
 
 

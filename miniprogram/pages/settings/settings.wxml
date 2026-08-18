@@ -13,35 +13,42 @@
     <view class="status-detail">模型：{{model}}</view>
   </view>
 
-  <!-- 填 Key -->
+  <!-- 模型配置 -->
   <view class="card">
-    <view class="card-title">填入你的 DeepSeek API Key</view>
+    <view class="card-title">AI 模型配置</view>
     <view class="form-item">
-      <text class="form-label">API Key（sk- 开头）</text>
+      <text class="form-label">选择大模型</text>
+      <picker bindchange="onProviderChange" value="{{providerIndex}}" range="{{providerNames}}">
+        <view class="picker-value">{{providerNames[providerIndex] || '点击选择'}}</view>
+      </picker>
+    </view>
+    <view class="form-item">
+      <text class="form-label">{{keyLabel}}</text>
       <input class="form-input" password="{{true}}" placeholder="粘贴你的 API Key"
              value="{{apiKey}}" bindinput="onApiKeyInput" />
     </view>
     <view class="form-item">
-      <text class="form-label">Base URL（可选，一般不用改）</text>
+      <text class="form-label">Base URL（已自动填充，可改）</text>
       <input class="form-input" placeholder="https://api.deepseek.com"
              value="{{baseUrl}}" bindinput="onBaseUrlInput" />
     </view>
     <view class="form-item">
-      <text class="form-label">模型（可选）</text>
+      <text class="form-label">模型（已自动填充，可改）</text>
       <input class="form-input" placeholder="deepseek-chat"
              value="{{model}}" bindinput="onModelInput" />
     </view>
     <view class="btn-primary manual-btn {{saving ? 'btn-disabled' : ''}}" bindtap="save">保存并启用</view>
     <view class="btn-ghost mt-btn" wx:if="{{hasKey}}" bindtap="clearKey">清除 API Key</view>
-    <view class="howto" bindtap="howToGet">还没有 Key？去 DeepSeek 平台开通（复制链接）</view>
+    <view class="howto" bindtap="howToGet">还没有 Key？去对应平台开通（复制链接）</view>
   </view>
 
   <!-- 说明 -->
   <view class="card">
     <view class="card-title">说明</view>
-    <view class="howto-text">1. Key 只保存在你自己的电脑上（server/config.local.json），不会上传到任何云端。</view>
-    <view class="howto-text">2. 保存后立即生效，无需重启后端服务。</view>
-    <view class="howto-text">3. 语音记账还需正式小程序 AppID 并授权「同声传译」插件，与 API Key 无关。</view>
+    <view class="howto-text">1. 支持多家大模型（DeepSeek/OpenAI/通义千问/智谱/Kimi），选好后填对应的 API Key 即可。</view>
+    <view class="howto-text">2. Key 只保存在你自己的电脑上，不会上传。</view>
+    <view class="howto-text">3. 保存后立即生效，无需重启后端服务。</view>
+    <view class="howto-text">4. 语音记账还需正式小程序 AppID 并授权「同声传译」插件，与 API Key 无关。</view>
   </view>
 
   <tabbar current="{{3}}" />

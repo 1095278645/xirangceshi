@@ -1,4 +1,4 @@
-"""AI 能力层：记账解析、文案生成、熟客提醒 —— 基于 DeepSeek（OpenAI 兼容接口）"""
+"""AI 能力层：记账解析、文案生成、熟客提醒 —— 支持多种 OpenAI 兼容大模型"""
 import json
 import re
 
@@ -143,7 +143,7 @@ def generate_copy(shop_name: str, scene: str, extra: str, customer_name: str = "
     """生成有烟火气、口语化的朋友圈文案"""
     if not ai_available():
         return (f"【{shop_name}】{extra}\n—— 今日份营业，欢迎光临！"
-                "(提示：在 server/config.local.json 填入 DeepSeek API Key 后即可生成真实文案)")
+                "(提示：在设置页填入 API Key 后即可生成真实文案)")
     prompt = (
         f"你是{shop_name}的老板，文化不高但特别真诚，说话带点本地烟火气，偶尔自嘲和幽默。\n"
         "请写一条不超过80字的朋友圈文案，不要用'亲''家人们''爆款''限时抢购'这类网红词，"
