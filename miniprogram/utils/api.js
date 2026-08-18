@@ -46,5 +46,16 @@ module.exports = {
   // 设置（用户自填 API Key）
   getSettings: () => request('/api/settings'),
   saveSettings: (data) => request('/api/settings', 'POST', data),
-  getProviders: () => request('/api/providers')
+  getProviders: () => request('/api/providers'),
+
+  // 账本（省账通能力）
+  transactions: (year, month) => request(`/api/transactions?year=${year}&month=${month}`),
+  accountTitles: () => request('/api/account-titles'),
+  taxVat: (quarterlyRevenue) => request('/api/tax/vat', 'POST', { quarterly_revenue: quarterlyRevenue }),
+  taxSurtax: (vat, isSmall) => request('/api/tax/surtax', 'POST', { vat, is_small: isSmall }),
+  taxPit: (salary, social, special) => request('/api/tax/pit', 'POST', {
+    salary, social_insurance: social, special_deduction: special }),
+  taxCit: (annualIncome, isSmall) => request('/api/tax/cit', 'POST', { annual_income: annualIncome, is_small: isSmall }),
+  taxCalendar: (year, month) => request(`/api/tax/calendar?year=${year}&month=${month}`),
+  reportUrl: (year, month) => app.globalData.baseUrl + `/api/report/monthly?year=${year}&month=${month}`
 }

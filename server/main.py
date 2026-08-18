@@ -2,6 +2,7 @@
 启动：uvicorn main:app --host 0.0.0.0 --port 8000
 """
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +13,9 @@ from pydantic import BaseModel
 import db
 import ai
 import config
-from categories import is_known_category
+import report as reportlib
+import tax as taxcalc
+from categories import is_known_category, ACCOUNT_TITLES, ACCOUNT_CATEGORY_NAMES
 
 
 @asynccontextmanager
@@ -63,6 +66,26 @@ class SettingsIn(BaseModel):
     api_key: str = ""          # 传空串 = 清除 Key
     base_url: str = ""
     model: str = ""
+
+
+class VatIn(BaseModel):
+    quarterly_revenue: float   # 季度销售额
+
+
+class SurtaxIn(BaseModel):
+    vat: float                 # 实缴增值税
+    is_small: bool = True      # 是否小规模纳税人
+
+
+class PitIn(BaseModel):
+    salary: float              # 月工资
+    social_insurance: float = 0
+    special_deduction: float = 0
+
+
+class CitIn(BaseModel):
+    annual_income: float       # 年应纳税所得额
+    is_small: bool = True      # 是否小微企业
 
 
 # ---------------- 基础接口 ----------------
@@ -129,6 +152,8 @@ def create_order(data: OrderIn):
         cid, parsed.get("item", "") or data.text, amount,
         trans_type=trans_type, category=category,
         counterparty=customer, note=parsed.get("note", ""))
+    # 安全护栏：边界场景优先，其次大额检测
+    safety_warning = taxcalc.detect_boundary(data.text) or taxcalc.check_amount_guard(amount)
     return {
         "order_id": tid,
         "parsed": parsed,
@@ -138,6 +163,7 @@ def create_order(data: OrderIn):
         "voucher": voucher,
         "friendly_category": db.FRIENDLY_NAMES.get(category, category),
         "summary": db.today_summary(),
+        "safety_warning": safety_warning,
     }
 
 
@@ -221,6 +247,71 @@ def reminders_list(done: int | None = None):
 def reminder_done(rid: int, done: int = 1):
     db.mark_reminder_done(rid, done)
     return {"ok": True}
+
+
+# ---------------- 科目表（省账通：68科目台账） ----------------
+@app.get("/api/account-titles")
+def account_titles():
+    """小企业会计准则 68 科目表，按类别分组"""
+    by_cat: dict[str, list] = {}
+    for code, name, cat, _direction, level in ACCOUNT_TITLES:
+        by_cat.setdefault(cat, []).append({"code": code, "name": name, "level": level})
+    return {
+        "total": len(ACCOUNT_TITLES),
+        "categories": [
+            {"category": cat, "name": ACCOUNT_CATEGORY_NAMES.get(cat, cat), "titles": items}
+            for cat, items in by_cat.items()
+        ],
+    }
+
+
+# ---------------- 查账：交易流水 ----------------
+@app.get("/api/transactions")
+def transactions(year: int | None = None, month: int | None = None, limit: int = 100):
+    """月度交易流水（大白话分类名），默认当月"""
+    return db.list_transactions(year, month, limit)
+
+
+# ---------------- 税法计算（省账通能力） ----------------
+@app.post("/api/tax/vat")
+def tax_vat(data: VatIn):
+    """增值税（小规模）：季度销售额≤30万免征"""
+    return taxcalc.calc_vat(data.quarterly_revenue)
+
+
+@app.post("/api/tax/surtax")
+def tax_surtax(data: SurtaxIn):
+    """附加税：城建+教育+地方教育，小规模六税两费减半"""
+    return taxcalc.calc_surtax(data.vat, data.is_small)
+
+
+@app.post("/api/tax/pit")
+def tax_pit(data: PitIn):
+    """个人所得税：工资薪金 7级超额累进"""
+    return taxcalc.calc_individual_income_tax(
+        data.salary, data.social_insurance, data.special_deduction)
+
+
+@app.post("/api/tax/cit")
+def tax_cit(data: CitIn):
+    """企业所得税：小微企业分段（5%/10%），否则 25%"""
+    return taxcalc.calc_corporate_income_tax(data.annual_income, data.is_small)
+
+
+@app.get("/api/tax/calendar")
+def tax_calendar(year: int | None = None, month: int | None = None):
+    """当月报税日历提醒"""
+    return taxcalc.get_filing_calendar(year, month)
+
+
+# ---------------- 报表导出（省账通能力） ----------------
+@app.get("/api/report/monthly")
+def report_monthly(year: int | None = None, month: int | None = None):
+    """导出月度收支 Excel 报表"""
+    result = reportlib.get_monthly_report(year, month)
+    if "error" in result:
+        raise HTTPException(500, result["error"])
+    return FileResponse(result["file"], filename=Path(result["file"]).name)
 
 
 if __name__ == "__main__":

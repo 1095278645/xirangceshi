@@ -3,6 +3,7 @@
     "pages/index/index",
     "pages/memory/memory",
     "pages/copy/copy",
+    "pages/books/books",
     "pages/settings/settings"
   ],
   "window": {

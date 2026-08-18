@@ -1,0 +1,146 @@
+<view class="page">
+  <!-- 分段切换 -->
+  <view class="seg">
+    <view wx:for="{{tabs}}" wx:key="*this"
+          class="seg-item {{tabIndex === index ? 'active' : ''}}"
+          data-index="{{index}}" bindtap="switchTab">{{item}}</view>
+  </view>
+
+  <!-- ============ 流水 ============ -->
+  <block wx:if="{{tabIndex === 0}}">
+    <view class="card">
+      <picker mode="date" fields="month" value="{{year}}-{{month < 10 ? '0' + month : month}}" bindchange="onMonthChange">
+        <view class="month-picker">📅 {{year}}年{{month}}月流水</view>
+      </picker>
+    </view>
+
+    <view class="card" wx:if="{{transactions.length === 0}}">
+      <view class="empty">本月还没有记账，去首页说一句试试</view>
+    </view>
+
+    <view class="card txn-list" wx:else>
+      <view class="txn" wx:for="{{transactions}}" wx:key="id">
+        <view class="txn-main">
+          <view class="txn-item">{{item.item}}</view>
+          <view class="txn-sub">
+            {{item.customer_name || '散客'}} · {{item.friendly}}
+            <text wx:if="{{item.counterparty}}"> · {{item.counterparty}}</text>
+          </view>
+          <view class="txn-time">{{item.created_at}}</view>
+        </view>
+        <view class="txn-amount {{item.trans_type === 'income' ? 'income' : 'expense'}}">
+          {{item.trans_type === 'income' ? '+' : '-'}}{{item.amount}}
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <!-- ============ 算税 ============ -->
+  <block wx:if="{{tabIndex === 1}}">
+    <!-- 增值税 -->
+    <view class="card">
+      <view class="card-title">增值税（小规模）</view>
+      <view class="row">
+        <text class="row-label">季度销售额</text>
+        <input class="row-input" type="digit" placeholder="元" value="{{vatRevenue}}" bindinput="onVatInput" />
+      </view>
+      <button class="btn" bindtap="calcVat">计算</button>
+      <view class="result" wx:if="{{vatResult}}">
+        <view>应缴增值税：<text class="num {{vatResult.vat === 0 ? 'zero' : ''}}">{{vatResult.vat}} 元</text></view>
+        <view class="note">{{vatResult.note}}</view>
+      </view>
+      <view class="result" wx:if="{{surtaxResult}}">
+        <view>附加税合计：<text class="num">{{surtaxResult.total}} 元</text></view>
+        <view class="note" wx:for="{{surtaxResult.items}}" wx:key="name">
+          {{item.name}}：{{item.amount}} 元
+        </view>
+        <view class="note" wx:if="{{surtaxResult.six_tax_relief}}">已享受六税两费减半</view>
+      </view>
+    </view>
+
+    <!-- 个税 -->
+    <view class="card">
+      <view class="card-title">个人所得税（工资薪金）</view>
+      <view class="row">
+        <text class="row-label">月工资</text>
+        <input class="row-input" type="digit" placeholder="如 15000" value="{{pitSalary}}" data-key="pitSalary" bindinput="onPitInput" />
+      </view>
+      <view class="row">
+        <text class="row-label">社保/公积金</text>
+        <input class="row-input" type="digit" placeholder="0" value="{{pitSocial}}" data-key="pitSocial" bindinput="onPitInput" />
+      </view>
+      <view class="row">
+        <text class="row-label">专项附加扣除</text>
+        <input class="row-input" type="digit" placeholder="0" value="{{pitSpecial}}" data-key="pitSpecial" bindinput="onPitInput" />
+      </view>
+      <button class="btn" bindtap="calcPit">计算</button>
+      <view class="result" wx:if="{{pitResult}}">
+        <view>应纳税所得额：<text class="num">{{pitResult.taxable}} 元</text></view>
+        <view>应缴个税：<text class="num">{{pitResult.tax}} 元</text></view>
+        <view class="note">税率 {{pitResult.rate * 100}}%（速算扣除 {{pitResult.quick_deduction}}）</view>
+      </view>
+    </view>
+
+    <!-- 企税 -->
+    <view class="card">
+      <view class="card-title">企业所得税</view>
+      <view class="row">
+        <text class="row-label">年应纳税所得额</text>
+        <input class="row-input" type="digit" placeholder="如 2500000" value="{{citIncome}}" bindinput="onCitInput" />
+      </view>
+      <radio-group class="row" bindchange="toggleCitSmall">
+        <label class="radio"><radio value="1" checked="{{citSmall}}" />小微企业</label>
+        <label class="radio"><radio value="0" checked="{{!citSmall}}" />一般企业</label>
+      </radio-group>
+      <button class="btn" bindtap="calcCit">计算</button>
+      <view class="result" wx:if="{{citResult}}">
+        <block wx:if="{{citResult.details}}">
+          <view wx:for="{{citResult.details}}" wx:key="range" class="note">
+            {{item.range}} 元部分 × {{item.rate * 100}}% = {{item.tax}} 元
+          </view>
+        </block>
+        <view>应缴企业所得税：<text class="num">{{citResult.total_tax || citResult.tax}} 元</text></view>
+        <view class="note">{{citResult.note}}</view>
+      </view>
+    </view>
+
+    <!-- 报税日历 -->
+    <view class="card" wx:if="{{calendar}}">
+      <view class="card-title">📅 {{calendar.year}}年{{calendar.month}}月报税提醒</view>
+      <view class="result" wx:for="{{calendar.reminders}}" wx:key="tax_type">
+        <view><text class="num">{{item.tax_type}}</text>：{{item.deadline}} 前</view>
+        <view class="note">{{item.note}}</view>
+      </view>
+    </view>
+  </block>
+
+  <!-- ============ 科目 ============ -->
+  <block wx:if="{{tabIndex === 2}}">
+    <view class="card cat" wx:for="{{categories}}" wx:key="category">
+      <view class="card-title">{{item.name}}</view>
+      <view class="cat-row" wx:for="{{item.titles}}" wx:for-item="t" wx:key="code">
+        <text class="cat-code">{{t.code}}</text>
+        <text class="cat-name">{{t.name}}</text>
+      </view>
+    </view>
+  </block>
+
+  <!-- ============ 报表 ============ -->
+  <block wx:if="{{tabIndex === 3}}">
+    <view class="card">
+      <view class="card-title">月度收支报表导出</view>
+      <view class="row">
+        <text class="row-label">报表月份</text>
+        <picker mode="date" fields="month" value="{{year}}-{{month < 10 ? '0' + month : month}}" bindchange="onMonthChange">
+          <view class="picker-val">{{year}}年{{month}}月</view>
+        </picker>
+      </view>
+      <button class="btn" bindtap="downloadReport" disabled="{{downloading}}">
+        {{downloading ? '生成中…' : '📥 下载当月报表（xlsx）'}}
+      </button>
+      <view class="note" style="margin-top:12rpx;">报表含：收支汇总、分类明细、交易流水 三个工作表</view>
+    </view>
+  </block>
+
+  <tabbar current="{{3}}" />
+</view>

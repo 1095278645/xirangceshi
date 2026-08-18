@@ -51,5 +51,5 @@
     <view class="howto-text">4. 语音记账还需正式小程序 AppID 并授权「同声传译」插件，与 API Key 无关。</view>
   </view>
 
-  <tabbar current="{{3}}" />
+  <tabbar current="{{4}}" />
 </view>

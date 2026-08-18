@@ -187,3 +187,56 @@ input[type=password] { -webkit-text-security: disc; }
   background: #fff6ec; border-radius: 10px; padding: 14px; margin-bottom: 12px;
   border-left: 4px solid var(--orange);
 }
+
+/* 账本页：分段切换 */
+.seg {
+  display: flex; background: #efe6db; border-radius: 12px; padding: 4px;
+  margin: -36px 16px 0;
+}
+.seg-item {
+  flex: 1; text-align: center; padding: 10px 0; font-size: 14px;
+  color: var(--brown); border-radius: 9px; cursor: pointer;
+}
+.seg-item.active { background: #fff; color: var(--orange-dark); font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,.08); }
+
+/* 账本页：流水 */
+.txn-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 0; border-bottom: 1px solid #f5ede4;
+}
+.txn-row:last-child { border-bottom: none; }
+.txn-item { font-size: 15px; font-weight: 500; }
+.txn-sub { font-size: 12px; color: var(--brown); margin-top: 2px; }
+.txn-time { font-size: 11px; color: #c9b9a8; margin-top: 2px; }
+.txn-amount { font-size: 16px; font-weight: 700; white-space: nowrap; margin-left: 10px; }
+.txn-amount.income { color: var(--green); }
+.txn-amount.expense { color: var(--red); }
+.month-input {
+  margin-left: auto; font-size: 12px; color: var(--brown);
+  border: 1px solid #efe2d4; border-radius: 8px; padding: 4px 6px;
+  background: var(--bg); font-family: inherit;
+}
+
+/* 账本页：算税结果 */
+.result-box {
+  background: #fff6ec; border-radius: 10px; padding: 12px 14px;
+  margin-top: 12px; font-size: 14px; line-height: 1.8;
+}
+.result-box .num { font-weight: 700; color: var(--orange-dark); }
+.result-box .num.zero { color: var(--green); }
+.result-box .note { font-size: 12px; color: var(--brown); }
+
+/* 账本页：科目表 */
+.cat-row {
+  display: flex; align-items: center; padding: 8px 0;
+  border-bottom: 1px solid #f5ede4; font-size: 14px;
+}
+.cat-row:last-child { border-bottom: none; }
+.cat-code { color: var(--brown); font-family: Consolas, monospace; font-size: 13px; width: 72px; }
+.cat-name { font-weight: 500; }
+
+/* 账本页：单选行 + 下载链接按钮 */
+.radio-inline { display: inline-flex; align-items: center; font-size: 14px; color: var(--ink); margin-right: 18px; }
+.radio-inline input { margin-right: 5px; accent-color: var(--orange); }
+.btn-link { display: block; text-decoration: none; margin-top: 4px; }
+.btn-link:active { opacity: .85; }

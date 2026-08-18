@@ -299,3 +299,24 @@ def list_reminders(done=None):
 def mark_reminder_done(rid, done=1):
     with get_conn() as conn:
         conn.execute("UPDATE reminders SET done=? WHERE id=?", (done, rid))
+
+
+# ---------------- 交易流水（查账） ----------------
+def list_transactions(year=None, month=None, limit=100):
+    """月度交易流水（查账用）：含客户名与口语分类名"""
+    today = date.today()
+    year = year or today.year
+    month = month or today.month
+    period = f"{year}-{month:02d}"
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT t.*, c.name AS customer_name "
+            "FROM transactions t LEFT JOIN customers c ON c.id=t.customer_id "
+            "WHERE substr(t.created_at,1,7)=? ORDER BY t.id DESC LIMIT ?",
+            (period, limit)).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["friendly"] = FRIENDLY_NAMES.get(d["category"], d["category"])
+            out.append(d)
+        return out

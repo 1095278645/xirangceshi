@@ -1,0 +1,56 @@
+/* pages/books/books.wxss 账本 */
+.page { padding: 16rpx 24rpx 140rpx; }
+
+.seg {
+  display: flex; background: #fff; border-radius: 16rpx;
+  padding: 8rpx; margin-bottom: 20rpx; box-shadow: 0 2rpx 12rpx rgba(0,0,0,.05);
+}
+.seg-item {
+  flex: 1; text-align: center; padding: 14rpx 0;
+  font-size: 28rpx; color: #666; border-radius: 12rpx;
+}
+.seg-item.active { background: #B4532A; color: #fff; font-weight: 600; }
+
+.card {
+  background: #fff; border-radius: 16rpx; padding: 24rpx;
+  margin-bottom: 20rpx; box-shadow: 0 2rpx 12rpx rgba(0,0,0,.04);
+}
+.card-title { font-size: 30rpx; font-weight: 600; color: #333; margin-bottom: 16rpx; }
+
+.empty { color: #999; text-align: center; padding: 40rpx 0; font-size: 28rpx; }
+
+/* 流水 */
+.txn { display: flex; align-items: center; padding: 18rpx 0; border-bottom: 1rpx solid #f3f3f3; }
+.txn:last-child { border-bottom: none; }
+.txn-main { flex: 1; min-width: 0; }
+.txn-item { font-size: 30rpx; color: #333; }
+.txn-sub { font-size: 24rpx; color: #999; margin-top: 4rpx; }
+.txn-time { font-size: 22rpx; color: #ccc; margin-top: 4rpx; }
+.txn-amount { font-size: 32rpx; font-weight: 700; margin-left: 16rpx; }
+.txn-amount.income { color: #16a34a; }
+.txn-amount.expense { color: #dc2626; }
+
+/* 算税表单 */
+.row { display: flex; align-items: center; margin-bottom: 16rpx; }
+.row-label { width: 220rpx; font-size: 28rpx; color: #555; }
+.row-input { flex: 1; border: 1rpx solid #e5e5e5; border-radius: 12rpx; padding: 12rpx 16rpx; font-size: 28rpx; }
+.row-radio { margin-right: 40rpx; font-size: 28rpx; }
+.btn {
+  background: #B4532A; color: #fff; font-size: 28rpx; border-radius: 12rpx;
+  margin-top: 8rpx; width: 100%;
+}
+.btn[disabled] { background: #d9a98e; color: #fff; }
+
+.result {
+  margin-top: 20rpx; padding: 20rpx; background: #faf5f1; border-radius: 12rpx;
+  font-size: 28rpx; color: #333; line-height: 1.8;
+}
+.num { font-weight: 700; color: #B4532A; }
+.num.zero { color: #16a34a; }
+.note { font-size: 24rpx; color: #999; }
+
+/* 科目表 */
+.cat-row { display: flex; padding: 10rpx 0; border-bottom: 1rpx solid #f5f5f5; }
+.cat-row:last-child { border-bottom: none; }
+.cat-code { width: 160rpx; font-size: 26rpx; color: #B4532A; font-family: monospace; }
+.cat-name { flex: 1; font-size: 28rpx; color: #444; }
