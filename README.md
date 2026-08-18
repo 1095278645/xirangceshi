@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '683a5a68-502f-4e59-8d97-bd8a9bcdda0a'
-  PropagateID: '683a5a68-502f-4e59-8d97-bd8a9bcdda0a'
-  ReservedCode1: 'dc6451cf-9e7f-4d47-b03c-f551f2671303'
-  ReservedCode2: 'dc6451cf-9e7f-4d47-b03c-f551f2671303'
+  ProduceID: 'd64b9685-990b-4714-a199-715fa5d3cbcf'
+  PropagateID: 'd64b9685-990b-4714-a199-715fa5d3cbcf'
+  ReservedCode1: '382c27ac-2fec-44fc-902d-c5344ebec316'
+  ReservedCode2: '382c27ac-2fec-44fc-902d-c5344ebec316'
 ---
 
 # 巷子里的AI掌柜
@@ -23,6 +23,7 @@ AIGC:
 | 熟客记忆 | 记住熟客的暖心细节（"孙子考了一百分"），一键生成今日提醒，帮店主续上人情 |
 | 朋友圈文案 | 口语化、带烟火气的文案，拒绝网红词，保留小店的粗粝与真诚 |
 | 账本（省账通） | 查流水、算税费（增值税/个税/企税/报税日历）、66 科目表、一键导出 Excel 报表；大额记账自动预警 |
+| 收款流水自动入账 | 二维码收付款流水自动同步进账本：微信支付商户号（有执照）+ 聚合支付（无执照，接入中）双通道；无商户资料可填 DEMO 体验演示模式 |
 
 ## 目录结构
 
@@ -32,7 +33,7 @@ AIGC:
 │   ├── pages/memory/   # 熟客记忆
 │   ├── pages/copy/     # 朋友圈文案
 │   ├── pages/books/    # 账本（流水/算税/科目/报表）
-│   ├── pages/settings/ # 设置（AI 模型配置）
+│   ├── pages/settings/ # 设置（AI 模型 + 收款账户）
 │   └── components/     # 底部导航
 └── server/             # Python FastAPI 后端
     ├── main.py         # 接口路由
@@ -41,6 +42,9 @@ AIGC:
     ├── categories.py   # 66 科目表（资产/负债/权益/收入/费用）
     ├── tax.py          # 税法计算（增值税/附加税/个税/企税/报税日历/边界护栏）
     ├── report.py       # Excel 报表导出（openpyxl，三工作表）
+    ├── payment.py      # 收款流水同步统一入口（微信/聚合/演示模式）
+    ├── wechat_pay.py   # 微信支付 v3 交易账单同步（真实对接 + DEMO 演示）
+    ├── aggregate_pay.py# 聚合支付适配器（预留收钱吧/付桥等服务商）
     ├── config.py       # 配置读取
     └── static/         # 网页版（手机浏览器可直接访问）
         ├── index.html
@@ -107,5 +111,14 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8000
 | `POST /api/tax/cit` | 企业所得税计算（小微/一般） |
 | `GET /api/tax/calendar` | 报税日历（月度申报提醒） |
 | `GET /api/report/monthly` | 月度 Excel 报表（收支汇总/分类明细/交易流水） |
+| `GET /api/payment/sources` | 收款账户列表（微信商户/聚合支付） |
+| `POST /api/payment/sources` | 新增/更新收款账户（mchid 填 DEMO 即演示模式） |
+| `DELETE /api/payment/sources/{id}` | 删除收款账户 |
+| `POST /api/payment/sources/{id}/sync` | 手动同步某账户账单（默认昨天） |
+| `GET /api/payment/logs` | 账单同步日志 |
+| `POST /api/payment/demo-clear` | 一键清空演示模式流水 |
+| `POST /api/payment/sync-all` | 手动触发全部启用账户同步 |
+
+> 收款流水同步说明：后端启动后每 6 小时自动拉取所有启用账户的昨日账单（wx_trade_id 唯一索引幂等去重）；演示模式（mchid=DEMO）无需任何商户资料即可体验全流程，数据带 `[演示]` 标记可一键清空。正式对接微信支付商户号需配置 API 证书与 APIv3 密钥（`pip install wechatpayv3`）。
 
 > AI生成

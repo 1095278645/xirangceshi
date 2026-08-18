@@ -67,3 +67,57 @@
   color: #a08d7b;
   line-height: 1.8;
 }
+
+/* 收款账户 */
+.inline-label {
+  display: inline;
+  margin-left: 12rpx;
+  color: #3d2c1e;
+  font-size: 26rpx;
+}
+.pay-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid #f5ede4;
+}
+.pay-row:last-child { border-bottom: none; }
+.pay-row-main { display: flex; flex-direction: column; gap: 4rpx; min-width: 0; }
+.pay-type-badge {
+  display: inline-block;
+  font-size: 20rpx;
+  color: #b4532a;
+  background: #fff0e2;
+  border-radius: 8rpx;
+  padding: 2rpx 12rpx;
+  width: fit-content;
+}
+.pay-row-name { font-size: 30rpx; font-weight: 600; }
+.pay-row-sub { font-size: 24rpx; color: #a08d7b; }
+.pay-row-actions { display: flex; gap: 12rpx; margin-left: 16rpx; flex-shrink: 0; }
+.pay-actions { display: flex; gap: 20rpx; margin-top: 20rpx; }
+.btn-mini {
+  padding: 10rpx 26rpx;
+  border-radius: 10rpx;
+  border: 1rpx solid #efe2d4;
+  background: #fff;
+  color: #b4532a;
+  font-size: 24rpx;
+}
+.btn-mini.btn-danger { color: #d64545; border-color: #f3d5d5; }
+.log-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid #f5ede4;
+  font-size: 24rpx;
+}
+.log-row:last-child { border-bottom: none; }
+.log-status { width: 32rpx; text-align: center; font-weight: 700; }
+.log-status.success { color: #2e9e5b; }
+.log-status.error { color: #d64545; }
+.log-status.empty { color: #a08d7b; }
+.log-text { color: #3d2c1e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200rpx; }
+.log-err { color: #d64545; }

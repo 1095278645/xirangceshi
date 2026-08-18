@@ -57,5 +57,14 @@ module.exports = {
     salary, social_insurance: social, special_deduction: special }),
   taxCit: (annualIncome, isSmall) => request('/api/tax/cit', 'POST', { annual_income: annualIncome, is_small: isSmall }),
   taxCalendar: (year, month) => request(`/api/tax/calendar?year=${year}&month=${month}`),
-  reportUrl: (year, month) => app.globalData.baseUrl + `/api/report/monthly?year=${year}&month=${month}`
+  reportUrl: (year, month) => app.globalData.baseUrl + `/api/report/monthly?year=${year}&month=${month}`,
+
+  // 收款账户（二维码收付款流水同步）
+  paySources: () => request('/api/payment/sources'),
+  savePaySource: (data) => request('/api/payment/sources', 'POST', data),
+  deletePaySource: (id) => request('/api/payment/sources/' + id, 'DELETE'),
+  syncPaySource: (id) => request('/api/payment/sources/' + id + '/sync', 'POST'),
+  payLogs: () => request('/api/payment/logs'),
+  demoClear: () => request('/api/payment/demo-clear', 'POST'),
+  syncAllPay: () => request('/api/payment/sync-all', 'POST')
 }

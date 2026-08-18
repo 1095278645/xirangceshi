@@ -2,8 +2,6 @@
 import json
 import re
 
-from openai import OpenAI
-
 from config import load_settings
 from categories import detect_category
 
@@ -14,6 +12,11 @@ def ai_available():
 
 
 def get_client():
+    """懒加载 openai：未安装或未配置时抛清晰错误，不影响其它功能启动"""
+    try:
+        from openai import OpenAI
+    except ImportError:
+        raise RuntimeError("未安装 openai 依赖：pip install openai")
     s = load_settings()
     return OpenAI(api_key=s["api_key"], base_url=s["base_url"])
 

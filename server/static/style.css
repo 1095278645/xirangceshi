@@ -240,3 +240,42 @@ input[type=password] { -webkit-text-security: disc; }
 .radio-inline input { margin-right: 5px; accent-color: var(--orange); }
 .btn-link { display: block; text-decoration: none; margin-top: 4px; }
 .btn-link:active { opacity: .85; }
+
+/* 设置页：收款账户（二维码流水同步） */
+.pay-type-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+.pay-type-btn {
+  flex: 1; padding: 9px 0; border-radius: 10px; border: 1px solid #efe2d4;
+  background: var(--bg); color: var(--brown); font-size: 13px; cursor: pointer;
+}
+.pay-type-btn.on { background: var(--orange-dark); color: #fff; border-color: var(--orange-dark); font-weight: 600; }
+.pay-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 11px 0; border-bottom: 1px solid #f5ede4;
+}
+.pay-row:last-child { border-bottom: none; }
+.pay-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pay-type-badge {
+  display: inline-block; font-size: 10px; color: var(--orange-dark);
+  background: #fff0e2; border-radius: 6px; padding: 1px 6px; width: fit-content;
+}
+.pay-mchid { font-size: 12px; color: var(--brown); }
+.pay-status { font-size: 11px; }
+.pay-row-actions { display: flex; gap: 6px; margin-left: 10px; flex-shrink: 0; }
+.pay-actions { display: flex; gap: 10px; margin-top: 12px; }
+.log-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 0; border-bottom: 1px solid #f5ede4; font-size: 12px;
+}
+.log-row:last-child { border-bottom: none; }
+.log-status { width: 18px; text-align: center; font-weight: 700; }
+.log-status.success { color: var(--green); }
+.log-status.error { color: var(--red); }
+.log-status.empty { color: var(--brown); }
+.log-text { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-text:first-of-type { min-width: 60px; }
+.btn-mini {
+  padding: 5px 12px; border-radius: 8px; border: 1px solid #efe2d4;
+  background: #fff; color: var(--orange-dark); font-size: 12px; cursor: pointer;
+}
+.btn-mini:active { background: #fff6ec; }
+.btn-mini.btn-danger { color: var(--red); border-color: #f3d5d5; }

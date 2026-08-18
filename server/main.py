@@ -1,6 +1,8 @@
 """巷子里的AI掌柜 · 后端服务
 启动：uvicorn main:app --host 0.0.0.0 --port 8000
 """
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -13,15 +15,33 @@ from pydantic import BaseModel
 import db
 import ai
 import config
+import payment
 import report as reportlib
 import tax as taxcalc
 from categories import is_known_category, ACCOUNT_TITLES, ACCOUNT_CATEGORY_NAMES
+
+log = logging.getLogger("main")
+SYNC_INTERVAL_SECONDS = 6 * 3600   # 每 6 小时自动同步一次昨日账单
+
+
+async def _daily_sync_loop():
+    """后台定时任务：周期性拉取所有启用收款账户的昨日账单。"""
+    while True:
+        try:
+            results = await asyncio.to_thread(payment.run_daily_sync)
+            if results:
+                log.info("auto sync done: %s", results)
+        except Exception as e:  # noqa: BLE001
+            log.error("auto sync loop error: %s", e)
+        await asyncio.sleep(SYNC_INTERVAL_SECONDS)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     db.init_db()
+    sync_task = asyncio.create_task(_daily_sync_loop())
     yield
+    sync_task.cancel()
 
 
 app = FastAPI(title="巷子里的AI掌柜", version="0.1.0", lifespan=lifespan)
@@ -86,6 +106,19 @@ class PitIn(BaseModel):
 class CitIn(BaseModel):
     annual_income: float       # 年应纳税所得额
     is_small: bool = True      # 是否小微企业
+
+
+class PaymentSourceIn(BaseModel):
+    """收款账户（微信商户号 / 聚合支付）"""
+    sid: int | None = None     # 有值=更新
+    source_type: str = "wechat"   # wechat / aggregate
+    name: str = ""
+    mchid: str = ""
+    appid: str = ""
+    cert_path: str = ""
+    private_key_path: str = ""
+    api_v3_key: str = ""
+    enabled: bool = False
 
 
 # ---------------- 基础接口 ----------------
@@ -312,6 +345,61 @@ def report_monthly(year: int | None = None, month: int | None = None):
     if "error" in result:
         raise HTTPException(500, result["error"])
     return FileResponse(result["file"], filename=Path(result["file"]).name)
+
+
+# ---------------- 收款账户（二维码流水同步） ----------------
+@app.get("/api/payment/sources")
+def payment_sources():
+    """收款账户列表（微信商户号 / 聚合支付）"""
+    return {"sources": db.list_payment_sources()}
+
+
+@app.post("/api/payment/sources")
+def payment_source_save(data: PaymentSourceIn):
+    """新增/更新收款账户。mchid 填 DEMO 即为演示模式（免商户资料体验全流程）"""
+    if data.source_type not in ("wechat", "aggregate"):
+        raise HTTPException(400, "source_type 仅支持 wechat / aggregate")
+    sid = db.save_payment_source(
+        source_type=data.source_type, name=data.name, mchid=data.mchid,
+        appid=data.appid, cert_path=data.cert_path,
+        private_key_path=data.private_key_path, api_v3_key=data.api_v3_key,
+        enabled=data.enabled, sid=data.sid)
+    return {"ok": True, "id": sid}
+
+
+@app.delete("/api/payment/sources/{sid}")
+def payment_source_delete(sid: int):
+    db.delete_payment_source(sid)
+    return {"ok": True}
+
+
+@app.post("/api/payment/sources/{sid}/sync")
+def payment_source_sync(sid: int, bill_date: str | None = None):
+    """手动同步某账户账单（默认昨天）。"""
+    try:
+        result = payment.run_sync(sid, bill_date)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    return result
+
+
+@app.get("/api/payment/logs")
+def payment_logs(limit: int = 30):
+    """账单同步日志"""
+    return {"logs": db.list_sync_logs(limit)}
+
+
+@app.post("/api/payment/demo-clear")
+def payment_demo_clear():
+    """一键清空演示模式产生的流水（wx_trade_id 以 DEMO- 开头）"""
+    n = payment.demo_clear()
+    return {"ok": True, "deleted": n}
+
+
+@app.post("/api/payment/sync-all")
+def payment_sync_all():
+    """手动触发一次全部启用账户的昨日账单同步"""
+    return {"results": payment.run_daily_sync()}
 
 
 if __name__ == "__main__":

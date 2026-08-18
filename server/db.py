@@ -82,7 +82,42 @@ def init_db():
             done        INTEGER DEFAULT 0,
             created_at  TEXT DEFAULT (datetime('now','localtime'))
         );
+
+        -- 收款账户（双通道：微信支付商户号 / 聚合支付）
+        CREATE TABLE IF NOT EXISTS payment_sources (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_type TEXT NOT NULL DEFAULT 'wechat' CHECK(source_type IN ('wechat','aggregate')),
+            name        TEXT DEFAULT '',
+            mchid       TEXT DEFAULT '',
+            appid       TEXT DEFAULT '',
+            cert_path   TEXT DEFAULT '',
+            private_key_path TEXT DEFAULT '',
+            api_v3_key  TEXT DEFAULT '',
+            enabled     INTEGER DEFAULT 0,
+            created_at  TEXT DEFAULT (datetime('now','localtime'))
+        );
+
+        -- 账单同步日志
+        CREATE TABLE IF NOT EXISTS bill_sync_log (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_id   INTEGER NOT NULL REFERENCES payment_sources(id) ON DELETE CASCADE,
+            bill_date   TEXT NOT NULL,
+            status      TEXT NOT NULL DEFAULT 'success' CHECK(status IN ('success','error','empty')),
+            fetched     INTEGER DEFAULT 0,
+            imported    INTEGER DEFAULT 0,
+            skipped     INTEGER DEFAULT 0,
+            error       TEXT DEFAULT '',
+            created_at  TEXT DEFAULT (datetime('now','localtime'))
+        );
         """)
+        # 迁移：transactions 增加 source / wx_trade_id（老库升级）
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(transactions)").fetchall()]
+        if "source" not in cols:
+            conn.execute("ALTER TABLE transactions ADD COLUMN source TEXT DEFAULT 'manual'")
+        if "wx_trade_id" not in cols:
+            conn.execute("ALTER TABLE transactions ADD COLUMN wx_trade_id TEXT DEFAULT ''")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_wx_trade_id "
+                     "ON transactions(wx_trade_id) WHERE wx_trade_id != ''")
 
 
 # ---------------- 熟客 ----------------
@@ -301,7 +336,6 @@ def mark_reminder_done(rid, done=1):
         conn.execute("UPDATE reminders SET done=? WHERE id=?", (done, rid))
 
 
-# ---------------- 交易流水（查账） ----------------
 def list_transactions(year=None, month=None, limit=100):
     """月度交易流水（查账用）：含客户名与口语分类名"""
     today = date.today()
@@ -320,3 +354,74 @@ def list_transactions(year=None, month=None, limit=100):
             d["friendly"] = FRIENDLY_NAMES.get(d["category"], d["category"])
             out.append(d)
         return out
+
+
+# ---------------- 收款账户（微信商户 / 聚合支付） ----------------
+def list_payment_sources():
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM payment_sources ORDER BY id").fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_payment_source(sid):
+    with get_conn() as conn:
+        r = conn.execute("SELECT * FROM payment_sources WHERE id=?", (sid,)).fetchone()
+        return dict(r) if r else None
+
+
+def save_payment_source(source_type="wechat", name="", mchid="", appid="",
+                        cert_path="", private_key_path="", api_v3_key="",
+                        enabled=0, sid=None):
+    """新增或更新收款账户（sid 有值则更新）"""
+    with get_conn() as conn:
+        if sid:
+            conn.execute(
+                "UPDATE payment_sources SET source_type=?, name=?, mchid=?, appid=?, "
+                "cert_path=?, private_key_path=?, api_v3_key=?, enabled=? WHERE id=?",
+                (source_type, name, mchid, appid, cert_path, private_key_path,
+                 api_v3_key, 1 if enabled else 0, sid))
+            return sid
+        cur = conn.execute(
+            "INSERT INTO payment_sources(source_type, name, mchid, appid, cert_path, "
+            "private_key_path, api_v3_key, enabled) VALUES(?,?,?,?,?,?,?,?)",
+            (source_type, name, mchid, appid, cert_path, private_key_path,
+             api_v3_key, 1 if enabled else 0))
+        return cur.lastrowid
+
+
+def delete_payment_source(sid):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM payment_sources WHERE id=?", (sid,))
+
+
+def set_payment_source_enabled(sid, enabled):
+    with get_conn() as conn:
+        conn.execute("UPDATE payment_sources SET enabled=? WHERE id=?", (1 if enabled else 0, sid))
+
+
+def add_sync_log(source_id, bill_date, status="success", fetched=0, imported=0,
+                 skipped=0, error=""):
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO bill_sync_log(source_id, bill_date, status, fetched, imported, skipped, error) "
+            "VALUES(?,?,?,?,?,?,?)",
+            (source_id, bill_date, status, fetched, imported, skipped, error))
+        return cur.lastrowid
+
+
+def list_sync_logs(limit=30):
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT l.*, s.name AS source_name, s.source_type "
+            "FROM bill_sync_log l LEFT JOIN payment_sources s ON s.id=l.source_id "
+            "ORDER BY l.id DESC LIMIT ?", (limit,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def last_sync_date(source_id):
+    """该账户最近一次成功同步的账单日期（无则 None）"""
+    with get_conn() as conn:
+        r = conn.execute(
+            "SELECT MAX(bill_date) AS d FROM bill_sync_log "
+            "WHERE source_id=? AND status IN ('success','empty')", (source_id,)).fetchone()
+        return r["d"] if r else None

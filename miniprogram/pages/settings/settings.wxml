@@ -42,6 +42,79 @@
     <view class="howto" bindtap="howToGet">还没有 Key？去对应平台开通（复制链接）</view>
   </view>
 
+  <!-- 收款账户（二维码收付款流水自动入账本） -->
+  <view class="card">
+    <view class="card-title">收款账户 · 流水自动入账本</view>
+    <view class="howto-text">把微信/聚合支付收款码的流水自动同步进账本，无需手工记账。</view>
+    <view class="form-item">
+      <text class="form-label">通道类型</text>
+      <picker bindchange="onPayTypeChange" value="{{payTypeIndex}}" range="{{payTypes}}">
+        <view class="picker-value">{{payTypes[payTypeIndex]}}</view>
+      </picker>
+    </view>
+    <view class="form-item">
+      <text class="form-label">账户名称</text>
+      <input class="form-input" placeholder="如：店里收款码" value="{{payName}}" bindinput="onPayNameInput" />
+    </view>
+    <view class="form-item">
+      <text class="form-label">商户号（无资料可填 DEMO 体验）</text>
+      <input class="form-input" placeholder="微信商户号 / 聚合商户号" value="{{payMchid}}" bindinput="onPayMchidInput" />
+    </view>
+    <view wx:if="{{payTypeIndex === 0}}" class="form-item">
+      <text class="form-label">AppID（可选）</text>
+      <input class="form-input" placeholder="小程序/公众号 AppID" value="{{payAppid}}" bindinput="onPayAppidInput" />
+    </view>
+    <view wx:if="{{payTypeIndex === 0}}" class="form-item">
+      <text class="form-label">API 证书路径（apiclient_cert.pem）</text>
+      <input class="form-input" placeholder="C:\cert\apiclient_cert.pem" value="{{payCertPath}}" bindinput="onPayCertInput" />
+    </view>
+    <view wx:if="{{payTypeIndex === 0}}" class="form-item">
+      <text class="form-label">API 私钥路径（apiclient_key.pem）</text>
+      <input class="form-input" placeholder="C:\cert\apiclient_key.pem" value="{{payPrivKeyPath}}" bindinput="onPayPrivKeyInput" />
+    </view>
+    <view wx:if="{{payTypeIndex === 0}}" class="form-item">
+      <text class="form-label">APIv3 密钥</text>
+      <input class="form-input" password="{{true}}" placeholder="微信支付商户平台设置" value="{{payV3Key}}" bindinput="onPayV3KeyInput" />
+    </view>
+    <view class="form-item">
+      <switch checked="{{payEnabled}}" bindchange="onPayEnabledChange" color="#b4532a" />
+      <text class="form-label inline-label">启用自动同步（每 6 小时拉取昨日账单）</text>
+    </view>
+    <view class="btn-primary manual-btn {{paySyncing ? 'btn-disabled' : ''}}" bindtap="savePaySource">保存收款账户</view>
+    <view class="howto-text" wx:if="{{payTypeIndex === 1}}">无执照群体可用聚合支付（收钱吧/付桥等），通道接入中，当前保存后同步会提示待接入。</view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">已保存的收款账户</view>
+    <view wx:if="{{paySources.length === 0}}" class="howto-text">暂无收款账户。填商户号 DEMO 即可体验演示模式，无需任何商户资料。</view>
+    <view class="pay-row" wx:for="{{paySources}}" wx:key="id">
+      <view class="pay-row-main">
+        <view class="pay-type-badge">{{item.source_type === 'wechat' ? '微信商户' : '聚合支付'}}</view>
+        <view class="pay-row-name">{{item.name || '未命名'}}</view>
+        <view class="pay-row-sub">商户号：{{item.mchid}}　{{item.enabled ? '✅ 已启用' : '⏸ 未启用'}}</view>
+      </view>
+      <view class="pay-row-actions">
+        <view class="btn-mini" data-id="{{item.id}}" bindtap="syncPaySource">同步</view>
+        <view class="btn-mini btn-danger" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="deletePaySource">删除</view>
+      </view>
+    </view>
+    <view class="pay-actions">
+      <view class="btn-mini {{paySyncing ? 'btn-disabled' : ''}}" bindtap="syncAllPay">全部同步</view>
+      <view class="btn-mini btn-danger" bindtap="clearDemoPay">清空演示流水</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="card-title">同步记录（最近 {{payLogs.length}} 条）</view>
+    <view wx:if="{{payLogs.length === 0}}" class="howto-text">暂无同步记录。</view>
+    <view class="log-row" wx:for="{{payLogs}}" wx:key="id">
+      <view class="log-status {{item.status}}">{{item.status === 'success' ? '✓' : item.status === 'empty' ? '○' : '✗'}}</view>
+      <view class="log-text">{{item.source_name}}</view>
+      <view class="log-text">{{item.bill_date}}</view>
+      <view class="log-text log-err">{{item.status === 'success' ? '新增 ' + item.imported + ' 笔' : item.status === 'empty' ? '当日无交易' : item.error}}</view>
+    </view>
+  </view>
+
   <!-- 说明 -->
   <view class="card">
     <view class="card-title">说明</view>
@@ -49,6 +122,7 @@
     <view class="howto-text">2. Key 只保存在你自己的电脑上，不会上传。</view>
     <view class="howto-text">3. 保存后立即生效，无需重启后端服务。</view>
     <view class="howto-text">4. 语音记账还需正式小程序 AppID 并授权「同声传译」插件，与 API Key 无关。</view>
+    <view class="howto-text">5. 收款流水自动入账本：有执照用微信支付商户号，无执照用聚合支付（接入中）。</view>
   </view>
 
   <tabbar current="{{4}}" />
