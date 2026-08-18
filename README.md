@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '3585ce1f-fc0d-4b22-a77a-9c26e9cd1710'
-  PropagateID: '3585ce1f-fc0d-4b22-a77a-9c26e9cd1710'
-  ReservedCode1: '7d464104-d0f5-4742-8beb-876144a1fbb2'
-  ReservedCode2: '7d464104-d0f5-4742-8beb-876144a1fbb2'
+  ProduceID: '4ea68a3f-bc4b-46ad-ad0e-a40189595531'
+  PropagateID: '4ea68a3f-bc4b-46ad-ad0e-a40189595531'
+  ReservedCode1: '4e24a1f5-097f-4a9d-9985-24bdeeab0095'
+  ReservedCode2: '4e24a1f5-097f-4a9d-9985-24bdeeab0095'
 ---
 
 # 巷子里的AI掌柜
@@ -59,9 +59,19 @@ AIGC:
     ├── aggregate_pay.py# 聚合支付适配器（预留收钱吧/付桥等服务商）
     ├── config.py       # 配置读取（环境变量 > config.local.json > 默认值）
     └── static/         # 网页版（手机浏览器可直接访问）
-        ├── index.html
+        ├── index.html   # 单页入口（按依赖顺序加载 js/）
         ├── style.css
-        └── app.js
+        └── js/          # 前端逻辑（按职责拆分，全局函数兼容内联事件）
+            ├── core.js        # 状态 / API 封装 / 渲染分发 / 路由 / 工具
+            ├── speech.js      # 语音识别（Web Speech API）
+            ├── pages/         # 各页面逻辑与渲染
+            │   ├── home.js    # 记账（首页）
+            │   ├── customers.js # 熟客
+            │   ├── copy.js    # 朋友圈文案
+            │   ├── books.js   # 账本（流水/算税/科目/报表）
+            │   ├── store.js   # 单店模型
+            │   └── settings.js# 设置（AI 模型 + 收款账户）
+            └── init.js        # 初始化（hash 路由 / 导航绑定 / 首渲染）
 ```
 
 ## 快速开始
