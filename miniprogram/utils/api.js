@@ -27,6 +27,8 @@ module.exports = {
   // 记账
   createOrder: (text) => request('/api/orders', 'POST', { text }),
   todaySummary: () => request('/api/orders/today'),
+  monthlySummary: () => request('/api/orders/monthly'),
+  vouchers: () => request('/api/vouchers'),
 
   // 熟客
   customers: () => request('/api/customers'),

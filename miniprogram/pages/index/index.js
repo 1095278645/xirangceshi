@@ -7,11 +7,14 @@ const manager = plugin.getRecordRecognitionManager()
 Page({
   data: {
     shopName: '我的小店',
-    summary: { total: 0, cnt: 0 },
+    summary: { income: 0, expense: 0, balance: 0, cnt: 0 },
+    month: { period: '', income: 0, expense: 0, balance: 0 },
     recognizing: false,
     voiceText: '',
     submitting: false,
     parsed: null,       // 解析结果
+    voucher: null,      // 凭证信息
+    friendlyCategory: '',
     manualText: '',
     remindTip: ''
   },
@@ -21,14 +24,20 @@ Page({
     this.setData({ shopName: this.shopName })
     this.initRecognizer()
     this.loadSummary()
+    this.loadMonth()
   },
 
   onShow() {
     this.loadSummary()
+    this.loadMonth()
   },
 
   loadSummary() {
     api.todaySummary().then(s => this.setData({ summary: s })).catch(() => {})
+  },
+
+  loadMonth() {
+    api.monthlySummary().then(m => this.setData({ month: m })).catch(() => {})
   },
 
   // 初始化语音识别（微信同声传译插件）
@@ -70,13 +79,15 @@ Page({
     this.setData({ submitting: true })
     api.createOrder(text)
       .then(res => {
-        const parsed = res.parsed
         this.setData({
-          parsed: parsed,
+          parsed: res.parsed,
+          voucher: res.voucher,
+          friendlyCategory: res.friendly_category,
           submitting: false,
           summary: res.summary,
           manualText: ''
         })
+        this.loadMonth()
         if (res.customer_new) {
           wx.showToast({ title: '新熟客已记住', icon: 'none' })
         }

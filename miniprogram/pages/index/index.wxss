@@ -32,6 +32,18 @@
   color: #b4532a;
 }
 
+.summary-num.income {
+  color: #2e9e5b;
+}
+
+.summary-num.expense {
+  color: #d64545;
+}
+
+.summary-num.balance {
+  color: #b4532a;
+}
+
 .summary-label {
   font-size: 24rpx;
   color: #a08d7b;
@@ -91,6 +103,30 @@
   background: #fff7f0;
   border-radius: 12rpx;
   padding: 16rpx;
+}
+
+/* 收支类型徽章 */
+.type-wrap {
+  display: inline-block;
+  font-size: 24rpx;
+  padding: 6rpx 20rpx;
+  border-radius: 24rpx;
+  margin-bottom: 12rpx;
+}
+
+.badge-income {
+  background: #e6f6ec;
+  color: #2e9e5b;
+}
+
+.badge-expense {
+  background: #fdeaea;
+  color: #d64545;
+}
+
+.voucher-no {
+  color: #8a6a4a;
+  font-size: 26rpx;
 }
 
 /* 解析结果 */

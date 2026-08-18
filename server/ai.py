@@ -5,6 +5,7 @@ import re
 from openai import OpenAI
 
 from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
+from db import detect_category
 
 _client = None
 
@@ -43,23 +44,71 @@ def _extract_json(text):
 
 
 # ---------------- 1. 语音/文本记账解析 ----------------
+_CN_DIGITS = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+_CN_UNITS = {"十": 10, "百": 100, "千": 1000, "万": 10000}
+
+
+def _cn_to_int(s: str) -> int:
+    """中文数字转整数：一百二十→120，三千五→3500，十块→10，五百零三→503"""
+    total = section = num = 0
+    last_unit = 0
+    for ch in s:
+        if ch in _CN_DIGITS:
+            num = _CN_DIGITS[ch]
+            if ch == "零":
+                last_unit = 0
+        elif ch in _CN_UNITS:
+            unit = _CN_UNITS[ch]
+            if unit == 10000:
+                section = (section + num) * unit
+                total += section
+                section, num = 0, 0
+            else:
+                section += (num or 1) * unit
+                num = 0
+            last_unit = unit
+        else:
+            break
+    if num and last_unit:
+        # 口语省略：三百五=350，五千五=5500，末尾数字按 单位/10 计
+        return total + section + num * last_unit // 10
+    return total + section + num
+
+
+def _extract_amount(text: str):
+    """从大白话里提取金额：优先'X块/X元'，其次'一共/花了/付了+X'，再支持中文数字（一百二、三千五）"""
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(?:块|元|块钱)", text)
+    if m:
+        return float(m.group(1))
+    _CN_CHARS = "零一二两三四五六七八九十百千万"
+    m = re.search(rf"[{_CN_CHARS}]+\s*(?:块|元|块钱)", text)
+    if m:
+        return float(_cn_to_int(re.search(rf"[{_CN_CHARS}]+", m.group(0)).group(0)))
+    m = re.search(rf"(?:一共|总共|共|花了|花掉|付了|付掉|收了|收进|到账|赚了)\s*(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)", text)
+    if m:
+        g = m.group(1)
+        return float(g) if g.replace(".", "", 1).isdigit() else float(_cn_to_int(g))
+    return None
+
+
 def parse_transaction(text: str) -> dict:
-    """把一句大白话转成结构化记账，如：'王阿姨买了两个肉包和一杯豆浆，6块'"""
+    """把一句大白话转成结构化记账：'王阿姨买了两个肉包和一杯豆浆，6块' / '今天进货花了两百块'"""
     if not ai_available():
         # 无 API Key 时的兜底：朴素提取
-        amount = None
-        m = re.search(r"(\d+(?:\.\d+)?)\s*(块|元)", text)
-        if m:
-            amount = float(m.group(1))
+        amount = _extract_amount(text)
+        category, trans_type = detect_category(text)
         return {
             "customer": "", "item": text, "amount": amount, "note": "",
-            "tags": "", "fallback": True,
+            "tags": "", "category": category, "trans_type": trans_type, "fallback": True,
         }
     prompt = (
-        "你是一家街边小店的AI掌柜，负责把店主随口说的记账话翻译成结构化数据。\n"
-        "规则：只输出JSON，不要多余文字。字段：customer(顾客称呼,没有则空串)、"
-        "item(买的东西)、amount(金额,数字,没提到则null)、note(补充说明)、"
-        "tags(适合给客户打的标签数组，如常客/爱喝豆浆，没有则空数组)。\n"
+        "你是一家街边小店的AI掌柜兼代账会计，负责把店主随口说的记账话翻译成结构化数据，并按小企业会计准则分类。\n"
+        "规则：只输出JSON，不要多余文字。字段：\n"
+        "customer(顾客称呼,没有则空串)、item(买的东西/事由)、amount(金额,数字,没提到则null)、\n"
+        "trans_type(\"income\"收入或\"expense\"支出，判断这笔钱是收进还是花出)、\n"
+        "category(分类，从下面选一个最贴切的：主营业务收入/其他收入/进货/办公费/业务招待费/快递物流费/"
+        "租赁及物业费/差旅费/车辆使用费/广告宣传费/软件服务费/培训费/工资)、\n"
+        "note(补充说明)、tags(适合给客户打的标签数组，没有则空数组)。\n"
         f"店主说：{text}"
     )
     try:
@@ -70,9 +119,13 @@ def parse_transaction(text: str) -> dict:
             "amount": out.get("amount"),
             "note": out.get("note", ""),
             "tags": ",".join(out.get("tags", [])),
+            "category": out.get("category", ""),
+            "trans_type": out.get("trans_type", "income"),
         }
     except Exception:
-        return {"customer": "", "item": text, "amount": None, "note": "", "tags": ""}
+        category, trans_type = detect_category(text)
+        return {"customer": "", "item": text, "amount": None, "note": "",
+                "tags": "", "category": category, "trans_type": trans_type}
 
 
 # ---------------- 2. 朋友圈文案生成 ----------------

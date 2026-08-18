@@ -58,21 +58,30 @@ def health():
 # ---------------- 记账 ----------------
 @app.post("/api/orders")
 def create_order(data: OrderIn):
-    """一句话记账：AI解析 + 熟客自动归档"""
+    """一句话记账：AI解析（含收支分类） + 熟客自动归档 + 生成借贷凭证"""
     parsed = ai.parse_transaction(data.text)
     customer = data.customer or parsed.get("customer", "")
     cid = None
+    is_new = False
     if customer:
         cid, is_new = db.find_or_create_customer(
             customer, tags=parsed.get("tags", ""), favorite=parsed.get("item", ""))
     amount = data.amount if data.amount is not None else parsed.get("amount")
-    tid = db.add_transaction(cid, parsed.get("item", "") or data.text, amount or 0,
-                             parsed.get("note", ""))
+    trans_type = parsed.get("trans_type", "income")
+    category = parsed.get("category", "")
+    if not category:
+        category, trans_type = db.detect_category(data.text)
+    tid, voucher = db.add_transaction(
+        cid, parsed.get("item", "") or data.text, amount or 0,
+        trans_type=trans_type, category=category,
+        counterparty=customer, note=parsed.get("note", ""))
     return {
         "order_id": tid,
         "parsed": parsed,
         "customer_id": cid,
         "customer_new": cid and is_new,
+        "voucher": voucher,
+        "friendly_category": db.FRIENDLY_NAMES.get(category, category),
         "summary": db.today_summary(),
     }
 
@@ -80,6 +89,18 @@ def create_order(data: OrderIn):
 @app.get("/api/orders/today")
 def orders_today():
     return db.today_summary()
+
+
+@app.get("/api/orders/monthly")
+def orders_monthly(year: int | None = None, month: int | None = None):
+    """月度收支汇总 + 分类明细（查账）"""
+    return db.monthly_summary(year, month)
+
+
+@app.get("/api/vouchers")
+def vouchers(limit: int = 50):
+    """凭证列表（复式记账，借贷分录）"""
+    return db.list_vouchers(limit)
 
 
 # ---------------- 熟客 ----------------

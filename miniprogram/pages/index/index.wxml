@@ -12,12 +12,39 @@
     <view class="card-title">今日账本</view>
     <view class="summary-row">
       <view class="summary-item">
-        <view class="summary-num">{{summary.total}}</view>
-        <view class="summary-label">营业额（元）</view>
+        <view class="summary-num income">{{summary.income}}</view>
+        <view class="summary-label">收入（元）</view>
+      </view>
+      <view class="summary-item">
+        <view class="summary-num expense">{{summary.expense}}</view>
+        <view class="summary-label">支出（元）</view>
+      </view>
+      <view class="summary-item">
+        <view class="summary-num balance">{{summary.balance}}</view>
+        <view class="summary-label">结余（元）</view>
       </view>
       <view class="summary-item">
         <view class="summary-num">{{summary.cnt}}</view>
-        <view class="summary-label">记账笔数</view>
+        <view class="summary-label">笔数</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 本月账本 -->
+  <view class="card">
+    <view class="card-title">本月账本 · {{month.period}}</view>
+    <view class="summary-row">
+      <view class="summary-item">
+        <view class="summary-num income">{{month.income}}</view>
+        <view class="summary-label">收入（元）</view>
+      </view>
+      <view class="summary-item">
+        <view class="summary-num expense">{{month.expense}}</view>
+        <view class="summary-label">支出（元）</view>
+      </view>
+      <view class="summary-item">
+        <view class="summary-num balance">{{month.balance}}</view>
+        <view class="summary-label">结余（元）</view>
       </view>
     </view>
   </view>
@@ -36,18 +63,29 @@
   <!-- 解析结果 -->
   <view class="card" wx:if="{{parsed}}">
     <view class="card-title">已记下</view>
+    <view class="type-badge {{parsed.trans_type === 'income' ? 'badge-income' : 'badge-expense'}}">
+      {{parsed.trans_type === 'income' ? '收入' : '支出'}}
+    </view>
     <view class="parsed-grid">
       <view class="parsed-item">
         <text class="parsed-label">顾客</text>
         <text class="parsed-value">{{parsed.customer || '散客'}}</text>
       </view>
       <view class="parsed-item">
-        <text class="parsed-label">商品</text>
+        <text class="parsed-label">事由</text>
         <text class="parsed-value">{{parsed.item}}</text>
       </view>
       <view class="parsed-item">
         <text class="parsed-label">金额</text>
         <text class="parsed-value">{{parsed.amount != null ? parsed.amount + ' 元' : '未提'}}</text>
+      </view>
+      <view class="parsed-item">
+        <text class="parsed-label">分类</text>
+        <text class="parsed-value">{{friendlyCategory || parsed.category}}</text>
+      </view>
+      <view class="parsed-item" wx:if="{{voucher}}">
+        <text class="parsed-label">凭证</text>
+        <text class="parsed-value voucher-no">{{voucher.voucher_no}}（借:{{voucher.debit}} / 贷:{{voucher.credit}}）</text>
       </view>
     </view>
     <view class="tag" wx:for="{{parsed.tags.split(',')}}" wx:if="{{item}}" wx:key="index">{{item}}</view>
