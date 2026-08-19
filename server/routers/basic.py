@@ -60,5 +60,6 @@ def copywriting(data: CopyIn):
     if store_diag and store_diag.get("value"):
         context_parts.append(str(store_diag["value"])[:200])
     context = " | ".join(context_parts) if context_parts else ""
-    text = ai.generate_copy(data.shop_name, data.scene, data.extra, data.customer_name, context)
-    return {"text": text}
+    text, process = ai.generate_copy(data.shop_name, data.scene, data.extra,
+                                     data.customer_name, context, return_process=True)
+    return {"text": text, "team": process}

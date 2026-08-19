@@ -62,6 +62,7 @@ def store_diagnosis(data: StoreModelIn):
     )
     prev = db.get_domain_context("store", "diagnosis")
     prev_text = prev["value"] if prev else ""
-    text = ai.generate_store_diagnosis(model_result, prev_text)
+    text, process = ai.generate_store_diagnosis(model_result, prev_text, return_process=True)
     db.set_domain_context("store", "diagnosis", text)
-    return {"diagnosis": text, "model": model_result, "ai_used": ai.ai_available()}
+    return {"diagnosis": text, "model": model_result, "ai_used": ai.ai_available(),
+            "team": process}

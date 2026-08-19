@@ -1,4 +1,8 @@
-"""AI 能力层：记账解析、文案生成、熟客提醒 —— 支持多种 OpenAI 兼容大模型"""
+"""AI 能力层：记账解析、文案生成、熟客提醒 —— 支持多种 OpenAI 兼容大模型
+
+多 agent 团队编排（朋友圈文案协作流水线 / 单店诊断竞争融合）已抽到 team_domains.py，
+这里保留单 agent 能力；为兼容旧入口，底部从 team_domains 再导出 generate_copy / generate_store_diagnosis。
+"""
 import json
 import re
 
@@ -43,7 +47,7 @@ def _extract_json(text):
         raise ValueError(f"无法解析模型输出: {text[:200]}")
 
 
-# ---------------- 1. 语音/文本记账解析 ----------------
+# ---------------- 1. 文字/文本记账解析 ----------------
 _CN_DIGITS = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
 _CN_UNITS = {"十": 10, "百": 100, "千": 1000, "万": 10000}
 
@@ -139,25 +143,6 @@ def parse_transaction(text: str) -> dict:
         category, trans_type = detect_category(text)
         return {"customer": "", "item": text, "amount": None, "note": "",
                 "tags": "", "category": category, "trans_type": trans_type}
-
-
-# ---------------- 2. 朋友圈文案生成 ----------------
-def generate_copy(shop_name: str, scene: str, extra: str, customer_name: str = "", context: str = "") -> str:
-    """生成有烟火气、口语化的朋友圈文案（可带经营上下文）"""
-    if not ai_available():
-        ctx_part = f"（{context}）" if context else ""
-        return (f"【{shop_name}】{extra}{ctx_part}\n—— 今日份营业，欢迎光临！"
-                "(提示：在设置页填入 API Key 后即可生成真实文案)")
-    prompt = (
-        f"你是{shop_name}的老板，文化不高但特别真诚，说话带点本地烟火气，偶尔自嘲和幽默。\n"
-        "请写一条不超过80字的朋友圈文案，不要用'亲''家人们''爆款''限时抢购'这类网红词，"
-        "要像真人老板随手发的。"
-        f"场景：{scene}\n补充信息：{extra}\n"
-        + (f"经营上下文（参考但不照抄）：{context}\n" if context else "")
-        + (f"今天还惦记着老主顾：{customer_name}，可以自然带一句（可选，不硬凑）。" if customer_name else "")
-        + "\n直接输出文案正文，不要任何前缀。"
-    )
-    return chat([{"role": "user", "content": prompt}], temperature=0.9, max_tokens=300).strip()
 
 
 # ---------------- 3. 熟客提醒生成 ----------------
@@ -268,35 +253,6 @@ def generate_tax_advice(quarterly_revenue: float, vat_result: dict, prev_advice:
     return chat([{"role": "user", "content": prompt}], temperature=0.3, max_tokens=400).strip()
 
 
-# ---------------- 7. 单店经营诊断 ----------------
-def generate_store_diagnosis(model_result: dict, prev_diagnosis: str = "") -> str:
-    """基于单店模型计算结果生成个性化经营诊断和行动计划"""
-    if not ai_available():
-        # 降级：基于评分的固定话术
-        overall = model_result.get("overall", {})
-        score = overall.get("score", 0)
-        verdict = overall.get("level", "")
-        model = model_result.get("model", {})
-        breakeven = model.get("break_even_day", 0)
-        target = model.get("target_day", 0)
-        lines = [f"综合评分 {score} 分，判定：{verdict}。"]
-        if score < 30:
-            lines.append(f"保本日销 {breakeven:.0f} 元，现在离保本线还差得远，先想办法把日均流水拉上来。")
-            lines.append("建议：① 砍掉不必要开支 ② 做一个月整改窗口 ③ 差太远就果断止损。")
-        elif score < 60:
-            lines.append(f"保本日销 {breakeven:.0f} 元，目标 {target:.0f} 元，现在在保本线附近挣扎。")
-            lines.append("建议：① 找到增量突破口 ② 优化成本结构 ③ 关注现金储备。")
-        else:
-            lines.append(f"经营健康，保本线 {breakeven:.0f} 元已稳，目标 {target:.0f} 元。")
-            lines.append("建议：考虑适度扩张或提升客单价。")
-        lines.append("(提示：在设置页填入 API Key 后可获得个性化 AI 经营诊断)")
-        return " ".join(lines)
-    prompt = (
-        "你是街边小店的经营顾问，用勇哥的方法论帮老板诊断店铺。\n"
-        "核心原则：现金流比故事重要，保本线先行，三维交叉验证。\n"
-        f"单店模型计算结果：{json.dumps(model_result, ensure_ascii=False, default=str)}\n"
-        + (f"上次诊断参考：{prev_diagnosis}\n" if prev_diagnosis else "")
-        + "请输出：① 一句话总结店铺健康状况 ② 最紧迫的问题 ③ 具体的行动计划（3条）。\n"
-        "口语化，像老掌柜跟新老板聊天。直接输出正文。"
-    )
-    return chat([{"role": "user", "content": prompt}], temperature=0.5, max_tokens=500).strip()
+# 多 agent 团队编排（朋友圈文案协作流水线 / 单店诊断竞争融合）在 team_domains.py，
+# 此处再导出以保持既有入口 ai.generate_copy / ai.generate_store_diagnosis 兼容。
+from team_domains import generate_copy, generate_store_diagnosis  # noqa: E402,F401
