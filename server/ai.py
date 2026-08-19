@@ -59,7 +59,7 @@ def _cn_to_int(s: str) -> int:
                 last_unit = 0
         elif ch in _CN_UNITS:
             unit = _CN_UNITS[ch]
-            if unit == 10000:
+            if unit == _CN_UNITS["万"]:   # 万位进位（中文数字进制规则，语义化而非字面量）
                 section = (section + num) * unit
                 total += section
                 section, num = 0, 0
