@@ -19,6 +19,7 @@ import sqlite3
 from db_customers import *  # noqa: F401,F403
 from db_ledger import *     # noqa: F401,F403
 from db_payment import *    # noqa: F401,F403
+from db_arch import *       # noqa: F401,F403  领域上下文/任务队列/单店档案
 
 
 @contextmanager
@@ -118,6 +119,45 @@ def init_db():
             skipped     INTEGER DEFAULT 0,
             error       TEXT DEFAULT '',
             created_at  TEXT DEFAULT (datetime('now','localtime'))
+        );
+
+        -- 领域上下文（按业务域独立的经营记忆，对标 TinyAGI workspace 隔离）
+        CREATE TABLE IF NOT EXISTS domain_context (
+            domain      TEXT NOT NULL,
+            key         TEXT NOT NULL,
+            value       TEXT DEFAULT '',
+            updated_at  TEXT DEFAULT (datetime('now','localtime')),
+            PRIMARY KEY (domain, key)
+        );
+
+        -- 任务队列（心跳/日报推送等复用，pending→running→done/dead）
+        CREATE TABLE IF NOT EXISTS job_tasks (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_type   TEXT NOT NULL,
+            payload     TEXT DEFAULT '',
+            status      TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','running','done','dead')),
+            retries     INTEGER DEFAULT 0,
+            max_retries INTEGER DEFAULT 5,
+            error       TEXT DEFAULT '',
+            result      TEXT DEFAULT '',
+            created_at  TEXT DEFAULT (datetime('now','localtime')),
+            updated_at  TEXT DEFAULT (datetime('now','localtime'))
+        );
+
+        -- 单店档案（单店经营引擎的输入沉淀，可随时复用诊断）
+        CREATE TABLE IF NOT EXISTS store_profiles (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            name            TEXT NOT NULL DEFAULT '',
+            biz_type        TEXT DEFAULT '餐饮',
+            gross_margin    REAL,
+            rent            REAL DEFAULT 0,
+            salary          REAL DEFAULT 0,
+            utilities       REAL DEFAULT 0,
+            total_investment REAL DEFAULT 0,
+            cash_on_hand    REAL DEFAULT 0,
+            traffic         TEXT DEFAULT '一般',
+            competitor      TEXT DEFAULT '一般',
+            updated_at      TEXT DEFAULT (datetime('now','localtime'))
         );
         """)
         # 迁移：transactions 增加 source / wx_trade_id（老库升级）

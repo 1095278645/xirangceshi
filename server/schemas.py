@@ -82,3 +82,30 @@ class StoreModelIn(BaseModel):
     traffic: str = "一般"              # 商圈客流：差/一般/好
     competitor: str = "一般"           # 周边竞争：多/一般/少
     biz_type: str = "餐饮"             # 业态：餐饮/饮品/零售/生鲜/服务/摆摊
+
+
+class DomainContextIn(BaseModel):
+    """领域上下文写入（按业务域独立的经营记忆）"""
+    domain: str                        # 如 ledger / customer / copy / tax / stock
+    key: str = ""                      # 空串时用 domain 作 key（单值场景）
+    value: object = ""                 # 任意 JSON 可序列化值
+
+
+class JobIn(BaseModel):
+    """任务入队"""
+    task_type: str
+    payload: object = None
+
+
+class StoreProfileIn(BaseModel):
+    """单店档案保存（input 直喂 calc_store_model）"""
+    name: str = "我的店"
+    biz_type: str = "餐饮"
+    gross_margin: float | None = None
+    rent: float = 0
+    salary: float = 0
+    utilities: float = 0
+    total_investment: float = 0
+    cash_on_hand: float = 0
+    traffic: str = "一般"
+    competitor: str = "一般"

@@ -17,11 +17,14 @@ from fastapi.staticfiles import StaticFiles
 
 import config
 import db
+import heartbeat
 import payment
-from routers import basic, customers, orders, payment as payment_router, report, store, tax
+from routers import (arch, basic, customers, orders,
+                     payment as payment_router, report, store, tax)
 
 log = logging.getLogger("main")
 SYNC_INTERVAL_SECONDS = 6 * 3600   # 每 6 小时自动同步一次昨日账单
+HEARTBEAT_INTERVAL_SECONDS = 24 * 3600  # 每天生成一次经营复盘
 
 
 async def _daily_sync_loop():
@@ -36,12 +39,24 @@ async def _daily_sync_loop():
         await asyncio.sleep(SYNC_INTERVAL_SECONDS)
 
 
+async def _heartbeat_loop():
+    """后台定时任务：每天生成一次经营复盘，落盘领域上下文供前端/推送取用。"""
+    while True:
+        try:
+            await asyncio.to_thread(heartbeat.generate_daily_review)
+        except Exception as e:  # noqa: BLE001
+            log.error("heartbeat loop error: %s", e)
+        await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     db.init_db()
     sync_task = asyncio.create_task(_daily_sync_loop())
+    hb_task = asyncio.create_task(_heartbeat_loop())
     yield
     sync_task.cancel()
+    hb_task.cancel()
 
 
 app = FastAPI(title="巷子里的AI掌柜", version="0.2.0", lifespan=lifespan)
@@ -56,7 +71,7 @@ app.add_middleware(
 )
 
 # 业务路由：按域拆分，路径与原单文件版本完全一致
-for r in (basic.router, orders.router, customers.router, tax.router,
+for r in (arch.router, basic.router, orders.router, customers.router, tax.router,
           store.router, report.router, payment_router.router):
     app.include_router(r)
 
