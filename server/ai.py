@@ -188,7 +188,9 @@ def generate_insights(monthly_data: dict, prev_context: str = "") -> str:
         f"本月收支数据：{json.dumps(monthly_data, ensure_ascii=False, default=str)}\n"
         + (f"上次分析参考：{prev_context}\n" if prev_context else "")
         + "请输出3-5条经营洞察：① 环比变化趋势 ② 异常品类 ③ 可执行建议。\n"
-        "口语化，不要用专业术语，像掌柜跟老板聊天一样。直接输出正文。"
+        "口语化，不要用专业术语，像掌柜跟老板聊天一样。先用现金流/保本线看这个月是赚是亏，"
+        "再给具体可执行的动作——不是\"提升营收、加强营销\"这种空话，"
+        "而是\"把进货款压低到多少以内\"\"哪个品类进货砍一半\"这样有颗粒度的建议。直接输出正文。"
     )
     return chat([{"role": "user", "content": prompt}], temperature=0.5, max_tokens=500).strip()
 
@@ -222,7 +224,8 @@ def generate_customer_insight(customer: dict, transactions: list) -> str:
         f"熟客信息：{json.dumps(customer, ensure_ascii=False, default=str)}\n"
         f"近期交易：{json.dumps(transactions[:20], ensure_ascii=False, default=str)}\n"
         "请用大白话输出：① 消费偏好（爱买什么、多久来一次）② 性格猜测（大方/节俭/健谈）"
-        "③ 一条个性化的维系建议（具体到这周该做什么）。直接输出正文，不要列表格式。"
+        "③ 一条个性化的维系建议（具体到这周该做什么，比如\"上次她说孙子考了一百分，这周见面可以问一句\"，"
+        "记住她的细节，不要泛泛\"多问候\"）。直接输出正文，不要列表格式。"
     )
     return chat([{"role": "user", "content": prompt}], temperature=0.6, max_tokens=400).strip()
 
