@@ -62,9 +62,12 @@ app = FastAPI(title="巷子里的AI掌柜", version="0.2.0", lifespan=lifespan)
 
 _STATIC_DIR = config.BASE_DIR / "static"
 
+# CORS：仅放行本机与内网来源（手机浏览器访问 http://电脑IP:8000 时 Origin 为局域网 IP）。
+# 小程序 wx.request 不受浏览器 CORS 限制，无需放行。避免公网恶意网页调用本地 API。
+_ORIGIN_RE = r"^https?://(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$"
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=_ORIGIN_RE,
     allow_methods=["*"],
     allow_headers=["*"],
 )

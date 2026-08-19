@@ -28,6 +28,8 @@ def get_conn():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")      # 并发读写（后台线程 + API 线程）不互相锁库
+    conn.execute("PRAGMA busy_timeout = 5000")      # 写冲突时等待最多 5 秒而非立刻报错
     try:
         yield conn
         conn.commit()
