@@ -15,6 +15,17 @@ import ai
 import db
 import store as storelib
 import team
+import team_domains
+
+
+class _NoKeyAI:
+    """mixin：强制 ai_available()=False，降级路径测试与外部是否配置 Key 解耦"""
+
+    def setUp(self):
+        super().setUp()
+        self._no_key = mock.patch.object(ai, "ai_available", return_value=False)
+        self._no_key.start()
+        self.addCleanup(self._no_key.stop)
 
 
 class _TempDB(unittest.TestCase):
@@ -68,7 +79,7 @@ class TestAdoptionGrowth(_TempDB):
         self.assertEqual(team.load_adoption("copy"), {})
 
 
-class TestStoreDiagnosisTeam(_TempDB):
+class TestStoreDiagnosisTeam(_NoKeyAI, _TempDB):
     """单店诊断：竞争融合（无 Key 降级走规则团队过程）"""
 
     def _result(self, daily_revenue=300):
@@ -101,7 +112,7 @@ class TestStoreDiagnosisTeam(_TempDB):
         self.assertIn("扩张", text)
 
 
-class TestCopyTeamPipeline(_TempDB):
+class TestCopyTeamPipeline(_NoKeyAI, _TempDB):
     """朋友圈文案：协作流水线（创意/熟客 → 合规 → 融合）降级团队过程"""
 
     def test_degraded_process_structure(self):
@@ -176,6 +187,53 @@ class TestLiveTeamWithMock(_TempDB):
         self.assertIn("合规审核", roles)     # 协作下游评审在场
         print("DEBUG adoption=", team.load_adoption("copy"), "process.adopted=", process["adopted"])
         self.assertEqual(team.load_adoption("copy")["创意文案师"], 1)
+
+
+class TestTeamRegistry(_TempDB):
+    """域注册表自检：后续增删能力时，结构完整性由这里兜底，不破坏引擎与流程"""
+
+    def test_registry_minimum_and_structure(self):
+        """每个已注册域：员工≥2、字段齐全、mode 与评审配置一致、judge 与降级齐全"""
+        domains = team_domains.list_team_domains()
+        self.assertGreaterEqual(len(domains), 2, "至少保留现有 2 个团队域")
+        for name in domains:
+            cfg = team_domains.TEAM_DOMAINS[name]
+            emps = cfg["employees"]
+            self.assertGreaterEqual(len(emps), 2, f"{name} 至少 2 名员工")
+            for e in emps:
+                for key in ("role", "system", "temperature", "max_tokens"):
+                    self.assertIn(key, e, f"{name}/{e.get('role')} 缺字段 {key}")
+                self.assertTrue(e["role"], f"{name} 员工角色名不能为空")
+                self.assertTrue(e["system"], f"{name}/{e['role']} 提示词不能为空")
+            self.assertIn(cfg["mode"], ("collaborative", "competitive"))
+            if cfg["mode"] == "collaborative":
+                self.assertIsNotNone(cfg["reviewer"], f"{name} 协作模式需配评审角色")
+            else:
+                self.assertIsNone(cfg["reviewer"], f"{name} 竞争模式不应配评审角色")
+            self.assertTrue(cfg["judge"], f"{name} 缺掌柜裁决任务描述")
+            self.assertTrue(callable(cfg["degraded"]), f"{name} 缺无Key降级函数")
+
+    def test_registry_has_entry_functions(self):
+        """每个已注册域都有可调用的薄壳入口（经 ai 兼容导出）"""
+        self.assertTrue(callable(ai.generate_copy))
+        self.assertTrue(callable(ai.generate_store_diagnosis))
+        self.assertEqual(set(team_domains.list_team_domains()), {"copy", "store"})
+
+    @mock.patch.object(ai, "ai_available", return_value=False)
+    def test_degraded_process_matches_registry(self, _m):
+        """降级团队过程与注册表声明一致（mode、员工数），防止增删员工后过程走样"""
+        # copy：3 个 employee（2 员工 + 1 评审）
+        _, proc = ai.generate_copy("老王面馆", "今日营业", "新出卤肉饭", return_process=True)
+        self.assertEqual(proc["mode"], team_domains.TEAM_DOMAINS["copy"]["mode"])
+        self.assertEqual(len(proc["employees"]),
+                         len(team_domains.TEAM_DOMAINS["copy"]["employees"]) + 1)
+        # store：与注册表员工数一致
+        r = storelib.calc_store_model(daily_revenue=300, rent=6000, salary=8000,
+                                      utilities=2000, total_investment=100000, cash_on_hand=30000)
+        _, proc = ai.generate_store_diagnosis(r, return_process=True)
+        self.assertEqual(proc["mode"], team_domains.TEAM_DOMAINS["store"]["mode"])
+        self.assertEqual(len(proc["employees"]),
+                         len(team_domains.TEAM_DOMAINS["store"]["employees"]))
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -23,6 +24,16 @@ import ai
 import db
 import store as storelib
 import tax as taxcalc
+
+
+class _NoKeyAI:
+    """mixin：强制 ai_available()=False，降级路径测试与外部是否配置 Key 解耦"""
+
+    def setUp(self):
+        super().setUp()
+        self._no_key = mock.patch.object(ai, "ai_available", return_value=False)
+        self._no_key.start()
+        self.addCleanup(self._no_key.stop)
 
 
 class _TempDB(unittest.TestCase):
@@ -43,7 +54,7 @@ class _TempDB(unittest.TestCase):
             conn.execute("DELETE FROM customers")
 
 
-class TestInsightsDegraded(_TempDB):
+class TestInsightsDegraded(_NoKeyAI, _TempDB):
     """账本洞察 — 无 API Key 降级"""
 
     def test_degraded_returns_template(self):
@@ -68,7 +79,7 @@ class TestInsightsDegraded(_TempDB):
         self.assertIn("进货", text)
 
 
-class TestCustomerInsightDegraded(_TempDB):
+class TestCustomerInsightDegraded(_NoKeyAI, _TempDB):
     """客户画像 — 无 API Key 降级"""
 
     def test_degraded_returns_tags(self):
@@ -94,7 +105,7 @@ class TestCustomerInsightDegraded(_TempDB):
         self.assertIn("爱喝浓茶", text)
 
 
-class TestTaxAdviceDegraded(_TempDB):
+class TestTaxAdviceDegraded(_NoKeyAI, _TempDB):
     """报税建议 — 无 API Key 降级"""
 
     def test_degraded_exempt(self):
@@ -111,7 +122,7 @@ class TestTaxAdviceDegraded(_TempDB):
         self.assertIn("400000", text)
 
 
-class TestStoreDiagnosisDegraded(_TempDB):
+class TestStoreDiagnosisDegraded(_NoKeyAI, _TempDB):
     """经营诊断 — 无 API Key 降级"""
 
     def test_degraded_danger(self):
@@ -134,7 +145,7 @@ class TestStoreDiagnosisDegraded(_TempDB):
         self.assertIn("扩张", text)  # 高分建议扩张
 
 
-class TestCopyWithContextDegraded(_TempDB):
+class TestCopyWithContextDegraded(_NoKeyAI, _TempDB):
     """文案生成增强 — 无 API Key 降级，context 信息填入模板"""
 
     def test_degraded_without_context(self):
@@ -201,8 +212,8 @@ class TestDomainContextRoundtrip(_TempDB):
         self.assertEqual(db.get_domain_context("customer", "k")["value"], "v2")
 
 
-class TestEndpointLogic(_TempDB):
-    """端点逻辑集成测试（不经过 HTTP，直接调底层函数模拟端点行为）"""
+class TestEndpointLogic(_NoKeyAI, _TempDB):
+    """端点逻辑集成测试（不经过 HTTP，直接调底层函数模拟端点行为，AI 一律走降级路径）"""
 
     def test_insights_flow(self):
         """洞察端点流程：月度汇总 → AI(降级) → 落盘 domain_context"""

@@ -8,6 +8,18 @@
   - 复用 ai.chat / ai.ai_available / ai._extract_json（模块内 import，避免循环引用）。
   - 无 API Key 时走规则「团队过程」，业务文本与降级路径完全不变（测试保障）。
   - 有 Key 时：员工并行竞争产出 → 掌柜 _decide 融合裁决 → 采纳归因沉淀进 team 域。
+
+扩展指引（后续增减能力不破坏架构）：
+  1. 增/删员工：只改 TEAM_DOMAINS 里对应域的 employees 列表（增一行或删一行），
+     引擎、裁决、采纳沉淀全部自动适配，无需改任何流程代码。
+  2. 新增业务域：三步——
+     ① 定义员工列表（3 名左右，各给 role/system/temperature/max_tokens）；
+     ② 在 TEAM_DOMAINS 登记（mode=competitive 或 collaborative，judge 一句话，
+        可选 reviewer 加协作评审；无 Key 降级函数写进 degraded）；
+     ③ 写一个薄壳入口函数（负责无 Key 降级 + 组装 task，然后一行调用 _run_team）。
+     流程、采纳沉淀、process 结构都由 _run_team 统一提供，不会出现复制粘贴走样。
+  3. 删整个域：删除注册表项 + 薄壳函数即可；tests/test_team.py 的注册表自检
+     会自动确认所有已注册域都结构完整、降级可跑。
 """
 from __future__ import annotations
 
@@ -47,11 +59,56 @@ def _decide(task_desc: str, cands: list, adoption_brief: str = "",
             "adopted": out.get("adopted", []),
             "final": out.get("final", "").strip(),
         }
-    except Exception:  # noqa: BLE001 —— 融合失败退化为拼接
+    except Exception:  # noqa: BLE001 —— 融合失败退化为拼接候选
         return {"verdict": "", "adopted": [], "final": fail.strip()}
 
 
-# ---------------- 朋友圈文案：协作流水线（创意/熟客 → 合规 → 掌柜融合） ----------------
+# ---------------- 通用团队流水线（各业务域共用的编排骨架） ----------------
+def _run_team(domain: str, task: str, prev: str = "",
+              sys_suffix: str = "", user_tail: str = ""):
+    """域级编排骨架：员工并行竞争 →（可选协作评审）→ 掌柜融合裁决 → 采纳归因。
+
+    参数全部来自 TEAM_DOMAINS[domain] 的登记，保证新增域时只有一处声明。
+    prev：上次结论（参考不照抄）；sys_suffix：附加给每位员工的系统提示；
+    user_tail：附加给每位员工的提问模板（{role} 会替换为员工名）。
+    """
+    cfg = TEAM_DOMAINS[domain]
+    employees, reviewer, judge_desc = cfg["employees"], cfg["reviewer"], cfg["judge"]
+
+    def produce(emp):
+        sys = emp["system"] + sys_suffix
+        user = task + (user_tail.format(role=emp["role"]) if user_tail else "")
+        return ai.chat([{"role": "system", "content": sys},
+                        {"role": "user", "content": user}],
+                       temperature=emp["temperature"], max_tokens=emp["max_tokens"]).strip()
+
+    cands = team.run_parallel([lambda e=e: produce(e) for e in employees])
+    cands = list(zip([e["role"] for e in employees], cands))
+    if reviewer:
+        # 协作下游：评审专家对候选挑毛病、给修改建议（评审失败降级跳过）
+        review_task = "\n\n".join(f"【{name}】{out}" for name, out in cands)
+        try:
+            review_out = ai.chat(
+                [{"role": "system", "content": reviewer["system"]},
+                 {"role": "user", "content": f"请评审下面几份内容，指出违规问题和修改建议（2-3句）：\n{review_task}"}],
+                temperature=reviewer["temperature"], max_tokens=reviewer["max_tokens"]).strip()
+        except Exception:  # noqa: BLE001
+            review_out = "未发现问题（评审降级跳过）。"
+        cands = cands + [(reviewer["role"], review_out)]
+
+    fail = " ".join(out for _, out in cands)
+    judge = _decide(judge_desc, cands, team.adoption_brief(domain), prev, fail=fail)
+    if judge["adopted"]:
+        team.record_adoption(domain, judge["adopted"])
+    process = {
+        "mode": "collaborative" if reviewer else "competitive",
+        "employees": [{"role": name, "output": out} for name, out in cands],
+        "verdict": judge["verdict"], "adopted": judge["adopted"],
+    }
+    return judge["final"], process
+
+
+# ---------------- 域：朋友圈文案（协作流水线：创意/熟客 → 合规 → 掌柜融合） ----------------
 _COPY_EMPLOYEES = [
     {"role": "创意文案师", "temperature": 0.9, "max_tokens": 300,
      "system": "你是烟火气的文案师，不套网红词，像真人老板随手发的朋友圈。口语、真诚、偶尔自嘲。"},
@@ -90,45 +147,17 @@ def generate_copy(shop_name: str, scene: str, extra: str, customer_name: str = "
         if not return_process:
             return text
         return text, _copy_degraded_process(shop_name, scene, extra)
-    # 1) 并行产出两个候选（竞争）
-    adoption = team.adoption_brief("copy")
     task = (f"店铺：{shop_name}；场景：{scene}；补充：{extra}\n"
             + (f"熟客：{customer_name}，可自然带一句（不硬凑）\n" if customer_name else "")
             + (f"经营上下文（参考不照抄）：{context}\n" if context else ""))
-    def produce(emp):
-        sys = emp["system"] + "（请输出一条可直接发的朋友圈文案正文，不超过 80 字，只输出正文。）"
-        return ai.chat([{"role": "system", "content": sys},
-                        {"role": "user", "content": task}],
-                       temperature=emp["temperature"], max_tokens=emp["max_tokens"]).strip()
-    cands = team.run_parallel([lambda e=e: produce(e) for e in _COPY_EMPLOYEES])
-    pairs = list(zip([e["role"] for e in _COPY_EMPLOYEES], cands))
-
-    # 2) 协作下游：合规审核对候选做评审（挑违禁词/夸大，给修改意见）
-    review_task = "\n\n".join(f"【{name}】{out}" for name, out in pairs)
-    review_out = ""
-    try:
-        review_out = ai.chat(
-            [{"role": "system", "content": _COPY_REVIEWER["system"]},
-             {"role": "user", "content": f"请评审下面两条文案，指出违规点并给修改建议（2-3句）：\n{review_task}"}],
-            temperature=_COPY_REVIEWER["temperature"], max_tokens=_COPY_REVIEWER["max_tokens"]).strip()
-    except Exception:  # noqa: BLE001
-        review_out = "未发现问题（评审降级跳过）。"
-
-    # 3) 掌柜融合：候选 + 合规意见 → 最终文案
-    cands_with_review = pairs + [(_COPY_REVIEWER["role"], review_out)]
-    judge = _decide("写一条朋友圈文案（结合两位文案候选与合规审核意见，融合成一条可直接发的正文）",
-                    cands_with_review, adoption, fail=cands[0])
-    if judge["adopted"]:
-        team.record_adoption("copy", judge["adopted"])
-    process = {"mode": "collaborative",
-               "employees": [{"role": name, "output": out} for name, out in cands_with_review],
-               "verdict": judge["verdict"], "adopted": judge["adopted"]}
+    final, process = _run_team("copy", task,
+                               sys_suffix="（请输出一条可直接发的朋友圈文案正文，不超过 80 字，只输出正文。）")
     if not return_process:
-        return judge["final"]
-    return judge["final"], process
+        return final
+    return final, process
 
 
-# ---------------- 单店经营诊断：多人竞争 → 掌柜融合 ----------------
+# ---------------- 域：单店经营诊断（员工竞争 → 掌柜融合） ----------------
 _STORE_EMPLOYEES = [
     {"role": "财务顾问", "temperature": 0.4, "max_tokens": 320,
      "system": "你是谨慎的财务顾问，眼里只有现金流：保本线、实际支出、回本周期、现金储备。先算账再说话，用大白话。"},
@@ -197,26 +226,35 @@ def generate_store_diagnosis(model_result: dict, prev_diagnosis: str = "",
         "经营现金流": d["dimensions"]["a"]["level"], "投资回本": d["dimensions"]["b"]["level"],
         "商圈客流": d["dimensions"]["c"]["level"], "现金预警": d.get("cash_flags", []),
     }
-    adoption = team.adoption_brief("store")
     task = (f"这家店的经营诊断，数据如下：\n{json.dumps(brief, ensure_ascii=False)}\n"
             + (f"上次诊断（参考不照抄）：{prev_diagnosis}\n" if prev_diagnosis else ""))
-
-    def produce(emp):
-        sys = emp["system"] + "（你是这家店的一位员工，观点要具体、口语、直接，2-4 句。）"
-        return ai.chat([{"role": "system", "content": sys},
-                        {"role": "user", "content": task + f"请站在「{emp['role']}」的视角，给出你最要紧的判断。"}],
-                       temperature=emp["temperature"], max_tokens=emp["max_tokens"]).strip()
-
-    cands = team.run_parallel([lambda e=e: produce(e) for e in _STORE_EMPLOYEES])
-    pairs = list(zip([e["role"] for e in _STORE_EMPLOYEES], cands))
-    judge = _decide("这家店的经营诊断与下一步行动（融合财务/经营/风控，别给空洞的话，要有取舍）",
-                    pairs, adoption, prev_diagnosis,
-                    fail=" ".join(out for _, out in pairs))
-    if judge["adopted"]:
-        team.record_adoption("store", judge["adopted"])
-    process = {"mode": "competitive",
-               "employees": [{"role": name, "output": out} for name, out in pairs],
-               "verdict": judge["verdict"], "adopted": judge["adopted"]}
+    final, process = _run_team("store", task, prev=prev_diagnosis,
+                               sys_suffix="（你是这家店的一位员工，观点要具体、口语、直接，2-4 句。）",
+                               user_tail="请站在「{role}」的视角，给出你最要紧的判断。")
     if not return_process:
-        return judge["final"]
-    return judge["final"], process
+        return final
+    return final, process
+
+
+# ---------------- 域注册表（增删能力的唯一入口，test_team 自检其完整性） ----------------
+TEAM_DOMAINS = {
+    "copy": {
+        "mode": "collaborative",
+        "employees": _COPY_EMPLOYEES,
+        "reviewer": _COPY_REVIEWER,
+        "judge": "写一条朋友圈文案（结合两位文案候选与合规审核意见，融合成一条可直接发的正文）",
+        "degraded": _copy_degraded_process,
+    },
+    "store": {
+        "mode": "competitive",
+        "employees": _STORE_EMPLOYEES,
+        "reviewer": None,
+        "judge": "这家店的经营诊断与下一步行动（融合财务/经营/风控，别给空洞的话，要有取舍）",
+        "degraded": _store_degraded_process,
+    },
+}
+
+
+def list_team_domains() -> list:
+    """列出已注册的团队业务域（供自检 / 前端菜单 / 后续扩展）"""
+    return sorted(TEAM_DOMAINS)
