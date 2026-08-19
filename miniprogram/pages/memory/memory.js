@@ -7,7 +7,10 @@ Page({
     loading: true,
     detail: null,        // 当前查看的熟客
     newMemory: '',
-    memories: []         // 今日提醒
+    memories: [],         // 今日提醒
+    insight: '',
+    insightLoading: false,
+    insightAiUsed: false
   },
 
   onShow() {
@@ -39,7 +42,12 @@ Page({
   openDetail(e) {
     const id = e.currentTarget.dataset.id
     api.customerDetail(id).then(d => {
-      this.setData({ detail: d })
+      this.setData({ detail: d, insight: '', insightLoading: true, insightAiUsed: false })
+      api.customerInsight(id).then(r => {
+        this.setData({ insight: r.insight, insightAiUsed: r.ai_used, insightLoading: false })
+      }).catch(() => {
+        this.setData({ insightLoading: false })
+      })
     })
   },
 

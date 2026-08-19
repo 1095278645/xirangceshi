@@ -37,6 +37,9 @@ const state = {
   customers: [],
   custDetail: null,
   custMemInput: '',
+  custInsight: null,
+  custInsightLoading: false,
+  custInsightAiUsed: false,
   // 文案
   copyForm: { shop_name: '巷子里的早餐铺', scene: '今日营业', extra: '', customer_name: '' },
   copyResult: '',
@@ -61,12 +64,15 @@ const state = {
     vatRevenue: '', vatResult: null, surtaxResult: null,
     pitSalary: '', pitSocial: '', pitSpecial: '', pitResult: null,
     citIncome: '', citSmall: true, citResult: null,
-    calendar: null, accountCats: [], downloading: false },
+    calendar: null, accountCats: [], downloading: false,
+    insight: null, insightLoading: false, insightAiUsed: false,
+    taxAdvice: null, taxAdviceLoading: false, taxAdviceAiUsed: false },
   // 单店模型（勇哥方法论泛化）
   store: { presets: [], bizType: '餐饮', form: { daily_revenue: '', gross_margin: '',
     rent: '', salary: '', utilities: '', total_investment: '', cash_on_hand: '',
     traffic: '一般', competitor: '一般' },
     result: null, loading: false, ledgering: false, ledgerNote: '',
+    diagnosis: null, diagnosisLoading: false, diagnosisAiUsed: false,
     profiles: [], profileName: '我的店', savingProfile: false, applyingProfile: null },
   // 掌柜今日复盘（心跳）
   review: '',

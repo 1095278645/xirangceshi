@@ -10,9 +10,24 @@ async function loadCustomers() {
 async function viewCustomer(id) {
   try {
     state.custDetail = await api('/api/customers/' + id);
+    state.custInsight = null;
+    state.custInsightAiUsed = false;
     state.route = 'custDetail';
     render();
+    loadCustInsight(id);
   } catch (e) { toast(e.message); }
+}
+
+async function loadCustInsight(id) {
+  state.custInsightLoading = true;
+  render();
+  try {
+    const r = await api('/api/customers/' + id + '/insight', 'POST', {});
+    state.custInsight = r.insight;
+    state.custInsightAiUsed = r.ai_used;
+  } catch (_) { state.custInsight = null; }
+  state.custInsightLoading = false;
+  render();
 }
 
 async function addMemory() {
@@ -58,6 +73,8 @@ function renderCustDetail() {
       <div class="parsed-item"><span class="parsed-label">上次到店</span><span class="parsed-value">${c.last_visit || '未知'}</span></div>
     </div>
   </div>
+  ${state.custInsightLoading ? '<div class="card"><div class="card-title">📊 画像分析</div><div class="empty">分析中…</div></div>' : ''}
+  ${state.custInsight ? `<div class="card"><div class="card-title">📊 画像分析 ${state.custInsightAiUsed ? '✨' : '📝'}</div><div class="review-box">${state.custInsight}</div></div>` : ''}
   <div class="card">
     <div class="card-title">记一笔关于他的事</div>
     <div class="form-item">

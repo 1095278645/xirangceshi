@@ -33,9 +33,17 @@
         </view>
       </view>
     </view>
-  </block>
 
-  <!-- ============ 算税 ============ -->
+    <!-- AI 经营洞察 -->
+    <view class="card" wx:if="{{insightLoading}}">
+      <view class="card-title">📊 经营洞察</view>
+      <view class="empty">分析中…</view>
+    </view>
+    <view class="card" wx:if="{{insight}}">
+      <view class="card-title">📊 经营洞察 {{insightAiUsed ? '✨' : '📝'}}</view>
+      <view class="review-box">{{insight}}</view>
+    </view>
+  </block>
   <block wx:if="{{tabIndex === 1}}">
     <!-- 增值税 -->
     <view class="card">
@@ -56,6 +64,16 @@
         </view>
         <view class="note" wx:if="{{surtaxResult.six_tax_relief}}">已享受六税两费减半</view>
       </view>
+    </view>
+
+    <!-- AI 报税建议 -->
+    <view class="card" wx:if="{{taxAdviceLoading}}">
+      <view class="card-title">📊 报税建议</view>
+      <view class="empty">生成中…</view>
+    </view>
+    <view class="card" wx:if="{{taxAdvice}}">
+      <view class="card-title">{{taxAdviceAiUsed ? '✨ AI' : '📝 基础'}}报税建议</view>
+      <view class="review-box">{{taxAdvice}}</view>
     </view>
 
     <!-- 个税 -->

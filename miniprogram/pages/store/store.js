@@ -39,6 +39,8 @@ Page({
     calcLoading: false,
     ledgering: false,
     ledgerNote: '',
+    diagnosis: '',
+    diagnosisAiUsed: false,
     // 单店档案
     profiles: [],
     profileName: '',
@@ -111,6 +113,7 @@ Page({
           grossMargin: r.gross_margin != null ? String(Math.round(r.gross_margin * 100)) : '',
           ledgerNote: r.note,
           result: null,
+          diagnosis: '',
           ledgering: false
         })
         wx.showToast({ title: '已从账本带入', icon: 'success' })
@@ -129,8 +132,8 @@ Page({
       wx.showToast({ title: '请至少填一项数据', icon: 'none' })
       return
     }
-    this.setData({ calcLoading: true })
-    api.storeModel({
+    this.setData({ calcLoading: true, diagnosis: '' })
+    api.storeDiagnosis({
       daily_revenue: parseFloat(d.dailyRevenue) || 0,
       gross_margin: d.grossMargin ? (parseFloat(d.grossMargin) / 100) : null,
       rent: parseFloat(d.rent) || 0,
@@ -143,13 +146,15 @@ Page({
       biz_type: d.bizType
     })
       .then(r => {
-        // 预格式化：null（回本不了/无固定支出）显示为 ∞
-        const m = r.model || {}
+        const modelResult = r.model || {}
+        const m = modelResult.model || {}
         this.setData({
-          result: r,
+          result: modelResult,
+          diagnosis: r.diagnosis || '',
+          diagnosisAiUsed: r.ai_used || false,
           paybackText: m.payback_months == null ? '∞' : m.payback_months,
           cashText: m.cash_months == null ? '∞' : m.cash_months,
-          monthGrossText: Math.round((m.month_revenue || 0) * ((r.inputs && r.inputs.gross_margin) || 0)),
+          monthGrossText: Math.round((m.month_revenue || 0) * ((modelResult.inputs && modelResult.inputs.gross_margin) || 0)),
           calcLoading: false
         })
       })
@@ -210,6 +215,7 @@ Page({
         bizType: p.biz_type || '餐饮',
         profileName: p.name || '',
         result: null,
+        diagnosis: '',
         applyingProfile: null
       })
       this.applyPreset(p.biz_type || '餐饮')

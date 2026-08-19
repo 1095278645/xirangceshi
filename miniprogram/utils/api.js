@@ -29,11 +29,13 @@ module.exports = {
   todaySummary: () => request('/api/orders/today'),
   monthlySummary: () => request('/api/orders/monthly'),
   vouchers: () => request('/api/vouchers'),
+  orderInsights: (year, month) => request('/api/orders/insights', 'POST', { year, month }),
 
   // 熟客
   customers: () => request('/api/customers'),
   customerDetail: (id) => request('/api/customers/' + id),
   addMemory: (customerId, content) => request('/api/memories', 'POST', { customer_id: customerId, content }),
+  customerInsight: (cid) => request('/api/customers/' + cid + '/insight', 'POST', {}),
 
   // 文案
   generateCopy: (data) => request('/api/copy', 'POST', data),
@@ -57,6 +59,7 @@ module.exports = {
     salary, social_insurance: social, special_deduction: special }),
   taxCit: (annualIncome, isSmall) => request('/api/tax/cit', 'POST', { annual_income: annualIncome, is_small: isSmall }),
   taxCalendar: (year, month) => request(`/api/tax/calendar?year=${year}&month=${month}`),
+  taxAdvice: (quarterlyRevenue) => request('/api/tax/advice', 'POST', { quarterly_revenue: quarterlyRevenue }),
   reportUrl: (year, month) => app.globalData.baseUrl + `/api/report/monthly?year=${year}&month=${month}`,
 
   // 收款账户（二维码收付款流水同步）
@@ -71,6 +74,7 @@ module.exports = {
   // 单店模型（保本线先行）
   storePresets: () => request('/api/store/presets'),
   storeModel: (data) => request('/api/store/model', 'POST', data),
+  storeDiagnosis: (data) => request('/api/store/diagnosis', 'POST', data),
   storeFromLedger: () => request('/api/store/from-ledger'),
 
   // 单店档案（存档复用）

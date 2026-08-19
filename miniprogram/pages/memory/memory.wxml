@@ -60,6 +60,12 @@
         <view class="empty" wx:if="{{!detail.transactions.length}}">暂无记录</view>
       </view>
 
+      <view class="detail-section" wx:if="{{insightLoading || insight}}">
+        <view class="section-title">📊 画像分析 {{insightAiUsed ? '✨' : '📝'}}</view>
+        <view class="empty" wx:if="{{insightLoading}}">分析中…</view>
+        <view class="review-box" wx:if="{{insight}}">{{insight}}</view>
+      </view>
+
       <view class="detail-section">
         <view class="section-title">记一个新记忆点</view>
         <textarea class="memory-input" placeholder="比如：王阿姨儿子下个月结婚"

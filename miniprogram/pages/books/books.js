@@ -27,7 +27,15 @@ Page({
     // ---- 科目 ----
     accounts: [],
     // ---- 报表 ----
-    downloading: false
+    downloading: false,
+    // ---- AI 经营洞察 ----
+    insight: '',
+    insightLoading: false,
+    insightAiUsed: false,
+    // ---- AI 报税建议 ----
+    taxAdvice: '',
+    taxAdviceLoading: false,
+    taxAdviceAiUsed: false
   },
 
   onLoad() {
@@ -62,10 +70,23 @@ Page({
     Promise.all([api.transactions(year, month), api.monthlySummary()])
       .then(([txns]) => {
         this.setData({ transactions: txns, summaryLoading: false })
+        this.loadInsights()
       })
       .catch(() => {
         this.setData({ transactions: [], summaryLoading: false })
         wx.showToast({ title: '加载流水失败，请确认后端已启动', icon: 'none' })
+      })
+  },
+
+  loadInsights() {
+    const { year, month } = this.data
+    this.setData({ insightLoading: true, insight: '' })
+    api.orderInsights(year, month)
+      .then(r => {
+        this.setData({ insight: r.insights, insightAiUsed: r.ai_used, insightLoading: false })
+      })
+      .catch(() => {
+        this.setData({ insightLoading: false })
       })
   },
 
@@ -88,7 +109,21 @@ Page({
       } else {
         this.setData({ surtaxResult: null })
       }
+      this.loadTaxAdvice()
     }).catch(() => wx.showToast({ title: '算税失败', icon: 'none' }))
+  },
+
+  loadTaxAdvice() {
+    const v = parseFloat(this.data.vatRevenue)
+    if (!v || v <= 0) return
+    this.setData({ taxAdviceLoading: true, taxAdvice: '' })
+    api.taxAdvice(v)
+      .then(r => {
+        this.setData({ taxAdvice: r.advice, taxAdviceAiUsed: r.ai_used, taxAdviceLoading: false })
+      })
+      .catch(() => {
+        this.setData({ taxAdviceLoading: false })
+      })
   },
 
   onPitInput(e) {

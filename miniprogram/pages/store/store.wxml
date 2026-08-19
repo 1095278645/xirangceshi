@@ -139,6 +139,11 @@
         <text class="dim-score">{{result.dimensions.c.score}}分</text>
       </view>
     </view>
+
+    <view class="card" wx:if="{{diagnosis}}">
+      <view class="card-title">{{diagnosisAiUsed ? '✨ AI' : '📝 基础'}}经营诊断</view>
+      <view class="review-box">{{diagnosis}}</view>
+    </view>
   </block>
 
   <!-- 已存档案 -->

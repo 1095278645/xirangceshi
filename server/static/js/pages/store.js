@@ -58,6 +58,7 @@ async function applyStoreProfile(id) {
     state.store.bizType = p.biz_type || '餐饮';
     state.store.profileName = p.name || '';
     state.store.result = null;
+    state.store.diagnosis = null;
     toast('已套用「' + (p.name || '档案') + '」，日销从账本带入或手填');
   } catch (e) {
     toast(e.message);
@@ -81,6 +82,7 @@ function setStoreBiz(t) {
   state.store.bizType = t;
   state.store.form.gross_margin = '';  // 切换类型后让用户用业态默认毛利率
   state.store.result = null;
+  state.store.diagnosis = null;
   render();
 }
 
@@ -90,6 +92,7 @@ async function calcStoreModel() {
   if (nums.every(v => !String(v).trim())) { toast('至少填一项数据，让掌柜帮你算'); return; }
   state.store.loading = true;
   state.store.result = null;
+  state.store.diagnosis = null;
   render();
   try {
     const body = {
@@ -104,7 +107,10 @@ async function calcStoreModel() {
       competitor: f.competitor,
       biz_type: state.store.bizType,
     };
-    state.store.result = await api('/api/store/model', 'POST', body);
+    const r = await api('/api/store/diagnosis', 'POST', body);
+    state.store.result = r.model;
+    state.store.diagnosis = r.diagnosis;
+    state.store.diagnosisAiUsed = r.ai_used;
   } catch (e) {
     toast(e.message);
   }
@@ -128,6 +134,7 @@ async function loadStoreLedger() {
     state.store.form.gross_margin = r.gross_margin != null ? (r.gross_margin * 100).toFixed(0) : '';
     state.store.ledgerNote = r.note;
     state.store.result = null;
+    state.store.diagnosis = null;
     toast('已从账本带入');
   } catch (e) {
     toast(e.message);
@@ -180,7 +187,12 @@ function renderStore() {
         const ic = { '健康': '🟢', '临界': '🟡', '危险': '🔴' }[d2.level] || '⚪';
         return `<div class="dim-row"><span class="dim-name">${ic} ${d2.name}</span><span class="dim-level ${d2.level}">${d2.level}</span><span class="dim-score">${d2.score}分</span></div>`;
       }).join('')}
-    </div>`;
+    </div>
+    ${s.diagnosis ? `
+    <div class="card">
+      <div class="card-title">${s.diagnosisAiUsed ? '✨ AI' : '📝 基础'}经营诊断</div>
+      <div class="review-box">${s.diagnosis}</div>
+    </div>` : ''}`;
   }
 
   return `

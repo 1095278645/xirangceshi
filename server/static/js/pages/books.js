@@ -24,6 +24,22 @@ async function loadTxnList() {
     state.books.txns = await api(`/api/transactions?year=${year}&month=${month}`);
   } catch (_) { state.books.txns = []; }
   render();
+  loadInsights();
+}
+
+async function loadInsights() {
+  const { year, month } = state.books;
+  if (!year || !month) return;
+  state.books.insightLoading = true;
+  state.books.insight = null;
+  render();
+  try {
+    const r = await api('/api/orders/insights', 'POST', { year, month });
+    state.books.insight = r.insights;
+    state.books.insightAiUsed = r.ai_used;
+  } catch (_) { state.books.insight = null; }
+  state.books.insightLoading = false;
+  render();
 }
 
 function switchBookTab(i) {
@@ -55,6 +71,22 @@ async function calcVat() {
     state.books.vatResult = r;
     state.books.surtaxResult = r.vat > 0 ? await api('/api/tax/surtax', 'POST', { vat: r.vat }) : null;
   } catch (e) { toast(e.message); }
+  render();
+  loadTaxAdvice();
+}
+
+async function loadTaxAdvice() {
+  const v = parseFloat(state.books.vatRevenue);
+  if (!v || v <= 0) return;
+  state.books.taxAdviceLoading = true;
+  state.books.taxAdvice = null;
+  render();
+  try {
+    const r = await api('/api/tax/advice', 'POST', { quarterly_revenue: v });
+    state.books.taxAdvice = r.advice;
+    state.books.taxAdviceAiUsed = r.ai_used;
+  } catch (_) { state.books.taxAdvice = null; }
+  state.books.taxAdviceLoading = false;
   render();
 }
 
@@ -109,7 +141,9 @@ function renderBooks() {
         </div>
         <div class="txn-amount ${t.trans_type === 'income' ? 'income' : 'expense'}">${t.trans_type === 'income' ? '+' : '-'}${t.amount}</div>
       </div>`).join('')}
-    </div>`;
+    </div>
+    ${b.insightLoading ? '<div class="card"><div class="card-title">📊 经营洞察</div><div class="empty">分析中…</div></div>' : ''}
+    ${b.insight ? `<div class="card"><div class="card-title">📊 经营洞察 ${b.insightAiUsed ? '✨' : '📝'}</div><div class="review-box">${b.insight}</div></div>` : ''}`;
   } else if (b.tab === 1) {
     body = `
     <div class="card">
@@ -129,6 +163,11 @@ function renderBooks() {
         ${b.surtaxResult.six_tax_relief ? '<div class="note">已享受六税两费减半</div>' : ''}
       </div>` : ''}
     </div>
+    ${b.taxAdviceLoading || b.taxAdvice ? `
+    <div class="card">
+      <div class="card-title">${b.taxAdviceAiUsed ? '✨ AI' : '📝 基础'}报税建议</div>
+      ${b.taxAdviceLoading ? '<div class="empty">生成中…</div>' : `<div class="review-box">${b.taxAdvice}</div>`}
+    </div>` : ''}
     <div class="card">
       <div class="card-title">个人所得税（工资薪金）</div>
       <div class="form-item"><label class="form-label">月工资</label>
