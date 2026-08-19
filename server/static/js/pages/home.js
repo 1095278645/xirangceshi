@@ -57,7 +57,7 @@ function renderHome() {
   ${state.review ? `
   <div class="card">
     <div class="card-title">📋 掌柜今日复盘</div>
-    <div class="review-box">${state.review}</div>
+    <div class="review-box">${esc(state.review)}</div>
   </div>` : ''}
 
   <div class="voice-card">
@@ -71,7 +71,7 @@ function renderHome() {
       ontouchend="stopRecord()" onmouseup="stopRecord()" onmouseleave="stopRecord()">
       ${state.recognizing ? '🔴' : '🎤'}
     </button>
-    <div class="voice-result">${state.result || ''}</div>
+    <div class="voice-result">${esc(state.result)}</div>
   </div>
 
   <div class="card">
@@ -98,11 +98,11 @@ function renderHome() {
     <div class="card-title">已记下</div>
     <div class="type-badge ${p.trans_type === 'income' ? 'badge-income' : 'badge-expense'}">${p.trans_type === 'income' ? '收入' : '支出'}</div>
     <div class="parsed-grid">
-      <div class="parsed-item"><span class="parsed-label">顾客</span><span class="parsed-value">${p.customer || '散客'}</span></div>
-      <div class="parsed-item"><span class="parsed-label">事由</span><span class="parsed-value">${p.item || ''}</span></div>
-      <div class="parsed-item"><span class="parsed-label">金额</span><span class="parsed-value">${p.amount != null ? p.amount + ' 元' : '未提'}</span></div>
-      <div class="parsed-item"><span class="parsed-label">分类</span><span class="parsed-value">${state.friendlyCategory || p.category}</span></div>
-      ${state.voucher ? `<div class="parsed-item"><span class="parsed-label">凭证</span><span class="parsed-value voucher-no">${state.voucher.voucher_no}（借:${state.voucher.debit} / 贷:${state.voucher.credit}）</span></div>` : ''}
+      <div class="parsed-item"><span class="parsed-label">顾客</span><span class="parsed-value">${esc(p.customer || '散客')}</span></div>
+      <div class="parsed-item"><span class="parsed-label">事由</span><span class="parsed-value">${esc(p.item || '')}</span></div>
+      <div class="parsed-item"><span class="parsed-label">金额</span><span class="parsed-value">${p.amount != null ? esc(p.amount) + ' 元' : '未提'}</span></div>
+      <div class="parsed-item"><span class="parsed-label">分类</span><span class="parsed-value">${esc(state.friendlyCategory || p.category)}</span></div>
+      ${state.voucher ? `<div class="parsed-item"><span class="parsed-label">凭证</span><span class="parsed-value voucher-no">${esc(state.voucher.voucher_no)}（借:${esc(state.voucher.debit)} / 贷:${esc(state.voucher.credit)}）</span></div>` : ''}
     </div>
   </div>` : ''}
 
@@ -110,7 +110,7 @@ function renderHome() {
     <div class="card-title">不方便说话？直接打字</div>
     <div class="form-item">
       <textarea class="form-textarea" placeholder="比如：李师傅拿了两斤排骨，38块"
-        oninput="state.manualText=this.value">${state.manualText}</textarea>
+        oninput="state.manualText=this.value">${esc(state.manualText)}</textarea>
     </div>
     <button class="btn-primary ${state.submitting ? 'disabled' : ''}" onclick="submitManual()">${state.submitting ? '记账中…' : '记一笔'}</button>
   </div>`;

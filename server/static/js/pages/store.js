@@ -151,7 +151,7 @@ function renderStore() {
   const marginHint = preset.margin_default
     ? `参考毛利率 ${(preset.margin_range[0] * 100).toFixed(0)}%-${(preset.margin_range[1] * 100).toFixed(0)}%（不填自动用默认 ${(preset.margin_default * 100).toFixed(0)}%）`
     : '';
-  const presetOpts = s.presets.map(p => `<option value="${p.key}" ${p.key === s.bizType ? 'selected' : ''}>${p.name}</option>`).join('');
+  const presetOpts = s.presets.map(p => `<option value="${esc(p.key)}" ${p.key === s.bizType ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
 
   let resultHtml = '';
   if (s.result) {
@@ -161,13 +161,13 @@ function renderStore() {
     const levelIcon = { ok: '🟢', warn: '🟡', danger: '🔴' }[r.overall.key] || '⚪';
     resultHtml = `
     <div class="card">
-      <div class="card-title">诊断结论：${levelIcon} ${r.overall.level}
+      <div class="card-title">诊断结论：${levelIcon} ${esc(r.overall.level)}
         <span class="store-score">综合分 ${r.overall.score}</span></div>
       <div class="result-box">
-        <div class="store-verdict">${r.advice}</div>
+        <div class="store-verdict">${esc(r.advice)}</div>
       </div>
-      ${r.cash_flags.length ? r.cash_flags.map(cf => `<div class="result-box warn-box">${cf}</div>`).join('') : ''}
-      <div class="note">${r.biz_rule}</div>
+      ${r.cash_flags.length ? r.cash_flags.map(cf => `<div class="result-box warn-box">${esc(cf)}</div>`).join('') : ''}
+      <div class="note">${esc(r.biz_rule)}</div>
     </div>
     <div class="card">
       <div class="card-title">保本线（这是你店的命线）</div>
@@ -191,7 +191,7 @@ function renderStore() {
     ${s.diagnosis ? `
     <div class="card">
       <div class="card-title">${s.diagnosisAiUsed ? '✨ AI' : '📝 基础'}经营诊断</div>
-      <div class="review-box">${s.diagnosis}</div>
+      <div class="review-box">${esc(s.diagnosis)}</div>
     </div>` : ''}`;
   }
 
@@ -202,7 +202,7 @@ function renderStore() {
     <div class="form-item">
       <label class="form-label">业态</label>
       <select class="form-select" onchange="setStoreBiz(this.value)">${presetOpts}</select>
-      <div class="note">${preset ? preset.note : ''}</div>
+      <div class="note">${esc(preset ? preset.note : '')}</div>
     </div>
     <div class="form-item">
       <label class="form-label">实际日营业额（元）</label>
@@ -213,7 +213,7 @@ function renderStore() {
       <input class="form-input" type="number" placeholder="${marginHint}" value="${f.gross_margin}" oninput="state.store.form.gross_margin=this.value" />
       <div class="note">${marginHint}</div>
     </div>
-    ${s.ledgerNote ? `<div class="result-box ledger-box">📖 ${s.ledgerNote}</div>` : ''}
+    ${s.ledgerNote ? `<div class="result-box ledger-box">📖 ${esc(s.ledgerNote)}</div>` : ''}
     <button class="btn-secondary ${s.ledgering ? 'disabled' : ''}" onclick="loadStoreLedger()">${s.ledgering ? '读取中…' : '📖 从账本流水带入'}</button>
     <div class="form-item">
       <label class="form-label">月房租（元）</label>
@@ -254,7 +254,7 @@ function renderStore() {
     <button class="btn-primary ${s.loading ? 'disabled' : ''}" onclick="calcStoreModel()">${s.loading ? '算账中…' : '算账'}</button>
     <div class="form-item" style="margin-top:14px">
       <label class="form-label">保存为店档案（方便下次套用重算）</label>
-      <input class="form-input" placeholder="店名，如：老王面馆" value="${s.profileName}" oninput="state.store.profileName=this.value" />
+      <input class="form-input" placeholder="店名，如：老王面馆" value="${esc(s.profileName)}" oninput="state.store.profileName=this.value" />
     </div>
     <button class="btn-secondary ${s.savingProfile ? 'disabled' : ''}" onclick="saveStoreProfile()">${s.savingProfile ? '保存中…' : '💾 存为档案'}</button>
   </div>
@@ -265,8 +265,8 @@ function renderStore() {
     ${s.profiles.map(p => `
       <div class="profile-row">
         <div class="profile-info">
-          <span class="profile-name">${p.name || '未命名'}</span>
-          <span class="profile-meta">${p.biz_type || ''} · 房租${fmt(p.rent)} · 人工${fmt(p.salary)}</span>
+          <span class="profile-name">${esc(p.name || '未命名')}</span>
+          <span class="profile-meta">${esc(p.biz_type || '')} · 房租${fmt(p.rent)} · 人工${fmt(p.salary)}</span>
         </div>
         <button class="btn-small ${s.applyingProfile === p.id ? 'disabled' : ''}" onclick="applyStoreProfile(${p.id})">${s.applyingProfile === p.id ? '读取中' : '套用'}</button>
         <button class="btn-small btn-danger" onclick="delStoreProfile(${p.id})">删</button>

@@ -27,17 +27,27 @@ async function loadTxnList() {
   loadInsights();
 }
 
+// 竞态守卫：快速切换月份/页面时丢弃先发但后到的过期响应
+let _insightReq = 0;
+let _taxAdviceReq = 0;
+
 async function loadInsights() {
   const { year, month } = state.books;
   if (!year || !month) return;
+  const myId = ++_insightReq;
   state.books.insightLoading = true;
   state.books.insight = null;
   render();
   try {
     const r = await api('/api/orders/insights', 'POST', { year, month });
+    if (myId !== _insightReq) return;  // 过期响应，丢弃
     state.books.insight = r.insights;
     state.books.insightAiUsed = r.ai_used;
-  } catch (_) { state.books.insight = null; }
+  } catch (_) {
+    if (myId !== _insightReq) return;
+    state.books.insight = null;
+  }
+  if (myId !== _insightReq) return;
   state.books.insightLoading = false;
   render();
 }
@@ -78,14 +88,20 @@ async function calcVat() {
 async function loadTaxAdvice() {
   const v = parseFloat(state.books.vatRevenue);
   if (!v || v <= 0) return;
+  const myId = ++_taxAdviceReq;
   state.books.taxAdviceLoading = true;
   state.books.taxAdvice = null;
   render();
   try {
     const r = await api('/api/tax/advice', 'POST', { quarterly_revenue: v });
+    if (myId !== _taxAdviceReq) return;  // 过期响应，丢弃
     state.books.taxAdvice = r.advice;
     state.books.taxAdviceAiUsed = r.ai_used;
-  } catch (_) { state.books.taxAdvice = null; }
+  } catch (_) {
+    if (myId !== _taxAdviceReq) return;
+    state.books.taxAdvice = null;
+  }
+  if (myId !== _taxAdviceReq) return;
   state.books.taxAdviceLoading = false;
   render();
 }
@@ -135,15 +151,15 @@ function renderBooks() {
       ${b.txns.length === 0 ? '<div class="empty">本月还没有记账，去首页说一笔吧</div>' : b.txns.map(t => `
       <div class="txn-row">
         <div class="txn-main">
-          <div class="txn-item">${t.item}</div>
-          <div class="txn-sub">${t.customer_name || '散客'} · ${t.friendly}${t.counterparty ? ' · ' + t.counterparty : ''}</div>
-          <div class="txn-time">${t.created_at || ''}</div>
+          <div class="txn-item">${esc(t.item)}</div>
+          <div class="txn-sub">${esc(t.customer_name || '散客')} · ${esc(t.friendly)}${t.counterparty ? ' · ' + esc(t.counterparty) : ''}</div>
+          <div class="txn-time">${esc(t.created_at || '')}</div>
         </div>
         <div class="txn-amount ${t.trans_type === 'income' ? 'income' : 'expense'}">${t.trans_type === 'income' ? '+' : '-'}${t.amount}</div>
       </div>`).join('')}
     </div>
     ${b.insightLoading ? '<div class="card"><div class="card-title">📊 经营洞察</div><div class="empty">分析中…</div></div>' : ''}
-    ${b.insight ? `<div class="card"><div class="card-title">📊 经营洞察 ${b.insightAiUsed ? '✨' : '📝'}</div><div class="review-box">${b.insight}</div></div>` : ''}`;
+    ${b.insight ? `<div class="card"><div class="card-title">📊 经营洞察 ${b.insightAiUsed ? '✨' : '📝'}</div><div class="review-box">${esc(b.insight)}</div></div>` : ''}`;
   } else if (b.tab === 1) {
     body = `
     <div class="card">
@@ -154,19 +170,19 @@ function renderBooks() {
       ${b.vatResult ? `
       <div class="result-box">
         <div>应缴增值税：<span class="num ${b.vatResult.vat === 0 ? 'zero' : ''}">${b.vatResult.vat} 元</span></div>
-        <div class="note">${b.vatResult.note}</div>
+        <div class="note">${esc(b.vatResult.note)}</div>
       </div>` : ''}
       ${b.surtaxResult ? `
       <div class="result-box">
         <div>附加税合计：<span class="num">${b.surtaxResult.total} 元</span></div>
-        ${b.surtaxResult.items.map(i => `<div class="note">${i.name}：${i.amount} 元</div>`).join('')}
+        ${b.surtaxResult.items.map(i => `<div class="note">${esc(i.name)}：${i.amount} 元</div>`).join('')}
         ${b.surtaxResult.six_tax_relief ? '<div class="note">已享受六税两费减半</div>' : ''}
       </div>` : ''}
     </div>
     ${b.taxAdviceLoading || b.taxAdvice ? `
     <div class="card">
       <div class="card-title">${b.taxAdviceAiUsed ? '✨ AI' : '📝 基础'}报税建议</div>
-      ${b.taxAdviceLoading ? '<div class="empty">生成中…</div>' : `<div class="review-box">${b.taxAdvice}</div>`}
+      ${b.taxAdviceLoading ? '<div class="empty">生成中…</div>' : `<div class="review-box">${esc(b.taxAdvice)}</div>`}
     </div>` : ''}
     <div class="card">
       <div class="card-title">个人所得税（工资薪金）</div>
@@ -195,9 +211,9 @@ function renderBooks() {
       <button class="btn-primary" onclick="calcCit()">计算</button>
       ${b.citResult ? `
       <div class="result-box">
-        ${(b.citResult.details || []).map(d => `<div class="note">${d.range} 元段 × ${(d.rate * 100).toFixed(0)}% = ${d.tax} 元</div>`).join('')}
+        ${(b.citResult.details || []).map(d => `<div class="note">${esc(d.range)} 元段 × ${(d.rate * 100).toFixed(0)}% = ${d.tax} 元</div>`).join('')}
         <div>应缴企业所得税：<span class="num">${b.citResult.total_tax || b.citResult.tax} 元</span></div>
-        <div class="note">${b.citResult.note}</div>
+        <div class="note">${esc(b.citResult.note)}</div>
       </div>` : ''}
     </div>
     ${b.calendar ? `
@@ -205,8 +221,8 @@ function renderBooks() {
       <div class="card-title">📅 ${b.calendar.year}年${b.calendar.month}月报税提醒</div>
       ${b.calendar.reminders.map(r => `
       <div class="result-box">
-        <div><span class="num">${r.tax_type}</span>：${r.deadline} 前</div>
-        <div class="note">${r.note}</div>
+        <div><span class="num">${esc(r.tax_type)}</span>：${esc(r.deadline)} 前</div>
+        <div class="note">${esc(r.note)}</div>
       </div>`).join('')}
     </div>` : ''}`;
   } else if (b.tab === 2) {

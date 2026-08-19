@@ -18,14 +18,22 @@ async function viewCustomer(id) {
   } catch (e) { toast(e.message); }
 }
 
+// 竞态守卫：快速切换不同熟客时，丢弃先发但后到的过期响应
+let _custInsightReq = 0;
 async function loadCustInsight(id) {
+  const myId = ++_custInsightReq;
   state.custInsightLoading = true;
   render();
   try {
     const r = await api('/api/customers/' + id + '/insight', 'POST', {});
+    if (myId !== _custInsightReq) return;  // 过期响应，丢弃
     state.custInsight = r.insight;
     state.custInsightAiUsed = r.ai_used;
-  } catch (_) { state.custInsight = null; }
+  } catch (_) {
+    if (myId !== _custInsightReq) return;
+    state.custInsight = null;
+  }
+  if (myId !== _custInsightReq) return;
   state.custInsightLoading = false;
   render();
 }
@@ -52,8 +60,8 @@ function renderCustomers() {
       cs.map(c => `
       <div class="cust-item" onclick="viewCustomer(${c.id})">
         <div>
-          <div class="cust-name">${c.name}</div>
-          <div class="cust-meta">常点：${c.favorite || '未知'} · 上次：${(c.last_visit || '').slice(5, 16)}</div>
+          <div class="cust-name">${esc(c.name)}</div>
+          <div class="cust-meta">常点：${esc(c.favorite || '未知')} · 上次：${esc((c.last_visit || '').slice(5, 16))}</div>
         </div>
         <span class="cust-arrow">›</span>
       </div>`).join('')}
@@ -64,22 +72,22 @@ function renderCustDetail() {
   const c = state.custDetail;
   if (!c) return '';
   return `
-  <div class="hero"><div class="hero-title">${c.name}</div><div class="hero-sub">常点：${c.favorite || '未知'}</div></div>
+  <div class="hero"><div class="hero-title">${esc(c.name)}</div><div class="hero-sub">常点：${esc(c.favorite || '未知')}</div></div>
   <div class="card">
     <div class="card-title">基本信息</div>
     <div class="parsed-grid">
-      <div class="parsed-item"><span class="parsed-label">电话</span><span class="parsed-value">${c.phone || '未留'}</span></div>
-      <div class="parsed-item"><span class="parsed-label">标签</span><span class="parsed-value">${c.tags || '无'}</span></div>
-      <div class="parsed-item"><span class="parsed-label">上次到店</span><span class="parsed-value">${c.last_visit || '未知'}</span></div>
+      <div class="parsed-item"><span class="parsed-label">电话</span><span class="parsed-value">${esc(c.phone || '未留')}</span></div>
+      <div class="parsed-item"><span class="parsed-label">标签</span><span class="parsed-value">${esc(c.tags || '无')}</span></div>
+      <div class="parsed-item"><span class="parsed-label">上次到店</span><span class="parsed-value">${esc(c.last_visit || '未知')}</span></div>
     </div>
   </div>
   ${state.custInsightLoading ? '<div class="card"><div class="card-title">📊 画像分析</div><div class="empty">分析中…</div></div>' : ''}
-  ${state.custInsight ? `<div class="card"><div class="card-title">📊 画像分析 ${state.custInsightAiUsed ? '✨' : '📝'}</div><div class="review-box">${state.custInsight}</div></div>` : ''}
+  ${state.custInsight ? `<div class="card"><div class="card-title">📊 画像分析 ${state.custInsightAiUsed ? '✨' : '📝'}</div><div class="review-box">${esc(state.custInsight)}</div></div>` : ''}
   <div class="card">
     <div class="card-title">记一笔关于他的事</div>
     <div class="form-item">
       <textarea class="form-textarea" placeholder="比如：孙子考了一百分、爱聊钓鱼"
-        oninput="state.custMemInput=this.value">${state.custMemInput}</textarea>
+        oninput="state.custMemInput=this.value">${esc(state.custMemInput)}</textarea>
     </div>
     <button class="btn-primary" onclick="addMemory()">记下</button>
   </div>

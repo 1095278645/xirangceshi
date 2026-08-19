@@ -82,6 +82,14 @@ const state = {
 function fmt(n) { return Number(n || 0).toFixed(0); }
 function pad2(n) { return n < 10 ? '0' + n : '' + n; }
 
+// HTML 转义：用户输入 / AI 输出插入模板前统一转义，防 XSS 与属性注入
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
 let toastTimer = null;
 function toast(msg) {
   let el = document.querySelector('.toast');

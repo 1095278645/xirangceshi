@@ -20,7 +20,10 @@ function initSpeech() {
       txt += e.results[i][0].transcript;
     }
     state.result = txt;
-    render();
+    // 中间结果只更新结果文本，避免全量 render 打断按住的按钮/丢失焦点
+    const el = document.querySelector('.voice-result');
+    if (el) el.textContent = txt;
+    else render();
   };
   recognition.onend = () => {
     state.recognizing = false;

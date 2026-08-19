@@ -147,8 +147,8 @@ function renderSettings() {
       <div class="status-dot ${state.aiEnabled ? 'on' : ''}"></div>
       <span class="status-text">${state.aiEnabled ? '已开启 · AI 生效中' : '未配置 · 兜底模式'}</span>
     </div>
-    <div class="status-detail">服务地址：${state.baseUrl}</div>
-    <div class="status-detail">模型：${state.model}</div>
+    <div class="status-detail">服务地址：${esc(state.baseUrl)}</div>
+    <div class="status-detail">模型：${esc(state.model)}</div>
     ${state.aiEnabled ? '' : '<div class="status-detail">兜底模式记账/熟客仍可用，智能解析与提醒受限。</div>'}
   </div>
   <div class="card">
@@ -156,21 +156,21 @@ function renderSettings() {
     <div class="form-item">
       <label class="form-label">选择大模型</label>
       <select class="form-select" onchange="selectProvider(this.value)">
-        ${provs.map(p => `<option value="${p.id}" ${p.id === state.provider ? 'selected' : ''}>${p.name}</option>`).join('')}
+        ${provs.map(p => `<option value="${esc(p.id)}" ${p.id === state.provider ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
       </select>
     </div>
     <div class="form-item">
-      <label class="form-label">${keyLabel}</label>
+      <label class="form-label">${esc(keyLabel)}</label>
       <input class="form-input" type="password" placeholder="粘贴你的 API Key"
-        value="${state.apiKeyInput}" oninput="state.apiKeyInput=this.value" />
+        value="${esc(state.apiKeyInput)}" oninput="state.apiKeyInput=this.value" />
     </div>
     <div class="form-item">
       <label class="form-label">Base URL${state.provider !== 'custom' ? '（已自动填充，可改）' : ''}</label>
-      <input class="form-input" value="${state.baseUrlInput}" oninput="state.baseUrlInput=this.value" />
+      <input class="form-input" value="${esc(state.baseUrlInput)}" oninput="state.baseUrlInput=this.value" />
     </div>
     <div class="form-item">
       <label class="form-label">模型${state.provider !== 'custom' ? '（已自动填充，可改）' : ''}</label>
-      <input class="form-input" value="${state.modelInput}" oninput="state.modelInput=this.value" />
+      <input class="form-input" value="${esc(state.modelInput)}" oninput="state.modelInput=this.value" />
     </div>
     <button class="btn-primary" onclick="saveSettings()">保存并启用</button>
     ${state.hasKey ? '<button class="btn-ghost" onclick="clearKey()">清除 API Key</button>' : ''}
@@ -194,21 +194,21 @@ function renderPaySettings() {
     <div class="pay-row">
       <div class="pay-row-main">
         <span class="pay-type-badge">${s.source_type === 'wechat' ? '微信商户' : '聚合支付'}</span>
-        <strong>${s.name || '(未命名)'}</strong>
-        <span class="pay-mchid">商户号：${s.mchid || '-'}</span>
+        <strong>${esc(s.name || '(未命名)')}</strong>
+        <span class="pay-mchid">商户号：${esc(s.mchid || '-')}</span>
         <span class="pay-status">${s.enabled ? '✅ 已启用' : '⏸ 未启用'}</span>
       </div>
       <div class="pay-row-actions">
         <button class="btn-mini" onclick="syncPaySource(${s.id})" ${state.paySyncing ? 'disabled' : ''}>同步</button>
-        <button class="btn-mini btn-danger" onclick="deletePaySource(${s.id}, '${s.name}')">删除</button>
+        <button class="btn-mini btn-danger" onclick="deletePaySource(${s.id}, this.dataset.name)" data-name="${esc(s.name || '')}">删除</button>
       </div>
     </div>`).join('') : '<div class="howto-text">还没有收款账户。填商户号 DEMO 即可体验演示模式，无需任何商户资料。</div>';
   const logsHtml = state.payLogs.length ? state.payLogs.slice(0, 5).map(l => `
     <div class="log-row">
       <span class="log-status ${l.status}">${l.status === 'success' ? '✓' : l.status === 'empty' ? '○' : '✗'}</span>
-      <span class="log-text">${l.source_name || '账户'}</span>
-      <span class="log-text">${l.bill_date}</span>
-      <span class="log-text">${l.status === 'error' ? (l.error || '失败').slice(0, 30) : `新增 ${l.imported} 笔`}</span>
+      <span class="log-text">${esc(l.source_name || '账户')}</span>
+      <span class="log-text">${esc(l.bill_date)}</span>
+      <span class="log-text">${l.status === 'error' ? esc((l.error || '失败').slice(0, 30)) : `新增 ${l.imported} 笔`}</span>
     </div>`).join('') : '<div class="howto-text">暂无同步记录。</div>';
 
   return `
@@ -220,34 +220,34 @@ function renderPaySettings() {
     </div>
     <div class="form-item">
       <label class="form-label">账户名称</label>
-      <input class="form-input" placeholder="如：店里收款码" value="${f.name}" oninput="state.payForm.name=this.value" />
+      <input class="form-input" placeholder="如：店里收款码" value="${esc(f.name)}" oninput="state.payForm.name=this.value" />
     </div>
     ${f.source_type === 'wechat' ? `
     <div class="form-item">
       <label class="form-label">微信支付商户号（mchid）</label>
-      <input class="form-input" placeholder="无商户资料可填 DEMO 体验演示模式" value="${f.mchid}" oninput="state.payForm.mchid=this.value" />
+      <input class="form-input" placeholder="无商户资料可填 DEMO 体验演示模式" value="${esc(f.mchid)}" oninput="state.payForm.mchid=this.value" />
     </div>
     <div class="form-item">
       <label class="form-label">AppID（可选）</label>
-      <input class="form-input" placeholder="小程序/公众号 AppID" value="${f.appid}" oninput="state.payForm.appid=this.value" />
+      <input class="form-input" placeholder="小程序/公众号 AppID" value="${esc(f.appid)}" oninput="state.payForm.appid=this.value" />
     </div>
     <div class="form-item">
       <label class="form-label">商户 API 证书路径（apiclient_cert.pem）</label>
-      <input class="form-input" placeholder="C:\\cert\\apiclient_cert.pem" value="${f.cert_path}" oninput="state.payForm.cert_path=this.value" />
+      <input class="form-input" placeholder="C:\\cert\\apiclient_cert.pem" value="${esc(f.cert_path)}" oninput="state.payForm.cert_path=this.value" />
     </div>
     <div class="form-item">
       <label class="form-label">商户 API 私钥路径（apiclient_key.pem）</label>
-      <input class="form-input" placeholder="C:\\cert\\apiclient_key.pem" value="${f.private_key_path}" oninput="state.payForm.private_key_path=this.value" />
+      <input class="form-input" placeholder="C:\\cert\\apiclient_key.pem" value="${esc(f.private_key_path)}" oninput="state.payForm.private_key_path=this.value" />
     </div>
     <div class="form-item">
       <label class="form-label">APIv3 密钥</label>
-      <input class="form-input" type="password" placeholder="在微信支付商户平台设置" value="${f.api_v3_key}" oninput="state.payForm.api_v3_key=this.value" />
+      <input class="form-input" type="password" placeholder="在微信支付商户平台设置" value="${esc(f.api_v3_key)}" oninput="state.payForm.api_v3_key=this.value" />
     </div>
     <div class="howto-text">需要：有营业执照 → 微信支付商户平台开通「交易账单」权限 → 下载 API 证书。</div>
     ` : `
     <div class="form-item">
       <label class="form-label">聚合支付商户号</label>
-      <input class="form-input" placeholder="收钱吧/付呗等服务商商户号" value="${f.mchid}" oninput="state.payForm.mchid=this.value" />
+      <input class="form-input" placeholder="收钱吧/付呗等服务商商户号" value="${esc(f.mchid)}" oninput="state.payForm.mchid=this.value" />
     </div>
     <div class="howto-text">无执照群体可用。聚合通道正在接入服务商（收钱吧/付桥等），当前保存后同步会提示待接入。</div>
     `}
