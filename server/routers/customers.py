@@ -62,3 +62,17 @@ def reminders_list(done: int | None = None):
 def reminder_done(rid: int, done: int = 1):
     db.mark_reminder_done(rid, done)
     return {"ok": True}
+
+
+@router.post("/customers/{cid}/insight")
+def customer_insight(cid: int):
+    """AI 客户画像：读取熟客交易+记忆 → 读取上次画像(domain_context) → AI 生成 → 落盘"""
+    c = db.get_customer(cid)
+    if not c:
+        raise HTTPException(404, "客户不存在")
+    txns = c.get("transactions", [])
+    prev = db.get_domain_context("customer", f"profile_{cid}")
+    prev_text = prev["value"] if prev else ""
+    text = ai.generate_customer_insight(c, txns)
+    db.set_domain_context("customer", f"profile_{cid}", text)
+    return {"insight": text, "customer": c, "ai_used": ai.ai_available()}

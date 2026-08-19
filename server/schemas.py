@@ -97,6 +97,20 @@ class JobIn(BaseModel):
     payload: object = None
 
 
+class InsightIn(BaseModel):
+    """月度经营洞察请求（不传年月默认当月）"""
+    year: int | None = None
+    month: int | None = None
+
+
+class CopyContextIn(BaseModel):
+    """文案生成上下文（从 domain_context 读取的经营记忆）"""
+    shop_name: str = "我的小店"
+    scene: str = "今日营业"
+    extra: str = ""
+    customer_name: str = ""
+
+
 class StoreProfileIn(BaseModel):
     """单店档案保存（input 直喂 calc_store_model）"""
     name: str = "我的店"

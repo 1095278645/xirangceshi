@@ -142,16 +142,18 @@ def parse_transaction(text: str) -> dict:
 
 
 # ---------------- 2. 朋友圈文案生成 ----------------
-def generate_copy(shop_name: str, scene: str, extra: str, customer_name: str = "") -> str:
-    """生成有烟火气、口语化的朋友圈文案"""
+def generate_copy(shop_name: str, scene: str, extra: str, customer_name: str = "", context: str = "") -> str:
+    """生成有烟火气、口语化的朋友圈文案（可带经营上下文）"""
     if not ai_available():
-        return (f"【{shop_name}】{extra}\n—— 今日份营业，欢迎光临！"
+        ctx_part = f"（{context}）" if context else ""
+        return (f"【{shop_name}】{extra}{ctx_part}\n—— 今日份营业，欢迎光临！"
                 "(提示：在设置页填入 API Key 后即可生成真实文案)")
     prompt = (
         f"你是{shop_name}的老板，文化不高但特别真诚，说话带点本地烟火气，偶尔自嘲和幽默。\n"
         "请写一条不超过80字的朋友圈文案，不要用'亲''家人们''爆款''限时抢购'这类网红词，"
         "要像真人老板随手发的。"
         f"场景：{scene}\n补充信息：{extra}\n"
+        + (f"经营上下文（参考但不照抄）：{context}\n" if context else "")
         + (f"今天还惦记着老主顾：{customer_name}，可以自然带一句（可选，不硬凑）。" if customer_name else "")
         + "\n直接输出文案正文，不要任何前缀。"
     )
@@ -174,3 +176,127 @@ def generate_reminders(customer_brief: str) -> list:
         return _extract_json(chat([{"role": "user", "content": prompt}], temperature=0.6))
     except Exception:
         return []
+
+
+# ---------------- 4. 月度经营洞察 ----------------
+def generate_insights(monthly_data: dict, prev_context: str = "") -> str:
+    """基于月度收支汇总生成经营洞察（环比、异常品类、可执行建议）"""
+    if not ai_available():
+        # 降级：模板化数据分析
+        income = monthly_data.get("income", 0)
+        expense = monthly_data.get("expense", 0)
+        net = income - expense
+        cats = monthly_data.get("categories", [])
+        top_expense = max((c for c in cats if c.get("trans_type") == "expense"),
+                          key=lambda c: c.get("total", 0), default=None) if cats else None
+        lines = [f"本月收入 {income:.0f} 元，支出 {expense:.0f} 元，净{'收入' if net >= 0 else '支出'} {abs(net):.0f} 元。"]
+        if top_expense:
+            lines.append(f"支出最高的是{top_expense.get('friendly', top_expense.get('category', ''))}，{top_expense.get('total', 0):.0f} 元。")
+        if net < 0:
+            lines.append("这个月入不敷出，得想办法开源节流。")
+        elif net > 0 and income > 0:
+            lines.append("这个月有结余，可以考虑攒着备货或改善设备。")
+        lines.append("(提示：在设置页填入 API Key 后可获得更深入的 AI 分析)")
+        return " ".join(lines)
+    prompt = (
+        "你是一家街边小店的AI掌柜，负责帮老板看懂每月经营数据，用大白话给建议。\n"
+        f"本月收支数据：{json.dumps(monthly_data, ensure_ascii=False, default=str)}\n"
+        + (f"上次分析参考：{prev_context}\n" if prev_context else "")
+        + "请输出3-5条经营洞察：① 环比变化趋势 ② 异常品类 ③ 可执行建议。\n"
+        "口语化，不要用专业术语，像掌柜跟老板聊天一样。直接输出正文。"
+    )
+    return chat([{"role": "user", "content": prompt}], temperature=0.5, max_tokens=500).strip()
+
+
+# ---------------- 5. 客户画像 ----------------
+def generate_customer_insight(customer: dict, transactions: list) -> str:
+    """分析熟客交易历史，生成画像和个性化维系建议"""
+    if not ai_available():
+        # 降级：规则标签
+        txs = transactions or []
+        count = len(txs)
+        total = sum(t.get("amount", 0) or 0 for t in txs)
+        avg = total / count if count else 0
+        tags = []
+        if count >= 10:
+            tags.append("常客")
+        elif count >= 3:
+            tags.append("回头客")
+        if avg >= 50:
+            tags.append("高消费")
+        mems = customer.get("memories", [])
+        lines = [f"{customer.get('name', '顾客')}：{count} 笔交易，累计 {total:.0f} 元，均价 {avg:.0f} 元。"]
+        if tags:
+            lines.append(f"标签：{'、'.join(tags)}。")
+        if mems:
+            lines.append(f"记忆点：{'；'.join(m.get('content', '') for m in mems[:3])}")
+        lines.append("(提示：在设置页填入 API Key 后可获得个性化 AI 维系建议)")
+        return " ".join(lines)
+    prompt = (
+        "你是街边小店的熟客记忆外挂，帮店主更懂他的老主顾。\n"
+        f"熟客信息：{json.dumps(customer, ensure_ascii=False, default=str)}\n"
+        f"近期交易：{json.dumps(transactions[:20], ensure_ascii=False, default=str)}\n"
+        "请用大白话输出：① 消费偏好（爱买什么、多久来一次）② 性格猜测（大方/节俭/健谈）"
+        "③ 一条个性化的维系建议（具体到这周该做什么）。直接输出正文，不要列表格式。"
+    )
+    return chat([{"role": "user", "content": prompt}], temperature=0.6, max_tokens=400).strip()
+
+
+# ---------------- 6. 报税建议 ----------------
+def generate_tax_advice(quarterly_revenue: float, vat_result: dict, prev_advice: str = "") -> str:
+    """基于季度收入和增值税计算结果生成报税建议"""
+    if not ai_available():
+        # 降级：规则判断
+        exempted = vat_result.get("exempt", False)
+        vat_due = vat_result.get("vat", 0)
+        lines = []
+        if exempted:
+            lines.append(f"季度销售额 {quarterly_revenue:.0f} 元，≤30万符合小规模免征，本季度增值税 0 元。")
+        else:
+            lines.append(f"季度销售额 {quarterly_revenue:.0f} 元，应缴增值税 {vat_due:.0f} 元。")
+        lines.append("记得按时申报，季度结束后次月15号前完成。")
+        lines.append("(提示：在设置页填入 API Key 后可获得个性化 AI 报税建议)")
+        return " ".join(lines)
+    prompt = (
+        "你是小店的税务顾问，帮老板用大白话搞懂报税。\n"
+        f"本季度销售额：{quarterly_revenue:.0f} 元\n"
+        f"增值税计算结果：{json.dumps(vat_result, ensure_ascii=False)}\n"
+        + (f"上次建议参考：{prev_advice}\n" if prev_advice else "")
+        + "请输出：① 本季度要交多少税 ② 有没有节税空间 ③ 下个季度该注意什么。\n"
+        "口语化，不要用税法术语。直接输出正文。"
+    )
+    return chat([{"role": "user", "content": prompt}], temperature=0.3, max_tokens=400).strip()
+
+
+# ---------------- 7. 单店经营诊断 ----------------
+def generate_store_diagnosis(model_result: dict, prev_diagnosis: str = "") -> str:
+    """基于单店模型计算结果生成个性化经营诊断和行动计划"""
+    if not ai_available():
+        # 降级：基于评分的固定话术
+        overall = model_result.get("overall", {})
+        score = overall.get("score", 0)
+        verdict = overall.get("level", "")
+        model = model_result.get("model", {})
+        breakeven = model.get("break_even_day", 0)
+        target = model.get("target_day", 0)
+        lines = [f"综合评分 {score} 分，判定：{verdict}。"]
+        if score < 30:
+            lines.append(f"保本日销 {breakeven:.0f} 元，现在离保本线还差得远，先想办法把日均流水拉上来。")
+            lines.append("建议：① 砍掉不必要开支 ② 做一个月整改窗口 ③ 差太远就果断止损。")
+        elif score < 60:
+            lines.append(f"保本日销 {breakeven:.0f} 元，目标 {target:.0f} 元，现在在保本线附近挣扎。")
+            lines.append("建议：① 找到增量突破口 ② 优化成本结构 ③ 关注现金储备。")
+        else:
+            lines.append(f"经营健康，保本线 {breakeven:.0f} 元已稳，目标 {target:.0f} 元。")
+            lines.append("建议：考虑适度扩张或提升客单价。")
+        lines.append("(提示：在设置页填入 API Key 后可获得个性化 AI 经营诊断)")
+        return " ".join(lines)
+    prompt = (
+        "你是街边小店的经营顾问，用勇哥的方法论帮老板诊断店铺。\n"
+        "核心原则：现金流比故事重要，保本线先行，三维交叉验证。\n"
+        f"单店模型计算结果：{json.dumps(model_result, ensure_ascii=False, default=str)}\n"
+        + (f"上次诊断参考：{prev_diagnosis}\n" if prev_diagnosis else "")
+        + "请输出：① 一句话总结店铺健康状况 ② 最紧迫的问题 ③ 具体的行动计划（3条）。\n"
+        "口语化，像老掌柜跟新老板聊天。直接输出正文。"
+    )
+    return chat([{"role": "user", "content": prompt}], temperature=0.5, max_tokens=500).strip()

@@ -7,7 +7,7 @@ import ai
 import db
 import tax as taxcalc
 from categories import is_known_category
-from schemas import OrderIn
+from schemas import OrderIn, InsightIn
 
 log = logging.getLogger("orders")
 router = APIRouter(prefix="/api", tags=["orders"])
@@ -72,3 +72,14 @@ def vouchers(limit: int = 50):
 def transactions(year: int | None = None, month: int | None = None, limit: int = 100):
     """月度交易流水（大白话分类名），默认当月"""
     return db.list_transactions(year, month, limit)
+
+
+@router.post("/orders/insights")
+def order_insights(data: InsightIn):
+    """AI 经营洞察：读取月度收支 → 读取上次分析(domain_context) → AI 生成洞察 → 落盘"""
+    monthly = db.monthly_summary(data.year, data.month)
+    prev = db.get_domain_context("ledger", "monthly_insights")
+    prev_text = prev["value"] if prev else ""
+    text = ai.generate_insights(monthly, prev_text)
+    db.set_domain_context("ledger", "monthly_insights", text)
+    return {"insights": text, "monthly": monthly, "ai_used": ai.ai_available()}

@@ -3,6 +3,7 @@ from fastapi import APIRouter
 
 import ai
 import config
+import db
 from schemas import CopyIn, SettingsIn
 
 router = APIRouter(prefix="/api", tags=["basic"])
@@ -50,5 +51,14 @@ def update_settings(data: SettingsIn):
 
 @router.post("/copy")
 def copywriting(data: CopyIn):
-    text = ai.generate_copy(data.shop_name, data.scene, data.extra, data.customer_name)
+    # 从 domain_context 读取经营记忆，拼成上下文喂给 AI（无 AI 时填入模板）
+    context_parts = []
+    review = db.get_domain_context("ledger", "daily_review")
+    if review and review.get("value"):
+        context_parts.append(str(review["value"])[:200])
+    store_diag = db.get_domain_context("store", "diagnosis")
+    if store_diag and store_diag.get("value"):
+        context_parts.append(str(store_diag["value"])[:200])
+    context = " | ".join(context_parts) if context_parts else ""
+    text = ai.generate_copy(data.shop_name, data.scene, data.extra, data.customer_name, context)
     return {"text": text}

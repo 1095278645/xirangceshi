@@ -1,6 +1,8 @@
 """税法计算（省账通能力）+ 科目表台账"""
 from fastapi import APIRouter
 
+import ai
+import db
 import tax as taxcalc
 from categories import ACCOUNT_CATEGORY_NAMES, ACCOUNT_TITLES
 from schemas import CitIn, PitIn, SurtaxIn, VatIn
@@ -52,3 +54,14 @@ def tax_cit(data: CitIn):
 def tax_calendar(year: int | None = None, month: int | None = None):
     """当月报税日历提醒"""
     return taxcalc.get_filing_calendar(year, month)
+
+
+@router.post("/tax/advice")
+def tax_advice(data: VatIn):
+    """AI 报税建议：算增值税 → 读取上次建议(domain_context) → AI 生成 → 落盘"""
+    vat_result = taxcalc.calc_vat(data.quarterly_revenue)
+    prev = db.get_domain_context("tax", "quarterly_advice")
+    prev_text = prev["value"] if prev else ""
+    text = ai.generate_tax_advice(data.quarterly_revenue, vat_result, prev_text)
+    db.set_domain_context("tax", "quarterly_advice", text)
+    return {"advice": text, "vat_result": vat_result, "ai_used": ai.ai_available()}

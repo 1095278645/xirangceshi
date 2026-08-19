@@ -1,6 +1,7 @@
 """单店经营模型（勇哥方法论泛化：保本线先行）"""
 from fastapi import APIRouter
 
+import ai
 import db
 import store as storelib
 from schemas import StoreModelIn
@@ -42,3 +43,25 @@ def store_model(data: StoreModelIn):
 def store_from_ledger(year: int | None = None, month: int | None = None):
     """从账本真实流水反推单店输入：实际日销 + 毛利率（不传年月自动取最近有收入的月份）"""
     return db.store_ledger_stats(year, month)
+
+
+@router.post("/store/diagnosis")
+def store_diagnosis(data: StoreModelIn):
+    """AI 经营诊断：跑单店模型 → 读取上次诊断(domain_context) → AI 生成 → 落盘"""
+    model_result = storelib.calc_store_model(
+        daily_revenue=data.daily_revenue,
+        gross_margin=data.gross_margin,
+        rent=data.rent,
+        salary=data.salary,
+        utilities=data.utilities,
+        total_investment=data.total_investment,
+        cash_on_hand=data.cash_on_hand,
+        traffic=data.traffic,
+        competitor=data.competitor,
+        biz_type=data.biz_type,
+    )
+    prev = db.get_domain_context("store", "diagnosis")
+    prev_text = prev["value"] if prev else ""
+    text = ai.generate_store_diagnosis(model_result, prev_text)
+    db.set_domain_context("store", "diagnosis", text)
+    return {"diagnosis": text, "model": model_result, "ai_used": ai.ai_available()}
