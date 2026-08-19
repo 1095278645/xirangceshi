@@ -27,12 +27,21 @@ _ADOPT_PREFIX = "adoption_"
 
 
 # ---------------- Self-Run：并行产出（竞争扇出） ----------------
+def _safe_run(fn):
+    """单个员工容错：某位员工调用失败不拖垮整个团队，返回占位文本继续竞争"""
+    try:
+        return fn()
+    except Exception as e:  # noqa: BLE001 —— 员工级失败降级为占位，由掌柜裁决兜底
+        return f"[{e.__class__.__name__}: 该员工本次未能产出]"
+
+
 def run_parallel(producers: list, max_workers: int = MAX_WORKERS) -> list:
-    """并行执行多个员工产出函数。producers: list[callable()->str]"""
+    """并行执行多个员工产出函数。producers: list[callable()->str]
+    单员工异常由 _safe_run 兜底为占位文本，其余员工结果不受影响。"""
     if not producers:
         return []
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        return list(ex.map(lambda fn: fn(), producers))
+        return list(ex.map(_safe_run, producers))
 
 
 # ---------------- Self-Grown：采纳归因沉淀 ----------------

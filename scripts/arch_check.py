@@ -147,6 +147,11 @@ def lint_l2(root: Path, files: list[Path]) -> dict:
                if not (root / "server" / s).exists()]
     checks.append({"check": "数据/引擎层齐全(db/store/tax/payment/wechat_pay)",
                    "items": [f"缺: {m}" for m in missing], "n": len(missing)})
+    # AI 能力层齐全（单 agent 能力 + 多 agent 引擎 + 域编排）
+    ai_missing = [s for s in ("ai.py", "team.py", "team_domains.py")
+                  if not (root / "server" / s).exists()]
+    checks.append({"check": "AI 能力层齐全(ai/team/team_domains)",
+                   "items": [f"缺: {m}" for m in ai_missing], "n": len(ai_missing)})
     # 路由文件行数
     thick = []
     if routers.is_dir():
@@ -157,7 +162,7 @@ def lint_l2(root: Path, files: list[Path]) -> dict:
             if n > ROUTER_MAX:
                 thick.append((rp(root, f), n))
     checks.append({"check": f"路由文件薄(≤{ROUTER_MAX}行)", "items": [f"{p}: {n}行" for p, n in thick], "n": len(thick)})
-    verdict = "WARN" if (leak or missing or thick) else "PASS"
+    verdict = "WARN" if (leak or missing or thick or ai_missing) else "PASS"
     return {"lens": "L2 单一职责/分层", "verdict": verdict, "checks": checks}
 
 
@@ -262,8 +267,25 @@ def lint_l6(root: Path) -> dict:
         has_db_effect = has_db_effect or has_db
         checks.append({"check": f"{name} 转换管线",
                        "items": [f"分步注释={steps} 阈值常量={consts} DB副作用={'有' if has_db else '无'}"], "n": 0})
+    # AI 编排管线（team_domains._run_team 的员工并行→裁决→融合；team 采纳沉淀）
+    ai_pipeline_ok = True
+    for name in ("ai.py", "team.py", "team_domains.py"):
+        f = root / "server" / name
+        if not f.exists():
+            continue
+        txt = read_text(f)
+        steps = len(re.findall(r"(?m)^\s*#.*(?:并行|竞争|裁决|融合|归因|降级|兜底)", txt))
+        fallback = len(re.findall(r"except\s*(?:\(?[A-Za-z]+(?:Exception|Error)\)?)?\s*(?:as\s+\w+)?\s*:|degraded|兜底", txt))
+        no_db = not bool(re.search(r"conn\.execute|get_conn|INSERT", txt))
+        # team.py 的 record_adoption 写采纳沉淀属特性（Self-Grown），不算副作用
+        if name == "team.py":
+            no_db = True
+        if steps == 0 or fallback == 0:
+            ai_pipeline_ok = False
+        checks.append({"check": f"{name} AI 编排管线",
+                       "items": [f"分步注释={steps} 兜底/降级={fallback} DB写入={'有(采纳沉淀)' if not no_db else '无'}"], "n": 0})
     engines_ok = any((root / "server" / n).exists() for n in engines)
-    verdict = "FAIL" if has_db_effect else ("PASS" if engines_ok else "WARN")
+    verdict = "FAIL" if has_db_effect else ("WARN" if (not ai_pipeline_ok) else ("PASS" if engines_ok else "WARN"))
     return {"lens": "L6 转换管线/计算引擎", "verdict": verdict, "checks": checks}
 
 

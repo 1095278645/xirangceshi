@@ -54,6 +54,18 @@ class TestParallelCompetition(_TempDB):
     def test_run_parallel_empty(self):
         self.assertEqual(team.run_parallel([]), [])
 
+    def test_run_parallel_tolerates_failing_employee(self):
+        """引擎级容错：单个员工抛异常返回占位文本，其余员工结果不受影响"""
+        outs = team.run_parallel([
+            lambda: "财务",
+            lambda: 1 / 0,          # 该员工失败
+            lambda: "风控",
+        ])
+        self.assertEqual(len(outs), 3)
+        self.assertEqual(outs[0], "财务")
+        self.assertEqual(outs[2], "风控")
+        self.assertIn("未能产出", outs[1])   # 占位文本兜底
+
 
 class TestAdoptionGrowth(_TempDB):
     """Self-Grown：采纳归因沉淀 + 采纳率提示"""
