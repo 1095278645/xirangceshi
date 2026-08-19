@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'ee8e6e19-10b4-4e36-95f6-d19729bb54ae'
-  PropagateID: 'ee8e6e19-10b4-4e36-95f6-d19729bb54ae'
-  ReservedCode1: 'd1b7a879-3109-4fce-8726-36007595574e'
-  ReservedCode2: 'd1b7a879-3109-4fce-8726-36007595574e'
+  ProduceID: '49c32859-dad8-42b2-8d31-d018a509116b'
+  PropagateID: '49c32859-dad8-42b2-8d31-d018a509116b'
+  ReservedCode1: '5ed26e56-b049-4c6d-924b-74ed6ac18180'
+  ReservedCode2: '5ed26e56-b049-4c6d-924b-74ed6ac18180'
 ---
 
 # 巷子里的AI掌柜
@@ -46,6 +46,16 @@ AIGC:
    3. 写一个薄壳入口函数（无 Key 降级 + 组装 task，一行调用通用流水线 `_run_team`）。
 3. **删整个域**：删除注册表项 + 薄壳函数即可；`tests/test_team.py` 的注册表自检会自动确认所有已注册域结构完整、降级可跑。
 
+## 业务域（路由）注册表
+
+非 AI 的业务路由同样采用「声明式注册表」：`routers/registry.py` 的 `BUSINESS_DOMAINS` 是后端全部路由的唯一登记处，`main.py` 只遍历注册表统一挂载，不关心具体有哪些域。
+
+- **新增业务域**：新建 `routers/xxx.py`（暴露 `router`）+ 在 `BUSINESS_DOMAINS` 登记一行，`main.py` 与流程代码零改动。
+- **停用业务域**：把该域 `enabled` 改为 `False` 即可临时下线（不删代码）。
+- **删除业务域**：删掉注册表对应行即可（文件可留可删）。
+
+`tests/test_routers_registry.py` 的注册表自检会确认所有条目结构完整、可挂载，且停用一个域不影响其余域。
+
 ## 目录结构
 
 ```
@@ -60,7 +70,9 @@ AIGC:
 └── server/             # Python FastAPI 后端
     ├── main.py         # 应用入口（组装路由/生命周期/静态挂载，约 80 行）
     ├── schemas.py      # API 请求模型（Pydantic）
-    ├── routers/        # 业务路由（按域拆分）
+    ├── routers/        # 业务路由（按域拆分，registry 注册表统一挂载）
+    │   ├── registry.py  # 业务域注册表（增删能力唯一入口，main.py 遍历挂载，仿 TEAM_DOMAINS）
+    │   ├── arch.py     # 领域上下文 / 任务队列 / 单店档案 / 心跳复盘
     │   ├── basic.py    # 健康检查 / AI 设置 / 文案生成
     │   ├── orders.py   # 记账 / 流水 / 凭证
     │   ├── customers.py# 熟客 / 记忆 / 提醒

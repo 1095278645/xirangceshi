@@ -19,8 +19,7 @@ import config
 import db
 import heartbeat
 import payment
-from routers import (arch, basic, customers, orders,
-                     payment as payment_router, report, store, tax)
+from routers import registry
 
 log = logging.getLogger("main")
 SYNC_INTERVAL_SECONDS = 6 * 3600   # 每 6 小时自动同步一次昨日账单
@@ -70,9 +69,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 业务路由：按域拆分，路径与原单文件版本完全一致
-for r in (arch.router, basic.router, orders.router, customers.router, tax.router,
-          store.router, report.router, payment_router.router):
+# 业务路由：按域拆分，由 registry 声明式注册表统一挂载。
+# 新增/停用/删除业务域只改 routers/registry.py 的 BUSINESS_DOMAINS 声明，
+# 本文件与各域流程代码均无需改动（对标 team_domains 的声明式注册表思想）。
+for r in registry.get_routers():
     app.include_router(r)
 
 
