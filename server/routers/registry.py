@@ -36,6 +36,9 @@ BUSINESS_DOMAINS = [
     {"name": "store",     "module": "store",     "desc": "单店经营模型",                                 "enabled": True},
     {"name": "report",    "module": "report",    "desc": "月度报表导出",                                 "enabled": True},
     {"name": "payment",   "module": "payment",   "desc": "收款账户 / 账单同步",                          "enabled": True},
+    {"name": "finance",   "module": "finance",   "desc": "预算 / 应收应付 / 现金流滚动预测",             "enabled": True},
+    {"name": "stock",     "module": "stock",     "desc": "库存进销存 / 补货过期预警",                    "enabled": True},
+    {"name": "invoice",   "module": "invoice",   "desc": "发票台账（销项/进项）",                        "enabled": True},
 ]
 
 

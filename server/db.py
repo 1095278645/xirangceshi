@@ -20,6 +20,9 @@ from db_customers import *  # noqa: F401,F403
 from db_ledger import *     # noqa: F401,F403
 from db_payment import *    # noqa: F401,F403
 from db_arch import *       # noqa: F401,F403  领域上下文/任务队列/单店档案
+from db_finance import *    # noqa: F401,F403  预算/应收应付/现金流预测
+from db_stock import *      # noqa: F401,F403  库存进销存
+from db_invoice import *    # noqa: F401,F403  发票台账
 
 
 @contextmanager
@@ -160,6 +163,70 @@ def init_db():
             traffic         TEXT DEFAULT '一般',
             competitor      TEXT DEFAULT '一般',
             updated_at      TEXT DEFAULT (datetime('now','localtime'))
+        );
+
+        -- 月度预算（亲民：每月计划花多少/进多少）
+        CREATE TABLE IF NOT EXISTS budgets (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            month       TEXT NOT NULL,
+            scope       TEXT NOT NULL DEFAULT 'expense' CHECK(scope IN ('income','expense')),
+            category    TEXT DEFAULT '',
+            amount      REAL DEFAULT 0,
+            note        TEXT DEFAULT '',
+            created_at  TEXT DEFAULT (datetime('now','localtime'))
+        );
+
+        -- 应收应付赊账台账（亲民：谁欠我钱/我欠谁钱）
+        CREATE TABLE IF NOT EXISTS debts (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            party       TEXT DEFAULT '',
+            kind        TEXT NOT NULL DEFAULT 'receivable' CHECK(kind IN ('receivable','payable')),
+            amount      REAL NOT NULL DEFAULT 0,
+            balance     REAL DEFAULT 0,
+            due_date    TEXT DEFAULT '',
+            status      TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','settled')),
+            note        TEXT DEFAULT '',
+            created_at  TEXT DEFAULT (datetime('now','localtime'))
+        );
+
+        -- 商品/原材料档案（库存进销存）
+        CREATE TABLE IF NOT EXISTS products (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL,
+            category    TEXT DEFAULT '',
+            unit        TEXT DEFAULT '',
+            stock_qty   REAL DEFAULT 0,
+            safety_stock REAL DEFAULT 0,
+            unit_cost   REAL DEFAULT 0,
+            expiry_date TEXT DEFAULT '',
+            supplier    TEXT DEFAULT '',
+            note        TEXT DEFAULT '',
+            created_at  TEXT DEFAULT (datetime('now','localtime'))
+        );
+
+        -- 库存变动流水（入库/出库/盘点）
+        CREATE TABLE IF NOT EXISTS stock_movements (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id  INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+            movement_type TEXT NOT NULL CHECK(movement_type IN ('in','out','adj')),
+            qty         REAL DEFAULT 0,
+            note        TEXT DEFAULT '',
+            created_at  TEXT DEFAULT (datetime('now','localtime'))
+        );
+
+        -- 发票台账（销项 out / 进项 in）
+        CREATE TABLE IF NOT EXISTS invoices (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind        TEXT NOT NULL CHECK(kind IN ('out','in')),
+            party       TEXT DEFAULT '',
+            invoice_no  TEXT DEFAULT '',
+            amount      REAL DEFAULT 0,
+            rate        REAL DEFAULT 0,
+            tax_amount  REAL DEFAULT 0,
+            issued_date TEXT DEFAULT '',
+            status      TEXT NOT NULL DEFAULT 'issued' CHECK(status IN ('issued','void')),
+            note        TEXT DEFAULT '',
+            created_at  TEXT DEFAULT (datetime('now','localtime'))
         );
         """)
         # 迁移：transactions 增加 source / wx_trade_id（老库升级）

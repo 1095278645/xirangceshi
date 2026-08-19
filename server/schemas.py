@@ -123,3 +123,69 @@ class StoreProfileIn(BaseModel):
     cash_on_hand: float = 0
     traffic: str = "一般"
     competitor: str = "一般"
+
+
+class BudgetIn(BaseModel):
+    """月度预算（亲民：每月计划花/进多少）"""
+    month: str                       # YYYY-MM
+    scope: str = "expense"           # income / expense
+    amount: float = 0
+    category: str = ""
+    note: str = ""
+    bid: int | None = None           # 有值=更新
+
+
+class DebtIn(BaseModel):
+    """应收应付（亲民：谁欠我钱/我欠谁钱）"""
+    party: str = ""
+    kind: str = "receivable"         # receivable 应收 / payable 应付
+    amount: float = 0
+    due_date: str = ""               # YYYY-MM-DD，到期日
+    note: str = ""
+    did: int | None = None           # 有值=更新
+
+
+class SettleDebtIn(BaseModel):
+    """结清应收应付"""
+    settle_amount: float | None = None   # 默认全额
+
+
+class ProductIn(BaseModel):
+    """商品/原材料（库存进销存）"""
+    name: str
+    category: str = ""
+    unit: str = ""
+    stock_qty: float = 0
+    safety_stock: float = 0
+    unit_cost: float = 0
+    expiry_date: str = ""            # YYYY-MM-DD 保质期
+    supplier: str = ""
+    note: str = ""
+    pid: int | None = None           # 有值=更新
+
+
+class StockMoveIn(BaseModel):
+    """库存变动（入库/出库/盘点）"""
+    movement: str = "in"             # in 入库 / out 出库 / adj 盘点
+    qty: float = 0
+    note: str = ""
+
+
+class InvoiceIn(BaseModel):
+    """发票台账"""
+    kind: str = "out"                # out 销项开票 / in 进项收票
+    party: str = ""
+    invoice_no: str = ""
+    amount: float = 0
+    rate: float = 0
+    tax_amount: float = 0
+    issued_date: str = ""            # YYYY-MM-DD
+    note: str = ""
+    iid: int | None = None           # 有值=更新
+
+
+class CashflowIn(BaseModel):
+    """现金流滚动预测入参"""
+    cash_on_hand: float = 0
+    months: int = 6
+    safety_buffer: float = 0         # 月均固定成本（用于「不够花」预警）
