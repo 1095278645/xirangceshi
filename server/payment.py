@@ -57,6 +57,8 @@ def run_sync(source_id, bill_date=None):
     status = "empty" if not txns else "success"
     log_id = db.add_sync_log(source_id, bill_date, status=status,
                              fetched=len(txns), imported=imported, skipped=skipped)
+    log.info("sync ok source=%s date=%s status=%s fetched=%d imported=%d skipped=%d",
+             source_id, bill_date, status, len(txns), imported, skipped)
     return {"ok": True, "bill_date": bill_date, "fetched": len(txns),
             "imported": imported, "skipped": skipped, "log_id": log_id}
 
@@ -81,4 +83,6 @@ def demo_clear():
     """清空演示流水（wx_trade_id 以 DEMO- 开头）。返回删除条数。"""
     with db.get_conn() as conn:
         cur = conn.execute("DELETE FROM transactions WHERE wx_trade_id LIKE 'DEMO-%'")
-        return cur.rowcount
+        deleted = cur.rowcount
+        log.info("demo data cleared: %d rows", deleted)
+        return deleted

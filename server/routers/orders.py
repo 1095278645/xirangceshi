@@ -1,4 +1,6 @@
 """记账 / 流水 / 凭证 / 月度汇总（查账）"""
+import logging
+
 from fastapi import APIRouter
 
 import ai
@@ -7,6 +9,7 @@ import tax as taxcalc
 from categories import is_known_category
 from schemas import OrderIn
 
+log = logging.getLogger("orders")
 router = APIRouter(prefix="/api", tags=["orders"])
 
 
@@ -33,6 +36,8 @@ def create_order(data: OrderIn):
         counterparty=customer, note=parsed.get("note", ""))
     # 安全护栏：边界场景优先，其次大额检测
     safety_warning = taxcalc.detect_boundary(data.text) or taxcalc.check_amount_guard(amount)
+    log.info("order created tid=%s type=%s category=%s amount=%s customer=%s missing=%s",
+             tid, trans_type, category, amount, customer or "-", amount_missing)
     return {
         "order_id": tid,
         "parsed": parsed,
