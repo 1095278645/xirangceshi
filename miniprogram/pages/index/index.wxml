@@ -7,6 +7,12 @@
     <view class="hero-sub">{{shopName}} · AI掌柜已就位</view>
   </view>
 
+  <!-- 掌柜今日复盘 -->
+  <view class="card" wx:if="{{review}}">
+    <view class="card-title">📋 掌柜今日复盘</view>
+    <view class="review-box">{{review}}</view>
+  </view>
+
   <!-- 今日汇总 -->
   <view class="card">
     <view class="card-title">今日账本</view>

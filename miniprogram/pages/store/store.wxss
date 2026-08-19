@@ -81,3 +81,13 @@
 .dim-level.临界 { color: #c97b1f; background: #fdf3e3; }
 .dim-level.危险 { color: #d64545; background: #fbe9e9; }
 .dim-score { font-size: 24rpx; color: #a08d7b; }
+
+/* 单店档案行 */
+.profile-row {
+  display: flex; align-items: center; gap: 12rpx;
+  padding: 20rpx 0; border-bottom: 1rpx solid #f5ede4;
+}
+.profile-row:last-child { border-bottom: none; }
+.profile-info { flex: 1; display: flex; flex-direction: column; gap: 4rpx; }
+.profile-name { font-size: 28rpx; font-weight: 600; }
+.profile-meta { font-size: 22rpx; color: #a08d7b; }

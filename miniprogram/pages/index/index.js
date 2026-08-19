@@ -23,7 +23,8 @@ Page({
     parsed: null,       // 解析结果
     voucher: null,      // 凭证信息
     friendlyCategory: '',
-    manualText: ''
+    manualText: '',
+    review: ''          // 掌柜今日复盘
   },
 
   onLoad() {
@@ -32,6 +33,7 @@ Page({
     this.initRecognizer()
     this.loadSummary()
     this.loadMonth()
+    this.loadReview()
   },
 
   onShow() {
@@ -45,6 +47,12 @@ Page({
 
   loadMonth() {
     api.monthlySummary().then(m => this.setData({ month: m })).catch(() => {})
+  },
+
+  loadReview() {
+    api.heartbeat().then(h => {
+      this.setData({ review: (h && h.ok && h.review) ? h.review : '' })
+    }).catch(() => {})
   },
 
   // 初始化语音识别（微信同声传译插件，可选）

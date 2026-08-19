@@ -171,3 +171,12 @@
 .manual-btn {
   margin-top: 20rpx;
 }
+
+/* 掌柜今日复盘 */
+.review-box {
+  font-size: 26rpx;
+  line-height: 1.7;
+  color: #6b5b4d;
+  padding: 4rpx 0;
+  word-break: break-all;
+}

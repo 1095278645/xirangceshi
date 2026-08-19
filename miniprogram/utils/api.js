@@ -71,5 +71,14 @@ module.exports = {
   // 单店模型（保本线先行）
   storePresets: () => request('/api/store/presets'),
   storeModel: (data) => request('/api/store/model', 'POST', data),
-  storeFromLedger: () => request('/api/store/from-ledger')
+  storeFromLedger: () => request('/api/store/from-ledger'),
+
+  // 单店档案（存档复用）
+  storeProfiles: () => request('/api/profiles'),
+  saveStoreProfile: (data) => request('/api/store/profile', 'POST', data),
+  loadStoreProfile: (id) => request('/api/profile/' + id),
+  delStoreProfile: (id) => request('/api/profile/' + id, 'DELETE'),
+
+  // 掌柜今日复盘（心跳）
+  heartbeat: () => request('/api/heartbeat')
 }

@@ -72,6 +72,14 @@
     <button class="btn" bindtap="calcModel" disabled="{{calcLoading}}">
       {{calcLoading ? '算账中…' : '算账'}}
     </button>
+
+    <view class="row" style="margin-top: 24rpx">
+      <text class="row-label">店名</text>
+      <input class="row-input" placeholder="如：老王面馆" value="{{profileName}}" bindinput="onProfileNameInput" />
+    </view>
+    <button class="btn-ghost" bindtap="saveProfile" disabled="{{savingProfile}}">
+      {{savingProfile ? '保存中…' : '💾 存为档案'}}
+    </button>
   </view>
 
   <!-- 结果区 -->
@@ -132,6 +140,21 @@
       </view>
     </view>
   </block>
+
+  <!-- 已存档案 -->
+  <view class="card" wx:if="{{profiles.length}}">
+    <view class="card-title">已存档案（{{profiles.length}}）</view>
+    <view class="profile-row" wx:for="{{profiles}}" wx:key="id">
+      <view class="profile-info">
+        <text class="profile-name">{{item.name || '未命名'}}</text>
+        <text class="profile-meta">{{item.biz_type}} · 房租{{item.rent}} · 人工{{item.salary}}</text>
+      </view>
+      <button size="mini" bindtap="applyProfile" data-id="{{item.id}}" disabled="{{applyingProfile === item.id}}">
+        {{applyingProfile === item.id ? '读取中' : '套用'}}
+      </button>
+      <button size="mini" type="warn" bindtap="delProfile" data-id="{{item.id}}">删</button>
+    </view>
+  </view>
 
   <tabbar current="{{4}}" />
 </view>

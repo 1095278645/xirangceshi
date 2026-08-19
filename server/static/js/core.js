@@ -66,7 +66,10 @@ const state = {
   store: { presets: [], bizType: '餐饮', form: { daily_revenue: '', gross_margin: '',
     rent: '', salary: '', utilities: '', total_investment: '', cash_on_hand: '',
     traffic: '一般', competitor: '一般' },
-    result: null, loading: false, ledgering: false, ledgerNote: '' },
+    result: null, loading: false, ledgering: false, ledgerNote: '',
+    profiles: [], profileName: '我的店', savingProfile: false, applyingProfile: null },
+  // 掌柜今日复盘（心跳）
+  review: '',
 };
 
 // ---------- 辅助 ----------

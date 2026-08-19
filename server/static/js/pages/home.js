@@ -25,9 +25,11 @@ async function submitOrder(text) {
 
 async function loadHome() {
   try {
-    const [s, m] = await Promise.all([api('/api/orders/today'), api('/api/orders/monthly')]);
+    const [s, m, hb] = await Promise.all([
+      api('/api/orders/today'), api('/api/orders/monthly'), api('/api/heartbeat')]);
     state.summary = s;
     state.month = m;
+    state.review = hb.ok ? (hb.review || '') : '';
   } catch (_) {}
   render();
 }
@@ -51,6 +53,12 @@ function renderHome() {
     <div class="hero-title">老板，今天辛苦啦！</div>
     <div class="hero-sub">巷子里的早餐铺 · AI掌柜已就位</div>
   </div>
+
+  ${state.review ? `
+  <div class="card">
+    <div class="card-title">📋 掌柜今日复盘</div>
+    <div class="review-box">${state.review}</div>
+  </div>` : ''}
 
   <div class="voice-card">
     <div class="voice-hint ${state.recognizing ? 'recording' : ''}">

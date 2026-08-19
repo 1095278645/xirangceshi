@@ -38,11 +38,23 @@ Page({
     monthGrossText: '',
     calcLoading: false,
     ledgering: false,
-    ledgerNote: ''
+    ledgerNote: '',
+    // 单店档案
+    profiles: [],
+    profileName: '',
+    savingProfile: false,
+    applyingProfile: null
   },
 
   onLoad() {
     this.loadPresets()
+    this.loadProfiles()
+  },
+
+  loadProfiles() {
+    api.storeProfiles().then(r => {
+      this.setData({ profiles: (r && r.items) || [] })
+    }).catch(() => {})
   },
 
   loadPresets() {
@@ -145,5 +157,76 @@ Page({
         this.setData({ calcLoading: false })
         wx.showToast({ title: '算账失败，请确认后端已启动', icon: 'none' })
       })
+  },
+
+  // ---------- 单店档案（存档复用） ----------
+  onProfileNameInput(e) {
+    this.setData({ profileName: e.detail.value })
+  },
+
+  saveProfile() {
+    const d = this.data
+    const name = (d.profileName || '').trim() || '我的店'
+    this.setData({ savingProfile: true })
+    api.saveStoreProfile({
+      name,
+      biz_type: d.bizType,
+      gross_margin: d.grossMargin ? (parseFloat(d.grossMargin) / 100) : null,
+      rent: parseFloat(d.rent) || 0,
+      salary: parseFloat(d.salary) || 0,
+      utilities: parseFloat(d.utilities) || 0,
+      total_investment: parseFloat(d.totalInvestment) || 0,
+      cash_on_hand: parseFloat(d.cashOnHand) || 0,
+      traffic: d.traffic,
+      competitor: d.competitor
+    }).then(() => {
+      wx.showToast({ title: '档案已保存', icon: 'success' })
+      this.loadProfiles()
+      this.setData({ savingProfile: false })
+    }).catch(() => {
+      this.setData({ savingProfile: false })
+      wx.showToast({ title: '保存失败，请确认后端已启动', icon: 'none' })
+    })
+  },
+
+  applyProfile(e) {
+    const id = e.currentTarget.dataset.id
+    this.setData({ applyingProfile: id })
+    api.loadStoreProfile(id).then(p => {
+      if (p.error) {
+        wx.showToast({ title: p.error, icon: 'none' })
+        this.setData({ applyingProfile: null })
+        return
+      }
+      this.setData({
+        grossMargin: p.gross_margin != null ? String(Math.round(p.gross_margin * 100)) : '',
+        rent: p.rent ? String(p.rent) : '',
+        salary: p.salary ? String(p.salary) : '',
+        utilities: p.utilities ? String(p.utilities) : '',
+        totalInvestment: p.total_investment ? String(p.total_investment) : '',
+        cashOnHand: p.cash_on_hand ? String(p.cash_on_hand) : '',
+        traffic: p.traffic || '一般',
+        competitor: p.competitor || '一般',
+        bizType: p.biz_type || '餐饮',
+        profileName: p.name || '',
+        result: null,
+        applyingProfile: null
+      })
+      this.applyPreset(p.biz_type || '餐饮')
+      wx.showToast({ title: '已套用「' + (p.name || '档案') + '」', icon: 'none' })
+    }).catch(() => {
+      this.setData({ applyingProfile: null })
+      wx.showToast({ title: '读取档案失败', icon: 'none' })
+    })
+  },
+
+  delProfile(e) {
+    const id = e.currentTarget.dataset.id
+    api.delStoreProfile(id).then(() => {
+      this.setData({ profiles: this.data.profiles.filter(p => p.id !== id) })
+      wx.showToast({ title: '已删除', icon: 'none' })
+    }).catch(() => {
+      wx.showToast({ title: '删除失败', icon: 'none' })
+    })
   }
 })

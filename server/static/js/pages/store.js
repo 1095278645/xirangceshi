@@ -4,9 +4,76 @@
 // ---------- 单店模型（勇哥方法论泛化：保本线先行） ----------
 async function loadStore() {
   try {
-    const r = await api('/api/store/presets');
+    const [r, p] = await Promise.all([api('/api/store/presets'), api('/api/profiles')]);
     state.store.presets = r.presets || [];
+    state.store.profiles = p.items || [];
   } catch (_) {}
+  render();
+}
+
+// ---------- 单店档案（存档复用：把店参数沉淀为可复用资产） ----------
+async function saveStoreProfile() {
+  const f = state.store.form;
+  const name = (state.store.profileName || '').trim() || '我的店';
+  state.store.savingProfile = true;
+  render();
+  try {
+    await api('/api/store/profile', 'POST', {
+      name,
+      biz_type: state.store.bizType,
+      gross_margin: f.gross_margin ? (parseFloat(f.gross_margin) / 100) : null,
+      rent: parseFloat(f.rent) || 0,
+      salary: parseFloat(f.salary) || 0,
+      utilities: parseFloat(f.utilities) || 0,
+      total_investment: parseFloat(f.total_investment) || 0,
+      cash_on_hand: parseFloat(f.cash_on_hand) || 0,
+      traffic: f.traffic,
+      competitor: f.competitor,
+    });
+    toast('档案已保存，随时可套用重算');
+    const p = await api('/api/profiles');
+    state.store.profiles = p.items || [];
+  } catch (e) {
+    toast(e.message);
+  }
+  state.store.savingProfile = false;
+  render();
+}
+
+async function applyStoreProfile(id) {
+  state.store.applyingProfile = id;
+  render();
+  try {
+    const p = await api('/api/profile/' + id);
+    if (p.error) { toast(p.error); return; }
+    const f = state.store.form;
+    f.gross_margin = p.gross_margin != null ? (p.gross_margin * 100).toFixed(0) : '';
+    f.rent = p.rent || '';
+    f.salary = p.salary || '';
+    f.utilities = p.utilities || '';
+    f.total_investment = p.total_investment || '';
+    f.cash_on_hand = p.cash_on_hand || '';
+    f.traffic = p.traffic || '一般';
+    f.competitor = p.competitor || '一般';
+    state.store.bizType = p.biz_type || '餐饮';
+    state.store.profileName = p.name || '';
+    state.store.result = null;
+    toast('已套用「' + (p.name || '档案') + '」，日销从账本带入或手填');
+  } catch (e) {
+    toast(e.message);
+  }
+  state.store.applyingProfile = null;
+  render();
+}
+
+async function delStoreProfile(id) {
+  try {
+    await api('/api/profile/' + id, 'DELETE');
+    state.store.profiles = state.store.profiles.filter(p => p.id !== id);
+    toast('档案已删除');
+  } catch (e) {
+    toast(e.message);
+  }
   render();
 }
 
@@ -173,6 +240,25 @@ function renderStore() {
       </select>
     </div>
     <button class="btn-primary ${s.loading ? 'disabled' : ''}" onclick="calcStoreModel()">${s.loading ? '算账中…' : '算账'}</button>
+    <div class="form-item" style="margin-top:14px">
+      <label class="form-label">保存为店档案（方便下次套用重算）</label>
+      <input class="form-input" placeholder="店名，如：老王面馆" value="${s.profileName}" oninput="state.store.profileName=this.value" />
+    </div>
+    <button class="btn-secondary ${s.savingProfile ? 'disabled' : ''}" onclick="saveStoreProfile()">${s.savingProfile ? '保存中…' : '💾 存为档案'}</button>
   </div>
-  ${resultHtml}`;
+  ${resultHtml}
+  ${(s.profiles && s.profiles.length) ? `
+  <div class="card">
+    <div class="card-title">已存档案（${s.profiles.length}）</div>
+    ${s.profiles.map(p => `
+      <div class="profile-row">
+        <div class="profile-info">
+          <span class="profile-name">${p.name || '未命名'}</span>
+          <span class="profile-meta">${p.biz_type || ''} · 房租${fmt(p.rent)} · 人工${fmt(p.salary)}</span>
+        </div>
+        <button class="btn-small ${s.applyingProfile === p.id ? 'disabled' : ''}" onclick="applyStoreProfile(${p.id})">${s.applyingProfile === p.id ? '读取中' : '套用'}</button>
+        <button class="btn-small btn-danger" onclick="delStoreProfile(${p.id})">删</button>
+      </div>
+    `).join('')}
+  </div>` : ''}`;
 }
