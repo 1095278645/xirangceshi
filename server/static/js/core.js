@@ -149,14 +149,28 @@ function render() {
   else if (r === 'invoice') html = renderInvoice();
   else html = renderHome();
   document.getElementById('app').innerHTML = html;
+  const inMore = (r === 'finance' || r === 'stock' || r === 'invoice' || r === 'settings');
   document.querySelectorAll('.tab-item').forEach(t => {
-    t.classList.toggle('active', t.dataset.route === r);
-    t.style.display = (r === 'custDetail' && t.dataset.route !== 'customers') ? 'none' : 'flex';
+    const r2 = t.dataset.route;
+    t.classList.toggle('active', inMore ? (r2 === 'more') : (r2 === r));
+    t.style.display = (r === 'custDetail' && r2 !== 'customers') ? 'none' : 'flex';
   });
+}
+
+// ---------- 更多抽屉 ----------
+function openMore() {
+  document.getElementById('moreMask').classList.add('show');
+  document.getElementById('moreDrawer').classList.add('open');
+}
+
+function closeMore() {
+  document.getElementById('moreMask').classList.remove('show');
+  document.getElementById('moreDrawer').classList.remove('open');
 }
 
 // ---------- 路由 ----------
 function go(route) {
+  if (route === 'more') { openMore(); return; }
   state.route = route;
   if (location.hash.slice(1) !== route) location.hash = route;
   render();

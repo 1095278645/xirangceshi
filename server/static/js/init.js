@@ -12,6 +12,12 @@ document.querySelectorAll('.tab-item').forEach(t => {
   t.addEventListener('click', (e) => { e.preventDefault(); go(t.dataset.route); });
 });
 
+// 更多抽屉：遮罩点击关闭，功能项点击跳转并关闭
+document.getElementById('moreMask').addEventListener('click', closeMore);
+document.querySelectorAll('.more-item').forEach(it => {
+  it.addEventListener('click', () => { closeMore(); go(it.dataset.route); });
+});
+
 initSpeech();
 const initRoute = location.hash.slice(1) || 'home';
 state.route = initRoute;
