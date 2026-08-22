@@ -132,5 +132,35 @@ class TestDebt(unittest.TestCase):
         self.assertTrue(all("month" in f and "net" in f for f in flows))
 
 
+class TestCashflowForecastEntry(unittest.TestCase):
+    """现金流预测入口 cashflow_forecast（db_finance）回归：曾因传参名
+    debt_receives≠debt_flows 而崩溃，此处确保入口可正常调用并返回预测"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(cls._tmp.name) / "test.db"
+        db.init_db()
+        cls.receivable_id = db.add_debt("王姐", "receivable", 3000,
+                                        date.today().isoformat(), "赊账")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def test_cashflow_forecast_runs(self):
+        from db_finance import cashflow_forecast
+        r = cashflow_forecast(cash_on_hand=50000, months=6)
+        self.assertEqual(len(r["months"]), 6)
+        self.assertEqual(r["start_cash"], 50000)
+        self.assertIsInstance(r["summary"], str)
+
+    def test_cashflow_forecast_includes_debt(self):
+        # 当月有应收到期 3000 → 首月流入含该笔，现金流比无应收时更宽裕
+        from db_finance import cashflow_forecast
+        r = cashflow_forecast(cash_on_hand=50000, months=6)
+        self.assertGreaterEqual(r["months"][0]["inflow"], 3000)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

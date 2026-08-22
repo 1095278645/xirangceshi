@@ -76,6 +76,20 @@ const state = {
     profiles: [], profileName: '我的店', savingProfile: false, applyingProfile: null },
   // 掌柜今日复盘（心跳）
   review: '',
+  // 财务（现金流 / 预算 / 应收应付）
+  finance: { tab: 0, month: '', cash: { cash_on_hand: '', months: 6, result: null, loading: false },
+    budForm: { month: '', scope: 'expense', amount: '', category: '', note: '' },
+    budgets: [], budVs: null, budLoading: false,
+    debtForm: { party: '', kind: 'receivable', amount: '', due_date: '', note: '' },
+    debts: [], aging: null, debtLoading: false },
+  // 库存（进销存）
+  stock: { summary: null, loading: false,
+    form: { name: '', category: '', unit: '', stock_qty: '', safety_stock: '',
+      unit_cost: '', expiry_date: '', supplier: '', note: '' } },
+  // 发票台账（销项/进项）
+  invoice: { summary: null, loading: false,
+    form: { kind: 'out', party: '', invoice_no: '', amount: '', rate: '', tax_amount: '',
+      issued_date: '', note: '' } },
 };
 
 // ---------- 辅助 ----------
@@ -87,7 +101,9 @@ function esc(s) {
   if (s === null || s === undefined) return '';
   const d = document.createElement('div');
   d.textContent = String(s);
-  return d.innerHTML;
+  // 在 textContent→innerHTML（只转义 < > &）基础上再转义引号，
+  // 防止值被拼进 data-* / value="..." 等属性上下文时发生属性注入
+  return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 let toastTimer = null;
@@ -128,6 +144,9 @@ function render() {
   else if (r === 'settings') html = renderSettings();
   else if (r === 'books') html = renderBooks();
   else if (r === 'store') html = renderStore();
+  else if (r === 'finance') html = renderFinance();
+  else if (r === 'stock') html = renderStock();
+  else if (r === 'invoice') html = renderInvoice();
   else html = renderHome();
   document.getElementById('app').innerHTML = html;
   document.querySelectorAll('.tab-item').forEach(t => {
@@ -146,4 +165,7 @@ function go(route) {
   else if (route === 'settings') loadSettings();
   else if (route === 'books') loadBooks();
   else if (route === 'store') loadStore();
+  else if (route === 'finance') loadFinance();
+  else if (route === 'stock') loadStock();
+  else if (route === 'invoice') loadInvoice();
 }

@@ -305,7 +305,7 @@ def cashflow_forecast(cash_on_hand: float = 0, months: int = 6,
         cash_on_hand=cash_on_hand,
         base_income=hist["base_income"],
         base_expense=hist["base_expense"],
-        debt_receives=flows,
+        debt_flows=flows,
         months=months,
         safety_buffer=safety_buffer,
     )

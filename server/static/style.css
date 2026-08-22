@@ -35,7 +35,7 @@ body { display: flex; justify-content: center; }
 
 #app {
   min-height: 100vh;
-  padding: 0 0 calc(72px + var(--safe-bottom)) 0;
+  padding: 0 0 calc(112px + var(--safe-bottom)) 0;
 }
 
 /* 顶部英雄区 */
@@ -168,13 +168,13 @@ input[type=password] { -webkit-text-security: disc; }
 .tabbar {
   position: fixed; left: 50%; transform: translateX(-50%);
   bottom: 0; width: 100%; max-width: 480px;
-  height: calc(56px + var(--safe-bottom)); padding-bottom: var(--safe-bottom);
-  background: #fff; display: flex; border-top: 1px solid #f0e6da;
+  padding: 4px 0 var(--safe-bottom) 0;
+  background: #fff; display: flex; flex-wrap: wrap; border-top: 1px solid #f0e6da;
   z-index: 100; box-shadow: 0 -2px 12px rgba(0,0,0,.06);
 }
 .tab-item {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  font-size: 11px; color: var(--brown); text-decoration: none; cursor: pointer;
+  flex: 0 0 20%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 50px; font-size: 11px; color: var(--brown); text-decoration: none; cursor: pointer;
 }
 .tab-icon { font-size: 20px; }
 .tab-label { margin-top: 2px; }

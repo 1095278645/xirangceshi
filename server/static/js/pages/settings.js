@@ -118,7 +118,7 @@ async function syncAllPay() {
   render();
   try {
     const r = await api('/api/payment/sync-all', 'POST');
-    toast(`已触发全部账户同步（${r.length} 个结果）`);
+    toast(`已触发全部账户同步（${(r.results || []).length} 个结果）`);
   } catch (e) { toast(e.message); }
   state.paySyncing = false;
   await loadSettings();
