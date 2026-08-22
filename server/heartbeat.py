@@ -101,8 +101,8 @@ def evolution_daily_check():
     # 1. 确保初始基因已入库
     try:
         team_evolution.seed_initial_genes()
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as e:  # noqa: BLE001
+        results.setdefault("errors", []).append(f"seed: {e}")
 
     results = {"promoted": [], "suppressed": [], "distilled": []}
 
@@ -129,7 +129,7 @@ def evolution_daily_check():
             distilled = evolution.distill_skill(domain)
             if distilled:
                 results["distilled"].append(distilled.get("gene_id"))
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as e:  # noqa: BLE001
+            results.setdefault("errors", []).append(f"{domain}: {e}")
 
     return results

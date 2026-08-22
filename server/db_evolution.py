@@ -142,6 +142,8 @@ def save_gene(gene_id, domain, trigger_signals, system_prompt_addon="",
               failure_count=0, consecutive_inert=0, status="active",
               category="innovate", is_distilled=0):
     """插入或更新一个基因。trigger_signals 为 list，strategy_steps 为 list。"""
+    # 边界护栏：confidence 限制在 [0, 1]
+    confidence = max(0.0, min(1.0, confidence))
     ts_json = json.dumps(trigger_signals, ensure_ascii=False) if trigger_signals else "[]"
     ss_json = json.dumps(strategy_steps, ensure_ascii=False) if strategy_steps else None
     now = datetime.now(timezone.utc).isoformat()

@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '7fcefe18-c29b-4998-86ea-7b7a4c492141'
-  PropagateID: '7fcefe18-c29b-4998-86ea-7b7a4c492141'
-  ReservedCode1: 'd217cb12-a2d5-4f3d-9742-794de17c6375'
-  ReservedCode2: 'd217cb12-a2d5-4f3d-9742-794de17c6375'
+  ProduceID: '71043c7f-ccab-49cd-a192-a67693fc8bbf'
+  PropagateID: '71043c7f-ccab-49cd-a192-a67693fc8bbf'
+  ReservedCode1: 'abf51ba3-f689-4d6a-b4d5-00671f204867'
+  ReservedCode2: 'abf51ba3-f689-4d6a-b4d5-00671f204867'
 ---
 
 # 八透镜架构检查机制（arch_check）

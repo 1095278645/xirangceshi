@@ -16,7 +16,6 @@
 """
 from __future__ import annotations
 
-import json
 import math
 import random
 from datetime import datetime, timezone
@@ -24,14 +23,6 @@ from datetime import datetime, timezone
 import db_evolution as dbe
 import team_evolution as te
 from db_arch import set_domain_context, get_domain_context
-
-# 策略预设（EvoMap/evolver）
-STRATEGIES = {
-    "balanced":   {"innovate": 0.50, "repair": 0.30, "reinforce": 0.20},
-    "innovate":   {"innovate": 0.80, "repair": 0.15, "reinforce": 0.05},
-    "harden":     {"innovate": 0.20, "repair": 0.40, "reinforce": 0.40},
-    "repair_only": {"innovate": 0.00, "repair": 0.20, "reinforce": 0.80},
-}
 
 # 晋升规则阈值（self-improving-agent）
 PROMOTE_RECURRENCE = 3       # 复现次数 >= 3
@@ -56,6 +47,12 @@ def select_gene(domain, signals, strategy="auto"):
 
     返回选中的基因 dict 或 None（无基因时）。
     """
+    # 输入护栏
+    if not domain or not isinstance(domain, str):
+        return None
+    if not isinstance(signals, list):
+        signals = list(signals) if signals else []
+
     genes = dbe.get_active_genes(domain)
     if not genes:
         return None
