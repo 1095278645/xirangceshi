@@ -78,3 +78,42 @@ def adoption_brief(domain: str) -> str:
     parts = "、".join(f"{k}({round(v / total * 100)}%)"
                       for k, v in sorted(ad.items(), key=lambda x: -x[1]))
     return f"（经验参考——过往被掌柜采纳较多的员工：{parts}，可作为先参考，但仍以本店本次数据为准。）"
+
+
+# ---------------- 进化层扩展（Self-Grown + Evolution） ----------------
+# 薄壳转发到 evolution.py，保持 team.* 命名空间统一（与 db.py 聚合模式一致）
+
+def record_outcome(domain: str, gene_id: str, content: str,
+                   user_adopted: bool = False, user_edited: bool = False,
+                   edit_diff: str = "", task_context: dict | None = None) -> str:
+    """记录用户行为结果到进化层（Capsule + Event + 基因统计更新）
+    返回 capsule_id。无 API Key 时仍可记录（纯本地算法）。"""
+    import evolution
+    return evolution.record_outcome(
+        domain=domain, gene_id=gene_id, content=content,
+        user_adopted=user_adopted, user_edited=user_edited,
+        edit_diff=edit_diff or None, task_context=task_context)
+
+
+def select_gene(domain: str, signals: list, strategy: str = "auto") -> dict | None:
+    """基因选择：信号匹配 + Laplace 排序 + 遗传漂移（进化层接口）"""
+    import evolution
+    return evolution.select_gene(domain, signals, strategy)
+
+
+def suppress_gene(gene_id: str) -> bool:
+    """基因抑制：低成功率/长连败 → 标记 suppressed（进化层接口）"""
+    import evolution
+    return evolution.suppress_gene(gene_id)
+
+
+def distill_skill(domain: str) -> dict | None:
+    """技能蒸馏：7/10 成功 → 生成新 Gene → 更新 L1（进化层接口）"""
+    import evolution
+    return evolution.distill_skill(domain)
+
+
+def auto_strategy(domain: str) -> str:
+    """策略自动选择：根据近期失败率选预设（进化层接口）"""
+    import evolution
+    return evolution.auto_strategy(domain)

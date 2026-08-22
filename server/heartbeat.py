@@ -7,12 +7,13 @@ domain_context(ledger, daily_review)，供前端/日报/推送复用。
 - 本月概览：monthly_summary
 - 账本反推：store_ledger_stats（最近有营业月份，算日销/毛利率参考）
 - 单店诊断：取最近保存的店档案跑 calc_store_model，得出「掌柜一句话」
+- 进化检查：每日检查经验晋升 / 基因抑制 / 技能蒸馏
 
 main.py 的 asyncio 定时任务周期调用 generate_daily_review() 即可。
 """
 import store as storelib
 
-__all__ = ["generate_daily_review", "daily_review_text"]
+__all__ = ["generate_daily_review", "daily_review_text", "evolution_daily_check"]
 
 
 def _latest_profile():
@@ -88,3 +89,46 @@ def daily_review_text():
     from db import get_domain_context
     item = get_domain_context("ledger", "daily_review")
     return item["value"] if item else None
+
+
+def evolution_daily_check():
+    """每日进化检查：经验晋升 / 基因抑制 / 技能蒸馏。
+    纯本地算法，不依赖 AI API。返回检查结果摘要。"""
+    import team_domains
+    import evolution
+
+    # 1. 确保初始基因已入库
+    try:
+        team_domains.seed_initial_genes()
+    except Exception:  # noqa: BLE001
+        pass
+
+    results = {"promoted": [], "suppressed": [], "distilled": []}
+
+    # 2. 遍历所有注册域，执行进化检查
+    for domain in team_domains.list_team_domains():
+        cfg = team_domains.TEAM_DOMAINS.get(domain, {})
+        evo = cfg.get("evolution", {})
+        if not evo.get("enabled"):
+            continue
+
+        try:
+            # 经验晋升
+            promoted = evolution.promote_learning(domain)
+            if promoted:
+                results["promoted"].extend(
+                    [p.get("pattern_key", p.get("id")) for p in promoted])
+
+            # 基因抑制检查
+            suppressed = evolution.check_and_suppress(domain)
+            if suppressed:
+                results["suppressed"].extend(suppressed)
+
+            # 技能蒸馏
+            distilled = evolution.distill_skill(domain)
+            if distilled:
+                results["distilled"].append(distilled.get("gene_id"))
+        except Exception:  # noqa: BLE001
+            pass
+
+    return results

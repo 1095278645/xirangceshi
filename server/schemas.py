@@ -189,3 +189,43 @@ class CashflowIn(BaseModel):
     cash_on_hand: float = 0
     months: int = 6
     safety_buffer: float = 0         # 月均固定成本（用于「不够花」预警）
+
+
+# ===== 自适应进化层 =====
+
+class LearningIn(BaseModel):
+    """经验日志上报"""
+    domain: str = "copy"
+    trigger_type: str                # user_edited / repeated_request / all_skipped / degraded / margin_abnormal / explicit_feedback
+    pattern_key: str = ""            # domain.symptom 格式去重键
+    source: str = "frontend"         # frontend / system / tool_result / user_correction
+    details: str = ""
+    metadata: dict | None = None
+
+
+class LearningQuery(BaseModel):
+    """经验日志查询"""
+    domain: str = ""
+    status: str = ""                # open / resolved / promoted
+
+
+class OutcomeIn(BaseModel):
+    """用户行为结果记录（采纳/修改/跳过）"""
+    domain: str = "copy"
+    gene_id: str = ""
+    content: str = ""
+    user_adopted: bool = False
+    user_edited: bool = False
+    edit_diff: str = ""
+    task_context: dict | None = None
+
+
+class GeneIn(BaseModel):
+    """基因创建/更新"""
+    gene_id: str
+    domain: str
+    trigger_signals: list = []
+    system_prompt_addon: str = ""
+    strategy_steps: list | None = None
+    category: str = "innovate"      # innovate / repair / reinforce
+    is_distilled: int = 0

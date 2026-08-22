@@ -27,6 +27,8 @@ import json
 
 import ai
 import team
+import db_evolution as dbe
+import evolution
 
 
 # ---------------- 掌柜融合裁决（Self-Run 的"决策者仲裁"） ----------------
@@ -107,6 +109,13 @@ def _run_team(domain: str, task: str, prev: str = "",
     """
     cfg = TEAM_DOMAINS[domain]
     employees, reviewer, judge_desc = cfg["employees"], cfg["reviewer"], cfg["judge"]
+    evo_cfg = cfg.get("evolution", {})
+
+    # 进化层：任务前回顾（注入 pending 经验条目到员工提示词）
+    if evo_cfg.get("enabled") and ai.ai_available():
+        review = evolution.review_injection(domain)
+        if review:
+            sys_suffix = (sys_suffix or "") + "\n" + review
 
     def produce(emp):
         sys = emp["system"] + sys_suffix
@@ -321,6 +330,19 @@ TEAM_DOMAINS = {
         "judge": "写一条朋友圈文案（结合两位文案候选与合规审核意见，融合成一条可直接发的正文）"
                  "。风格要口语、短句、有具体细节，不套网红词和黑话，像真人老板随手发的朋友圈",
         "degraded": _copy_degraded_process,
+        # 进化配置
+        "evolution": {
+            "enabled": True,
+            "strategy": "auto",
+            "genes": [
+                "gene_copy_scene_transplant",
+                "gene_copy_yiji",
+                "gene_copy_reverse_restraint",
+                "gene_copy_number_pun",
+            ],
+            "distill_threshold": 0.7,
+            "suppress_threshold": 0.15,
+        },
     },
     "store": {
         "mode": "competitive",
@@ -329,6 +351,17 @@ TEAM_DOMAINS = {
         "judge": "这家店的经营诊断与下一步行动（融合财务/经营/风控，别给空洞的话，要有取舍）"
                  "。先给结论——可做/整改窗口(1个月)/果断劝退，再给一两个具体颗粒度的动作，别写\"提升运营\"这类空话",
         "degraded": _store_degraded_process,
+        # 进化配置（诊断域优先稳定）
+        "evolution": {
+            "enabled": True,
+            "strategy": "harden",
+            "genes": [
+                "gene_store_diagnose",
+                "gene_store_margin_alert",
+            ],
+            "distill_threshold": 0.7,
+            "suppress_threshold": 0.15,
+        },
     },
 }
 
@@ -336,3 +369,92 @@ TEAM_DOMAINS = {
 def list_team_domains() -> list:
     """列出已注册的团队业务域（供自检 / 前端菜单 / 后续扩展）"""
     return sorted(TEAM_DOMAINS)
+
+
+# ---------------- 进化层：初始基因种子 + 结果记录 ----------------
+
+_INITIAL_GENES = [
+    {
+        "gene_id": "gene_copy_scene_transplant",
+        "domain": "copy",
+        "trigger_signals": ["开业", "新店", "促销", "上新"],
+        "system_prompt_addon": "使用场景移植公式：让店里某个物件开口说话，读者自行推断。",
+        "category": "innovate",
+    },
+    {
+        "gene_id": "gene_copy_yiji",
+        "domain": "copy",
+        "trigger_signals": ["日常", "营业", "今日", "宜忌"],
+        "system_prompt_addon": "使用宜忌体公式：老黄历格式，四字为佳，极低制作成本，极易栏目化。",
+        "category": "innovate",
+    },
+    {
+        "gene_id": "gene_copy_reverse_restraint",
+        "domain": "copy",
+        "trigger_signals": ["节假日", "简约", "朴素", "真诚"],
+        "system_prompt_addon": "使用反向克制公式：不耍花活说真话，朴素一句话比十句花活有人情味。",
+        "category": "innovate",
+    },
+    {
+        "gene_id": "gene_copy_number_pun",
+        "domain": "copy",
+        "trigger_signals": ["热点", "数字", "双关", "节日"],
+        "system_prompt_addon": "使用数字双关公式：热点自带数字，数字在你的语境里另有含义。",
+        "category": "innovate",
+    },
+    {
+        "gene_id": "gene_store_diagnose",
+        "domain": "store",
+        "trigger_signals": ["诊断", "经营", "评分", "保本"],
+        "system_prompt_addon": "综合现金流/经营/风控三维视角进行单店经营诊断。",
+        "category": "reinforce",
+    },
+    {
+        "gene_id": "gene_store_margin_alert",
+        "domain": "store",
+        "trigger_signals": ["毛利率", "异常", "成本", "利润"],
+        "system_prompt_addon": "毛利率异常预警：>90% 或 <5% 时标记为异常，检查成本结构。",
+        "category": "repair",
+    },
+]
+
+
+def seed_initial_genes():
+    """初始化基因库：将 TEAM_DOMAINS 中的静态公式/策略导入 agent_genes 表。
+    幂等：已存在的基因不覆盖统计（只更新 prompt_addon）。
+    """
+    for g in _INITIAL_GENES:
+        existing = dbe.get_gene(g["gene_id"])
+        if existing:
+            # 已存在：只更新 addon，不重置统计
+            dbe.save_gene(
+                gene_id=g["gene_id"], domain=g["domain"],
+                trigger_signals=g["trigger_signals"],
+                system_prompt_addon=g["system_prompt_addon"],
+                confidence=existing.get("confidence", 0.5),
+                success_count=existing.get("success_count", 0),
+                failure_count=existing.get("failure_count", 0),
+                consecutive_inert=existing.get("consecutive_inert", 0),
+                status=existing.get("status", "active"),
+                category=g["category"],
+                is_distilled=existing.get("is_distilled", 0),
+            )
+        else:
+            dbe.save_gene(
+                gene_id=g["gene_id"], domain=g["domain"],
+                trigger_signals=g["trigger_signals"],
+                system_prompt_addon=g["system_prompt_addon"],
+                category=g["category"],
+            )
+    return len(_INITIAL_GENES)
+
+
+def record_outcome(domain, gene_id, content, user_adopted=False,
+                   user_edited=False, edit_diff=None, task_context=None):
+    """记录用户行为结果（采纳/修改/跳过）→ Capsule + Event + 基因统计更新。
+    对接前端：用户选了一条变体 → user_adopted=True；修改了 → user_edited=True。"""
+    return evolution.record_outcome(
+        domain=domain, gene_id=gene_id, content=content,
+        user_adopted=user_adopted, user_edited=user_edited,
+        edit_diff=edit_diff, task_context=task_context,
+    )

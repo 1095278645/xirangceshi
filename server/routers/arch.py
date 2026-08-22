@@ -10,7 +10,13 @@ from fastapi import APIRouter
 
 import db
 import heartbeat
-from schemas import DomainContextIn, JobIn, StoreProfileIn
+import team_domains
+import evolution
+import db_evolution as dbe
+from schemas import (
+    DomainContextIn, JobIn, StoreProfileIn,
+    LearningIn, LearningQuery, OutcomeIn, GeneIn,
+)
 
 router = APIRouter(prefix="/api", tags=["arch"])
 
@@ -96,3 +102,87 @@ def heartbeat_read():
     """读取最近一次落盘的今日复盘"""
     text = heartbeat.daily_review_text()
     return {"ok": bool(text), "review": text}
+
+
+# ---------------- 自适应进化层 ----------------
+
+@router.post("/learning")
+def learning_record(data: LearningIn):
+    """上报一条经验日志（前端检测到用户编辑/跳过/反馈时调用）"""
+    lid = dbe.record_learning(
+        domain=data.domain, trigger_type=data.trigger_type,
+        pattern_key=data.pattern_key or None, source=data.source,
+        details=data.details, metadata=data.metadata)
+    return {"learning_id": lid}
+
+
+@router.get("/learnings")
+def learning_list(domain: str = "", status: str = "", limit: int = 100):
+    """查询经验日志"""
+    items = dbe.get_learnings(domain or None, status or None, limit)
+    return {"items": items}
+
+
+@router.post("/outcome")
+def outcome_record(data: OutcomeIn):
+    """记录用户行为结果（采纳/修改/跳过某条文案变体）"""
+    cap_id = team_domains.record_outcome(
+        domain=data.domain, gene_id=data.gene_id, content=data.content,
+        user_adopted=data.user_adopted, user_edited=data.user_edited,
+        edit_diff=data.edit_diff or None, task_context=data.task_context)
+    return {"capsule_id": cap_id}
+
+
+@router.get("/genes")
+def gene_list(domain: str = ""):
+    """列出某域的全部基因（含 suppressed）"""
+    items = dbe.get_all_genes(domain) if domain else []
+    return {"items": items}
+
+
+@router.post("/genes")
+def gene_save(data: GeneIn):
+    """创建或更新一个基因"""
+    result = dbe.save_gene(
+        gene_id=data.gene_id, domain=data.domain,
+        trigger_signals=data.trigger_signals,
+        system_prompt_addon=data.system_prompt_addon,
+        strategy_steps=data.strategy_steps,
+        category=data.category, is_distilled=data.is_distilled)
+    dbe.log_event("gene_created", gene_id=data.gene_id, domain=data.domain,
+                  details=f"manual gene creation")
+    return result
+
+
+@router.get("/capsules")
+def capsule_list(domain: str = "", limit: int = 20):
+    """列出某域最近的胶囊记录"""
+    items = dbe.get_recent_capsules(domain, limit) if domain else []
+    return {"items": items}
+
+
+@router.get("/events")
+def event_list(domain: str = "", event_type: str = "", limit: int = 50):
+    """查询审计事件（append-only）"""
+    items = dbe.get_events(domain or None, event_type or None, limit)
+    return {"items": items}
+
+
+@router.get("/evolution/{domain}")
+def evolution_summary(domain: str):
+    """获取某域的进化状态摘要"""
+    return evolution.get_evolution_summary(domain)
+
+
+@router.post("/evolution/seed")
+def evolution_seed():
+    """初始化基因库（幂等：已存在的基因不覆盖统计）"""
+    count = team_domains.seed_initial_genes()
+    return {"seeded": count}
+
+
+@router.post("/evolution/check")
+def evolution_check():
+    """手动触发每日进化检查（晋升/抑制/蒸馏）"""
+    results = heartbeat.evolution_daily_check()
+    return {"ok": True, "results": results}

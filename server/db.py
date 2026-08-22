@@ -23,6 +23,7 @@ from db_arch import *       # noqa: F401,F403  领域上下文/任务队列/单�
 from db_finance import *    # noqa: F401,F403  预算/应收应付/现金流预测
 from db_stock import *      # noqa: F401,F403  库存进销存
 from db_invoice import *    # noqa: F401,F403  发票台账
+from db_evolution import *  # noqa: F401,F403  进化：经验日志/基因/胶囊/事件
 
 
 @contextmanager
@@ -237,3 +238,69 @@ def init_db():
             conn.execute("ALTER TABLE transactions ADD COLUMN wx_trade_id TEXT DEFAULT ''")
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_wx_trade_id "
                      "ON transactions(wx_trade_id) WHERE wx_trade_id != ''")
+
+        # ===== 自适应进化层（Layer 1-3）=====
+        # agent_learnings：经验日志（Layer 1）
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS agent_learnings (
+            id                TEXT PRIMARY KEY,
+            logged            TEXT NOT NULL,
+            domain            TEXT NOT NULL,
+            trigger_type      TEXT NOT NULL,
+            pattern_key       TEXT,
+            recurrence_count  INTEGER DEFAULT 1,
+            status            TEXT DEFAULT 'open',
+            source            TEXT NOT NULL,
+            details           TEXT,
+            first_seen        TEXT,
+            last_seen         TEXT,
+            metadata_json     TEXT
+        )""")
+
+        # agent_genes：基因库（Layer 3）
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS agent_genes (
+            gene_id           TEXT PRIMARY KEY,
+            domain            TEXT NOT NULL,
+            trigger_signals   TEXT NOT NULL,
+            system_prompt_addon TEXT,
+            strategy_steps    TEXT,
+            confidence        REAL DEFAULT 0.5,
+            success_count     INTEGER DEFAULT 0,
+            failure_count     INTEGER DEFAULT 0,
+            consecutive_inert  INTEGER DEFAULT 0,
+            status            TEXT DEFAULT 'active',
+            category          TEXT DEFAULT 'innovate',
+            created           TEXT NOT NULL,
+            last_used         TEXT,
+            is_distilled      INTEGER DEFAULT 0
+        )""")
+
+        # agent_capsules：胶囊库（Layer 3）
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS agent_capsules (
+            capsule_id        TEXT PRIMARY KEY,
+            gene_id           TEXT NOT NULL,
+            domain            TEXT NOT NULL,
+            task_context      TEXT,
+            content           TEXT,
+            user_adopted      INTEGER DEFAULT 0,
+            user_edited       INTEGER DEFAULT 0,
+            edit_diff         TEXT,
+            confidence        REAL,
+            timestamp         TEXT NOT NULL,
+            FOREIGN KEY (gene_id) REFERENCES agent_genes(gene_id)
+        )""")
+
+        # agent_events：审计日志（append-only）
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS agent_events (
+            event_id           TEXT PRIMARY KEY,
+            event_type         TEXT NOT NULL,
+            gene_id            TEXT,
+            capsule_id         TEXT,
+            domain             TEXT,
+            details            TEXT,
+            timestamp          TEXT NOT NULL,
+            content_hash       TEXT
+        )""")
