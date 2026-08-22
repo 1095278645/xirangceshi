@@ -5,6 +5,9 @@
 
 依赖方向：team_evolution → evolution → db_evolution（无循环依赖）。
 """
+import json
+import os
+
 import db_evolution as dbe
 import evolution
 
@@ -12,59 +15,21 @@ __all__ = ["seed_initial_genes", "record_outcome", "get_evolution_summary",
            "update_insight_index", "extract_common_signals", "extract_content_pattern"]
 
 
-# ---------------- 初始基因种子 ----------------
+# ---------------- 初始基因种子（静态数据拆到 initial_genes.json，L8 频率分层） ----------------
 
-_INITIAL_GENES = [
-    {
-        "gene_id": "gene_copy_scene_transplant",
-        "domain": "copy",
-        "trigger_signals": ["开业", "新店", "促销", "上新"],
-        "system_prompt_addon": "使用场景移植公式：让店里某个物件开口说话，读者自行推断。",
-        "category": "innovate",
-    },
-    {
-        "gene_id": "gene_copy_yiji",
-        "domain": "copy",
-        "trigger_signals": ["日常", "营业", "今日", "宜忌"],
-        "system_prompt_addon": "使用宜忌体公式：老黄历格式，四字为佳，极低制作成本，极易栏目化。",
-        "category": "innovate",
-    },
-    {
-        "gene_id": "gene_copy_reverse_restraint",
-        "domain": "copy",
-        "trigger_signals": ["节假日", "简约", "朴素", "真诚"],
-        "system_prompt_addon": "使用反向克制公式：不耍花活说真话，朴素一句话比十句花活有人情味。",
-        "category": "innovate",
-    },
-    {
-        "gene_id": "gene_copy_number_pun",
-        "domain": "copy",
-        "trigger_signals": ["热点", "数字", "双关", "节日"],
-        "system_prompt_addon": "使用数字双关公式：热点自带数字，数字在你的语境里另有含义。",
-        "category": "innovate",
-    },
-    {
-        "gene_id": "gene_store_diagnose",
-        "domain": "store",
-        "trigger_signals": ["诊断", "经营", "评分", "保本"],
-        "system_prompt_addon": "综合现金流/经营/风控三维视角进行单店经营诊断。",
-        "category": "reinforce",
-    },
-    {
-        "gene_id": "gene_store_margin_alert",
-        "domain": "store",
-        "trigger_signals": ["毛利率", "异常", "成本", "利润"],
-        "system_prompt_addon": "毛利率异常预警：>90% 或 <5% 时标记为异常，检查成本结构。",
-        "category": "repair",
-    },
-]
+def _load_initial_genes():
+    """从 initial_genes.json 加载静态基因种子"""
+    path = os.path.join(os.path.dirname(__file__), "initial_genes.json")
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
 
 def seed_initial_genes():
-    """初始化基因库：将静态公式/策略导入 agent_genes 表。
+    """初始化基因库：从 initial_genes.json 导入 agent_genes 表。
     幂等：已存在的基因不覆盖统计（只更新 prompt_addon）。
     """
-    for g in _INITIAL_GENES:
+    initial_genes = _load_initial_genes()
+    for g in initial_genes:
         existing = dbe.get_gene(g["gene_id"])
         if existing:
             dbe.save_gene(
@@ -86,7 +51,7 @@ def seed_initial_genes():
                 system_prompt_addon=g["system_prompt_addon"],
                 category=g["category"],
             )
-    return len(_INITIAL_GENES)
+    return len(initial_genes)
 
 
 def record_outcome(domain, gene_id, content, user_adopted=False,

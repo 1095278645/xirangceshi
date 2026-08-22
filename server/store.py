@@ -15,56 +15,11 @@
   C 商圈客流：   客流档位（差/一般/好）+ 周边竞争
 
 结论：健康 / 临界（整改窗口）/ 危险（止损预警），附"掌柜一句话"。
-业态预设：餐饮 / 饮品 / 零售 / 生鲜 / 服务 / 摆摊，各自参考毛利率区间。
-规则内嵌为 Python 常量，不依赖外部 YAML。
+业态预设拆到 store_presets.py；规则内嵌为 Python 常量，不依赖外部 YAML。
 """
+from store_presets import BUSINESS_PRESETS, PRESET_KEYS  # noqa: F401
 
-# ========== 业态预设（参考毛利率区间） ==========
-BUSINESS_PRESETS = {
-    "餐饮": {
-        "name": "餐饮（快餐/面馆/早餐）",
-        "margin_range": (0.50, 0.65),   # 参考毛利率区间
-        "margin_default": 0.58,
-        "person_range": (1, 4),
-        "note": "餐饮的核心是翻台率和出餐效率，房租占比别超营业额 15%",
-    },
-    "饮品": {
-        "name": "茶饮/咖啡/甜品",
-        "margin_range": (0.55, 0.70),
-        "margin_default": 0.62,
-        "person_range": (1, 3),
-        "note": "饮品毛利高但极度依赖客流，选址=生死线",
-    },
-    "零售": {
-        "name": "便利店/超市/杂货",
-        "margin_range": (0.18, 0.30),
-        "margin_default": 0.24,
-        "person_range": (1, 3),
-        "note": "零售靠走量，毛利薄，库存周转比毛利更重要",
-    },
-    "生鲜": {
-        "name": "果蔬/生鲜/菜摊",
-        "margin_range": (0.20, 0.35),
-        "margin_default": 0.28,
-        "person_range": (1, 2),
-        "note": "生鲜损耗率 8%-15%，实际毛利要扣掉损耗再算",
-    },
-    "服务": {
-        "name": "美容/维修/洗护等",
-        "margin_range": (0.55, 0.80),
-        "margin_default": 0.68,
-        "person_range": (1, 3),
-        "note": "服务靠手艺和复购，人工是最大成本，老板亲自干回本最快",
-    },
-    "摆摊": {
-        "name": "流动摊位/夜市",
-        "margin_range": (0.50, 0.70),
-        "margin_default": 0.60,
-        "person_range": (1, 1),
-        "note": "摆摊轻资产，主要成本是摊位费+交通，试错成本低",
-    },
-}
-PRESET_KEYS = tuple(BUSINESS_PRESETS.keys())
+# ========== 阈值常量 ==========
 
 SAFETY_RATIO = 1.3      # 勇哥标准：目标日销 = 保本线 × 1.3
 MONTH_DAYS = 30         # 简化取 30 天/月

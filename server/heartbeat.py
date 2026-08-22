@@ -98,13 +98,13 @@ def evolution_daily_check():
     import team_evolution
     import evolution
 
+    results = {"promoted": [], "suppressed": [], "distilled": []}
+
     # 1. 确保初始基因已入库
     try:
         team_evolution.seed_initial_genes()
     except Exception as e:  # noqa: BLE001
         results.setdefault("errors", []).append(f"seed: {e}")
-
-    results = {"promoted": [], "suppressed": [], "distilled": []}
 
     # 2. 遍历所有注册域，执行进化检查
     for domain in team_domains.list_team_domains():

@@ -1,16 +1,22 @@
-"""db_evolution.py — SQLite 数据层 · 自适应进化（经验日志 / 基因 / 胶囊 / 审计事件）
+"""db_evolution.py — SQLite 数据层 · 经验日志 / 基因库 / L1 索引
 
-四层进化架构的数据持久层，对标三项目源码：
+四层进化架构的数据持久层（胶囊+审计事件拆到 db_evolution_audit.py）：
   Layer 1  agent_learnings   — 经验日志（self-improving-agent 的 LEARNINGS.md）
   Layer 3  agent_genes       — 基因库（EvoMap/evolver 的 Gene）
-          agent_capsules     — 胶囊库（EvoMap/evolver 的 Capsule）
-          agent_events       — 审计日志（EvoMap/evolver 的 Event，append-only + SHA-256）
+  L1索引   insight_index      — 存 domain_context（<=20 行极简索引）
 
-连接统一走 db.py 的 get_conn（惰性导入避免循环依赖），调用方式与 db_arch 等一致。
+连接统一走 db.py 的 get_conn（惰性导入避免循环依赖）。
 """
 import json
-import hashlib
 from datetime import datetime, timezone
+
+# 向后兼容：re-export 胶囊+事件+L1索引+序号+建表（调用方仍可用 dbe.save_capsule 等）
+from db_evolution_audit import (  # noqa: F401
+    save_capsule, get_recent_capsules, get_capsule,
+    log_event, get_events,
+    get_insight_index, set_insight_index, _seq,
+    init_evolution_tables,
+)
 
 __all__ = [
     # agent_learnings
@@ -19,12 +25,11 @@ __all__ = [
     # agent_genes
     "save_gene", "get_gene", "get_active_genes", "get_all_genes",
     "update_gene_stats", "set_gene_status",
-    # agent_capsules
+    # capsules + events (re-exported)
     "save_capsule", "get_recent_capsules", "get_capsule",
-    # agent_events
     "log_event", "get_events",
-    # L1 insight_index（存 domain_context）
-    "get_insight_index", "set_insight_index",
+    # L1 insight_index + 建表（re-exported from db_evolution_audit）
+    "get_insight_index", "set_insight_index", "init_evolution_tables",
 ]
 
 
@@ -42,7 +47,6 @@ def record_learning(domain, trigger_type, pattern_key=None, source="system",
     now = datetime.now(timezone.utc).isoformat()
     meta_json = json.dumps(metadata, ensure_ascii=False) if metadata else None
     with _conn() as conn:
-        # 去重：同 domain + pattern_key 的 open 条目复现 +1
         if pattern_key:
             row = conn.execute(
                 "SELECT id, recurrence_count, metadata_json FROM agent_learnings "
@@ -50,7 +54,6 @@ def record_learning(domain, trigger_type, pattern_key=None, source="system",
                 "ORDER BY id DESC LIMIT 1",
                 (domain, pattern_key)).fetchone()
             if row:
-                # 合并 metadata：新 metadata 覆盖旧的同名键
                 merged_meta = None
                 if meta_json or row["metadata_json"]:
                     old = {}
@@ -67,7 +70,6 @@ def record_learning(domain, trigger_type, pattern_key=None, source="system",
                     (row["recurrence_count"] + 1, now, details or "",
                      merged_meta, row["id"]))
                 return row["id"]
-        # 新条目
         lid = f"LRN-{datetime.now().strftime('%Y%m%d')}-{_seq(conn)}"
         conn.execute(
             "INSERT INTO agent_learnings(id, logged, domain, trigger_type, "
@@ -242,135 +244,4 @@ def _gene_dict(r):
     return d
 
 
-# ---------------- agent_capsules（胶囊库 Layer 3） ----------------
-
-def save_capsule(capsule_id, gene_id, domain, task_context=None, content="",
-                 user_adopted=False, user_edited=False, edit_diff=None,
-                 confidence=None):
-    """创建一条胶囊记录"""
-    tc_json = json.dumps(task_context, ensure_ascii=False) if task_context else None
-    now = datetime.now(timezone.utc).isoformat()
-    with _conn() as conn:
-        conn.execute(
-            "INSERT INTO agent_capsules(capsule_id, gene_id, domain, task_context, "
-            "content, user_adopted, user_edited, edit_diff, confidence, timestamp) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?)",
-            (capsule_id, gene_id, domain, tc_json, content,
-             1 if user_adopted else 0, 1 if user_edited else 0, edit_diff,
-             confidence, now))
-    return {"capsule_id": capsule_id, "gene_id": gene_id}
-
-
-def get_recent_capsules(domain, limit=10):
-    """获取某域最近的胶囊记录"""
-    with _conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM agent_capsules WHERE domain=? "
-            "ORDER BY timestamp DESC LIMIT ?",
-            (domain, limit)).fetchall()
-    return [_capsule_dict(r) for r in rows]
-
-
-def get_capsule(capsule_id):
-    """读取单个胶囊"""
-    with _conn() as conn:
-        row = conn.execute(
-            "SELECT * FROM agent_capsules WHERE capsule_id=?", (capsule_id,)).fetchone()
-    return _capsule_dict(row) if row else None
-
-
-def _capsule_dict(r):
-    d = dict(r)
-    d["user_adopted"] = bool(d.get("user_adopted"))
-    d["user_edited"] = bool(d.get("user_edited"))
-    try:
-        d["task_context"] = json.loads(d.get("task_context") or "{}")
-    except (json.JSONDecodeError, TypeError):
-        d["task_context"] = {}
-    return d
-
-
-# ---------------- agent_events（审计日志，append-only） ----------------
-
-def log_event(event_type, gene_id=None, capsule_id=None, domain=None,
-              details="", content=None):
-    """记录一条审计事件（append-only，SHA-256 内容寻址）"""
-    eid = f"evt-{_seq_event()}"
-    now = datetime.now(timezone.utc).isoformat()
-    # SHA-256 内容寻址
-    hash_src = f"{event_type}|{gene_id or ''}|{capsule_id or ''}|{domain or ''}|{content or details or ''}"
-    content_hash = "sha256:" + hashlib.sha256(hash_src.encode()).hexdigest()
-    with _conn() as conn:
-        conn.execute(
-            "INSERT INTO agent_events(event_id, event_type, gene_id, capsule_id, "
-            "domain, details, timestamp, content_hash) VALUES(?,?,?,?,?,?,?,?)",
-            (eid, event_type, gene_id, capsule_id, domain, details, now, content_hash))
-    return {"event_id": eid, "content_hash": content_hash}
-
-
-def get_events(domain=None, event_type=None, limit=50):
-    """查询审计事件"""
-    sql = "SELECT * FROM agent_events"
-    where, params = [], []
-    if domain:
-        where.append("domain=?")
-        params.append(domain)
-    if event_type:
-        where.append("event_type=?")
-        params.append(event_type)
-    if where:
-        sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY timestamp DESC LIMIT ?"
-    params.append(limit)
-    with _conn() as conn:
-        rows = conn.execute(sql, params).fetchall()
-    return [dict(r) for r in rows]
-
-
-# ---------------- L1 insight_index（存 domain_context，<=20 行） ----------------
-
-def get_insight_index(domain):
-    """读取某域的 L1 极简索引；无则返回空列表"""
-    from db_arch import get_domain_context
-    item = get_domain_context(domain, "insight_index")
-    if not item or not item.get("value"):
-        return []
-    val = item["value"]
-    if isinstance(val, str):
-        try:
-            val = json.loads(val)
-        except json.JSONDecodeError:
-            val = val.strip().split("\n") if val.strip() else []
-    return val if isinstance(val, list) else []
-
-
-def set_insight_index(domain, lines):
-    """写入 L1 极简索引（硬约束 <=20 行）"""
-    from db_arch import set_domain_context
-    # 硬约束：超过 20 行淘汰最久未命中的（简单实现：保留前 20 行）
-    if len(lines) > 20:
-        lines = lines[:20]
-    set_domain_context(domain, "insight_index", lines)
-    return {"domain": domain, "lines": len(lines)}
-
-
-# ---------------- 内部辅助 ----------------
-
-_SEQ_CACHE = {"date": "", "seq": 0, "event_seq": 0}
-
-
-def _seq(conn):
-    """生成当日序号（LRN-YYYYMMDD-XXX）"""
-    today = datetime.now().strftime("%Y%m%d")
-    if _SEQ_CACHE["date"] != today:
-        _SEQ_CACHE["date"] = today
-        _SEQ_CACHE["seq"] = 0
-    _SEQ_CACHE["seq"] += 1
-    return f"{_SEQ_CACHE['seq']:03d}"
-
-
-def _seq_event():
-    """生成事件序号"""
-    now = datetime.now().strftime("%Y%m%d%H%M%S")
-    _SEQ_CACHE["event_seq"] += 1
-    return f"{now}{_SEQ_CACHE['event_seq']:04d}"
+# L1 insight_index / _seq 已拆到 db_evolution_audit.py（见顶部 re-export）

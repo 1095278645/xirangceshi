@@ -39,6 +39,7 @@ BUSINESS_DOMAINS = [
     {"name": "finance",   "module": "finance",   "desc": "预算 / 应收应付 / 现金流滚动预测",             "enabled": True},
     {"name": "stock",     "module": "stock",     "desc": "库存进销存 / 补货过期预警",                    "enabled": True},
     {"name": "invoice",   "module": "invoice",   "desc": "发票台账（销项/进项）",                        "enabled": True},
+    {"name": "evolution", "module": "evolution", "desc": "自适应进化层",                                 "enabled": True},
 ]
 
 

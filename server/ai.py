@@ -1,13 +1,14 @@
 """AI 能力层：记账解析、文案生成、熟客提醒 —— 支持多种 OpenAI 兼容大模型
 
-多 agent 团队编排（朋友圈文案协作流水线 / 单店诊断竞争融合）已抽到 team_domains.py，
-这里保留单 agent 能力；为兼容旧入口，底部从 team_domains 再导出 generate_copy / generate_store_diagnosis。
+多 agent 团队编排已抽到 team_domains.py；文本解析辅助拆到 ai_parsing.py。
+为兼容旧入口，底部从 team_domains 再导出 generate_copy / generate_store_diagnosis。
 """
 import json
 import re
 
 from config import load_settings
 from categories import detect_category
+from ai_parsing import extract_amount as _extract_amount, extract_customer as _extract_customer  # noqa: F401
 
 
 def ai_available():
@@ -48,64 +49,6 @@ def _extract_json(text):
 
 
 # ---------------- 1. 文字/文本记账解析 ----------------
-_CN_DIGITS = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
-_CN_UNITS = {"十": 10, "百": 100, "千": 1000, "万": 10000}
-
-
-def _cn_to_int(s: str) -> int:
-    """中文数字转整数：一百二十→120，三千五→3500，十块→10，五百零三→503"""
-    total = section = num = 0
-    last_unit = 0
-    for ch in s:
-        if ch in _CN_DIGITS:
-            num = _CN_DIGITS[ch]
-            if ch == "零":
-                last_unit = 0
-        elif ch in _CN_UNITS:
-            unit = _CN_UNITS[ch]
-            if unit == _CN_UNITS["万"]:   # 万位进位（中文数字进制规则，语义化而非字面量）
-                section = (section + num) * unit
-                total += section
-                section, num = 0, 0
-            else:
-                section += (num or 1) * unit
-                num = 0
-            last_unit = unit
-        else:
-            break
-    if num and last_unit:
-        # 口语省略：三百五=350，五千五=5500，末尾数字按 单位/10 计
-        return total + section + num * last_unit // 10
-    return total + section + num
-
-
-def _extract_amount(text: str):
-    """从大白话里提取金额：优先'X块/X元'，其次'一共/花了/付了+X'，再支持中文数字（一百二、三千五）"""
-    m = re.search(r"(\d+(?:\.\d+)?)\s*(?:块|元|块钱)", text)
-    if m:
-        return float(m.group(1))
-    _CN_CHARS = "零一二两三四五六七八九十百千万"
-    m = re.search(rf"[{_CN_CHARS}]+\s*(?:块|元|块钱)", text)
-    if m:
-        return float(_cn_to_int(re.search(rf"[{_CN_CHARS}]+", m.group(0)).group(0)))
-    m = re.search(rf"(?:一共|总共|共|花了|花掉|付了|付掉|收了|收进|到账|赚了)\s*(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)", text)
-    if m:
-        g = m.group(1)
-        return float(g) if g.replace(".", "", 1).isdigit() else float(_cn_to_int(g))
-    return None
-
-
-def _extract_customer(text: str) -> str:
-    """从大白话里提取顾客称呼（兜底用）：王阿姨、李师傅、张大爷、陈哥……
-    只匹配'姓/名+称呼'结构，避免把'排骨''豆浆'等商品名误当顾客。
-    """
-    m = re.search(
-        r"([\u4e00-\u9fa5]{1,3}?"
-        r"(?:老板娘|师傅|阿姨|大爷|大妈|奶奶|叔叔|大姐|小妹|老板|经理|老师|老李|老王|老张|老陈|老赵|老刘|小张|小李|小王|"
-        r"哥|姐|叔|婶|伯|娘|爷|奶))",
-        text,
-    )
-    return m.group(1) if m else ""
 
 
 def parse_transaction(text: str) -> dict:
