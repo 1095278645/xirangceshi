@@ -26,6 +26,12 @@ def outcome_record(data: OutcomeIn):
         domain=data.domain, gene_id=data.gene_id, content=data.content,
         user_adopted=data.user_adopted, user_edited=data.user_edited,
         edit_diff=data.edit_diff or None, task_context=data.task_context)
+    # 经验采集：用户采纳前做了修改 → 记一条"需改进"的经验模式（去重累加复现次数）
+    if data.user_edited:
+        dbe.record_learning(
+            data.domain, "user_edited", f"{data.domain}.user-edited",
+            source="frontend", details="用户对AI产出做了修改后采纳/放弃",
+            metadata={"distinct_tasks": [str(data.task_context or "")]})
     return {"capsule_id": cap_id}
 
 @router.get("/genes")

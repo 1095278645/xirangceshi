@@ -76,13 +76,17 @@ def select_gene(domain, signals, strategy="auto"):
     elif strategy == "innovate":
         matched = sorted(matched, key=lambda g: g["score"], reverse=True)
         matched = matched[:max(1, len(matched) * 3 // 4)]
+    elif strategy == "harden":
+        # 保守：只取得分靠前的一半，且不做探索性漂移（避免冒进）
+        matched = sorted(matched, key=lambda g: g["score"], reverse=True)
+        matched = matched[:max(1, len(matched) // 2)]
 
     if not matched:
         return None
 
-    # 4. 遗传漂移：概率 = 1/sqrt(gene_count)
+    # 4. 遗传漂移：概率 = 1/sqrt(gene_count)；harden 保守策略不漂移（不随机探索）
     gene_count = len(genes)
-    if random.random() < 1 / math.sqrt(gene_count):
+    if strategy != "harden" and random.random() < 1 / math.sqrt(gene_count):
         selected = random.choice(matched)
     else:
         selected = max(matched, key=lambda g: g["score"])

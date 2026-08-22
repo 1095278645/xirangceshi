@@ -39,12 +39,19 @@ async def _daily_sync_loop():
 
 
 async def _heartbeat_loop():
-    """后台定时任务：每天生成一次经营复盘，落盘领域上下文供前端/推送取用。"""
+    """后台定时任务：每天生成经营复盘 + 跑进化检查（经验晋升/基因抑制/技能蒸馏），
+    落盘领域上下文供前端/推送取用。"""
     while True:
         try:
             await asyncio.to_thread(heartbeat.generate_daily_review)
         except Exception as e:  # noqa: BLE001
             log.error("heartbeat loop error: %s", e)
+        try:
+            evo = await asyncio.to_thread(heartbeat.evolution_daily_check)
+            if evo and any(evo.get(k) for k in ("promoted", "suppressed", "distilled")):
+                log.info("evolution daily check: %s", evo)
+        except Exception as e:  # noqa: BLE001
+            log.error("evolution daily check error: %s", e)
         await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
 
 

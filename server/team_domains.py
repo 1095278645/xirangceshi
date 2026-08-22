@@ -21,6 +21,7 @@ from __future__ import annotations
 import ai
 import team
 import evolution
+import db_evolution as dbe
 
 # 域数据/降级函数/生成入口从子模块导入
 from team_domain_copy import (
@@ -110,6 +111,21 @@ def _decide(task_desc: str, cands: list, adoption_brief: str = "",
 
 # ---------------- 通用团队流水线（员工并行竞争 → 掌柜裁决融合 → 采纳归因） ----------------
 
+def _task_signals(domain: str, task: str) -> list:
+    """从任务文本中提取命中的基因触发信号（子串匹配）。
+
+    无命中时返回 []，select_gene 会自动回退到域内全部 active 基因。
+    """
+    if not task:
+        return []
+    signals = []
+    for g in dbe.get_active_genes(domain):
+        for s in g.get("trigger_signals", []):
+            if s and s in task and s not in signals:
+                signals.append(s)
+    return signals
+
+
 def _run_team(domain: str, task: str, prev: str = "",
               sys_suffix: str = "", user_tail: str = "", variants: bool = False):
     """域级编排骨架：员工并行竞争 →（可选协作评审）→ 掌柜裁决融合 → 采纳归因。
@@ -121,11 +137,20 @@ def _run_team(domain: str, task: str, prev: str = "",
     employees, reviewer, judge_desc = cfg["employees"], cfg["reviewer"], cfg["judge"]
     evo_cfg = cfg.get("evolution", {})
 
-    # 进化层：任务前回顾（注入 pending 经验条目到员工提示词）
+    # 进化层：任务前回顾 + 基因选择（启用且 AI 可用时）
+    gene_id = None
     if evo_cfg.get("enabled") and ai.ai_available():
         review = evolution.review_injection(domain)
         if review:
             sys_suffix = (sys_suffix or "") + "\n" + review
+        # 基因选择：按任务命中的触发信号挑一个基因，把其策略注入员工提示词
+        gene = evolution.select_gene(domain, _task_signals(domain, task),
+                                     evo_cfg.get("strategy", "auto"))
+        if gene:
+            gene_id = gene["gene_id"]
+            addon = (gene.get("system_prompt_addon") or "").strip()
+            if addon:
+                sys_suffix = (sys_suffix or "") + "\n本局策略参考（来自近期验证有效的基因，可借鉴不必照搬）：\n" + addon
 
     def produce(emp):
         sys = emp["system"] + sys_suffix
@@ -159,6 +184,7 @@ def _run_team(domain: str, task: str, prev: str = "",
         "mode": "collaborative" if reviewer else "competitive",
         "employees": [{"role": name, "output": out} for name, out in cands],
         "verdict": judge["verdict"], "adopted": judge["adopted"],
+        "gene_id": gene_id,
     }
     if variants:
         return judge["final"], process, judge.get("variants", [judge["final"]])

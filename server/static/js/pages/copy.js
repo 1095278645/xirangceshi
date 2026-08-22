@@ -6,16 +6,19 @@ async function generateCopy() {
   state.copyLoading = true;
   state.copyResult = '';
   state.copyVariants = [];
+  state.copyGeneId = null;
   render();
   try {
     const r = await api('/api/copy', 'POST', state.copyForm);
     state.copyResult = r.text;
     state.copyVariants = (r.variants && r.variants.length > 1) ? r.variants : [r.text];
+    state.copyGeneId = r.gene_id || null;
   } catch (e) { toast(e.message); }
   state.copyLoading = false;
   render();
 }
 
+// 复制某条变体；有基因关联时把"采纳"上报给进化层（异步，不阻塞复制）
 function copyVariant(i) {
   const t = state.copyVariants[i];
   if (!t) return;
@@ -24,6 +27,13 @@ function copyVariant(i) {
     ta.value = t; document.body.appendChild(ta); ta.select();
     document.execCommand('copy'); ta.remove(); toast('已复制第' + (i + 1) + '条');
   });
+  if (state.copyGeneId) {
+    api('/api/outcome', 'POST', {
+      domain: 'copy', gene_id: state.copyGeneId, content: t,
+      user_adopted: true, user_edited: false,
+      task_context: { shop: state.copyForm.shop_name, scene: state.copyForm.scene }
+    }).catch(() => {});
+  }
 }
 
 // ---------- 渲染 ----------

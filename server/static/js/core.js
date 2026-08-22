@@ -45,6 +45,7 @@ const state = {
   copyResult: '',
   copyVariants: [],
   copyLoading: false,
+  copyGeneId: null,
   // 设置
   aiEnabled: false,
   hasKey: false,

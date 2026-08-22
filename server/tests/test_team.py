@@ -202,8 +202,49 @@ class TestLiveTeamWithMock(_TempDB):
         self.assertIn("合规审核", roles)     # 协作下游评审在场
         self.assertIsInstance(variants, list)
         self.assertGreaterEqual(len(variants), 2)  # 至少2条变体
-        print("DEBUG adoption=", team.load_adoption("copy"), "process.adopted=", process["adopted"])
         self.assertEqual(team.load_adoption("copy")["创意文案师"], 1)
+
+
+class TestGeneInjection(_TempDB):
+    """基因选择接入生成管线：有 Key + 已 seed 基因时，select_gene 命中信号并注入策略"""
+
+    def setUp(self):
+        super().setUp()
+        import team_evolution
+        team_evolution.seed_initial_genes()
+
+    def test_selected_gene_injected_and_reported(self):
+        """任务含"开业/今日"信号 → 选中基因并注入其 system_prompt_addon，process 返回 gene_id"""
+        captured = {}
+        def fake_chat(messages, temperature=0.7, max_tokens=1024):
+            first = messages[0]
+            if isinstance(first, dict) and first.get("role") == "system":
+                captured.setdefault("sys_texts", []).append(first["content"])
+                user = messages[-1]["content"] if messages else ""
+                if "创意文案师" in first["content"]:
+                    return "新出卤面，香得很。"
+                if "熟客运营" in first["content"]:
+                    return "王阿姨常来。"
+                if "评审" in user:
+                    return "没问题。"
+            return ('{"verdict":"合并","adopted":["创意文案师"],'
+                    '"final":"新出卤面香得很",'
+                    '"variants":["新出卤面香得很","宜|尝鲜 忌|将就","收银台说今天又打折"]}')
+        with mock.patch.object(ai, "ai_available", return_value=True), \
+             mock.patch.object(ai, "chat", side_effect=fake_chat):
+            _, process, _ = ai.generate_copy("老王面馆", "今日开业", "新出卤面", return_process=True)
+        # process 返回选中基因
+        self.assertIn("gene_id", process)
+        self.assertTrue(process["gene_id"], "命中信号应选中一个基因")
+        # 选中基因的策略 addon 已被注入到员工提示词
+        self.assertTrue(any("本局策略参考" in s for s in captured.get("sys_texts", [])),
+                        "选中的基因策略应注入员工提示词")
+
+    def test_gene_injection_off_when_degraded(self):
+        """无 Key 降级时：不触发基因选择，process 不含 gene_id"""
+        with mock.patch.object(ai, "ai_available", return_value=False):
+            _, proc, _ = ai.generate_copy("老王面馆", "今日营业", "新出卤面", return_process=True)
+        self.assertNotIn("gene_id", proc, "降级路径不涉及进化基因")
 
 
 class TestTeamRegistry(_TempDB):

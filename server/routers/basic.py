@@ -62,4 +62,5 @@ def copywriting(data: CopyIn):
     context = " | ".join(context_parts) if context_parts else ""
     text, process, variants = ai.generate_copy(data.shop_name, data.scene, data.extra,
                                                 data.customer_name, context, return_process=True)
-    return {"text": text, "team": process, "variants": variants}
+    return {"text": text, "team": process, "variants": variants,
+            "gene_id": (process or {}).get("gene_id")}
