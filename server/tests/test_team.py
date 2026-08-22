@@ -128,12 +128,14 @@ class TestCopyTeamPipeline(_NoKeyAI, _TempDB):
     """朋友圈文案：协作流水线（创意/熟客 → 合规 → 融合）降级团队过程"""
 
     def test_degraded_process_structure(self):
-        text, process = ai.generate_copy("老王面馆", "今日营业", "新出卤面", return_process=True)
+        text, process, variants = ai.generate_copy("老王面馆", "今日营业", "新出卤面", return_process=True)
         self.assertIn("老王面馆", text)
         self.assertEqual(process["mode"], "collaborative")
         roles = {e["role"] for e in process["employees"]}
         self.assertIn("创意文案师", roles)
         self.assertIn("合规审核", roles)     # 协作下游评审在场
+        self.assertIsInstance(variants, list)
+        self.assertGreaterEqual(len(variants), 1)
 
     def test_degraded_default_returns_str(self):
         text = ai.generate_copy("老王面馆", "今日营业", "新出卤面")
@@ -188,15 +190,18 @@ class TestLiveTeamWithMock(_TempDB):
                 if "熟客运营" in sys_text:
                     return "王阿姨常来，给她留一碗。"
             return ('{"verdict":"合并创意与熟客","adopted":["创意文案师","熟客运营"],'
-                    '"final":"新出卤面香得很，王阿姨来一碗不？"}')
+                    '"final":"新出卤面香得很，王阿姨来一碗不？",'
+                    '"variants":["新出卤面香得很，王阿姨来一碗不？","宜|尝鲜 忌|将就","收银台说：今天第50次听到随便看看"]}')
         with mock.patch.object(ai, "ai_available", return_value=True), \
              mock.patch.object(ai, "chat", side_effect=fake_chat):
-            text, process = ai.generate_copy("老王面馆", "今日营业", "新出卤面",
-                                             "王阿姨", return_process=True)
+            text, process, variants = ai.generate_copy("老王面馆", "今日营业", "新出卤面",
+                                              "王阿姨", return_process=True)
         self.assertIn("新出卤面", text)
         self.assertEqual(process["mode"], "collaborative")
         roles = {e["role"] for e in process["employees"]}
         self.assertIn("合规审核", roles)     # 协作下游评审在场
+        self.assertIsInstance(variants, list)
+        self.assertGreaterEqual(len(variants), 2)  # 至少2条变体
         print("DEBUG adoption=", team.load_adoption("copy"), "process.adopted=", process["adopted"])
         self.assertEqual(team.load_adoption("copy")["创意文案师"], 1)
 
@@ -235,7 +240,7 @@ class TestTeamRegistry(_TempDB):
     def test_degraded_process_matches_registry(self, _m):
         """降级团队过程与注册表声明一致（mode、员工数），防止增删员工后过程走样"""
         # copy：3 个 employee（2 员工 + 1 评审）
-        _, proc = ai.generate_copy("老王面馆", "今日营业", "新出卤肉饭", return_process=True)
+        _, proc, _ = ai.generate_copy("老王面馆", "今日营业", "新出卤肉饭", return_process=True)
         self.assertEqual(proc["mode"], team_domains.TEAM_DOMAINS["copy"]["mode"])
         self.assertEqual(len(proc["employees"]),
                          len(team_domains.TEAM_DOMAINS["copy"]["employees"]) + 1)

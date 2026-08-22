@@ -32,45 +32,78 @@ import team
 # ---------------- 掌柜融合裁决（Self-Run 的"决策者仲裁"） ----------------
 def _decide(task_desc: str, cands: list, adoption_brief: str = "",
             prev: str = "", fail: str = "", temperature: float = 0.3,
-            max_tokens: int = 900) -> dict:
-    """掌柜融合裁决：多个员工候选 → 取舍 + 归因 + 融合成一个最终答案
+            max_tokens: int = 900, variants: bool = False) -> dict:
+    """掌柜融合裁决：多个员工候选 → 取舍 + 归因 + 融合成最终答案
 
     返回 {"verdict": 取舍说明, "adopted": [被采纳员工], "final": 最终融合文本}。
+    variants=True 时额外返回 {"variants": [3条风格各异的文案]}。
     """
     cand_txt = "\n\n".join(f"【{role}】{out}" for role, out in cands)
     prompt = (
         "你是「AI掌柜」，一家街边小店唯一的老板，下面有几位 AI 员工对同一个问题各自给了方案。\n"
         "你作为最终决策者要：\n"
         "1) 判断谁说得在理、谁在臆测或重复，把合理的判断挑出来，驳掉/修正不合适的；\n"
-        "2) 融合成一段连贯、口语化、可直接照做的最终答案（像老掌柜跟老板交代事情）；\n"
-        "3) 明确归因：你最后采纳了哪几位员工的核心判断。\n"
+    )
+    if variants:
+        prompt += (
+            "2) 从所有候选中挑选并打磨出 3 条可直接发的朋友圈文案，保证 3 条风格各异"
+            "（不同公式/角度/语气），不要是同一条的变体；\n"
+            "3) 明确归因：你最后采纳了哪几位员工的核心判断。\n"
+        )
+    else:
+        prompt += (
+            "2) 融合成一段连贯、口语化、可直接照做的最终答案（像老掌柜跟老板交代事情）；\n"
+            "3) 明确归因：你最后采纳了哪几位员工的核心判断。\n"
+        )
+    prompt += (
         f"{adoption_brief}\n"
         f"要解决的问题：{task_desc}\n"
         + (f"上次结论（参考不照抄）：{prev}\n" if prev else "")
         + f"员工们的方案：\n{cand_txt}\n"
-        "只输出 JSON，不要任何多余文字。格式："
-        "{\"verdict\":\"你如何取舍的一句话说明\",\"adopted\":[\"被采纳的员工名\",...],\"final\":\"融合后的最终答案\"}"
     )
+    if variants:
+        prompt += (
+            "只输出 JSON，不要任何多余文字。格式："
+            "{\"verdict\":\"你如何取舍的一句话说明\",\"adopted\":[\"被采纳的员工名\",...],"
+            "\"final\":\"最推荐的一条\",\"variants\":[\"第一条\",\"第二条\",\"第三条\"]}"
+        )
+    else:
+        prompt += (
+            "只输出 JSON，不要任何多余文字。格式："
+            "{\"verdict\":\"你如何取舍的一句话说明\",\"adopted\":[\"被采纳的员工名\",...],\"final\":\"融合后的最终答案\"}"
+        )
     try:
         out = ai._extract_json(ai.chat([{"role": "user", "content": prompt}],
                                        temperature=temperature, max_tokens=max_tokens))
-        return {
+        result = {
             "verdict": out.get("verdict", ""),
             "adopted": out.get("adopted", []),
             "final": out.get("final", "").strip(),
         }
+        if variants:
+            v = out.get("variants", [])
+            if not isinstance(v, list) or len(v) < 2:
+                v = [result["final"]] if result["final"] else [fail.strip()]
+            result["variants"] = [x.strip() for x in v if x and x.strip()]
+            if not result["variants"]:
+                result["variants"] = [fail.strip()]
+        return result
     except Exception:  # noqa: BLE001 —— 融合失败退化为拼接候选
-        return {"verdict": "", "adopted": [], "final": fail.strip()}
+        result = {"verdict": "", "adopted": [], "final": fail.strip()}
+        if variants:
+            result["variants"] = [fail.strip()]
+        return result
 
 
 # ---------------- 通用团队流水线（各业务域共用的编排骨架） ----------------
 def _run_team(domain: str, task: str, prev: str = "",
-              sys_suffix: str = "", user_tail: str = ""):
+              sys_suffix: str = "", user_tail: str = "", variants: bool = False):
     """域级编排骨架：员工并行竞争 →（可选协作评审）→ 掌柜融合裁决 → 采纳归因。
 
     参数全部来自 TEAM_DOMAINS[domain] 的登记，保证新增域时只有一处声明。
     prev：上次结论（参考不照抄）；sys_suffix：附加给每位员工的系统提示；
     user_tail：附加给每位员工的提问模板（{role} 会替换为员工名）。
+    variants=True 时返回 (final, process, variants_list)。
     """
     cfg = TEAM_DOMAINS[domain]
     employees, reviewer, judge_desc = cfg["employees"], cfg["reviewer"], cfg["judge"]
@@ -97,7 +130,8 @@ def _run_team(domain: str, task: str, prev: str = "",
         cands = cands + [(reviewer["role"], review_out)]
 
     fail = " ".join(out for _, out in cands)
-    judge = _decide(judge_desc, cands, team.adoption_brief(domain), prev, fail=fail)
+    judge = _decide(judge_desc, cands, team.adoption_brief(domain), prev, fail=fail,
+                    variants=variants)
     if judge["adopted"]:
         team.record_adoption(domain, judge["adopted"])
     process = {
@@ -105,22 +139,47 @@ def _run_team(domain: str, task: str, prev: str = "",
         "employees": [{"role": name, "output": out} for name, out in cands],
         "verdict": judge["verdict"], "adopted": judge["adopted"],
     }
+    if variants:
+        return judge["final"], process, judge.get("variants", [judge["final"]])
     return judge["final"], process
 
 
 # ---------------- 域：朋友圈文案（协作流水线：创意/熟客 → 合规 → 掌柜融合） ----------------
 _COPY_EMPLOYEES = [
-    {"role": "创意文案师", "temperature": 0.9, "max_tokens": 300,
-     "system": "你是烟火气的文案师，像真人老板随手发的朋友圈，用勇哥那套表达DNA：短句、先说具体的东西再谈感觉，"
-              "数字比形容词更能打动人。口语、真诚、偶尔自嘲。"
-              "不套网红词，更不碰\"赋能/闭环/底层逻辑/品效合一\"这类黑话。"
-      "方案要具体到颗粒度——不是\"欢迎光临优惠多多\"，而是\"买面送卤蛋，下午3点前到店还加一碟小菜\"这样的实打实。"},
-    {"role": "熟客运营", "temperature": 0.8, "max_tokens": 300,
+    {"role": "创意文案师", "temperature": 0.9, "max_tokens": 500,
+     "system": "你是烟火气的文案师，像真人老板随手发的朋友圈。\n"
+      "表达DNA：短句、先说具体的东西再谈感觉，数字比形容词更能打动人。口语、真诚、偶尔自嘲。"
+      "不套网红词，更不碰\"赋能/闭环/底层逻辑/品效合一\"这类黑话。方案要具体到颗粒度——"
+      "不是\"欢迎光临优惠多多\"，而是\"买面送卤蛋，下午3点前到店还加一碟小菜\"这样的实打实。\n"
+      "写之前先想两件事：\n"
+      "1) 顾客刷到这条的那个瞬间在感受什么？午休的人无聊、半秒决定划不划；下班路上的人累、想看点轻松的；周末早上的人放松、可能认真看。情绪决定语气。\n"
+      "2) 用最简单的话说你在卖什么？厨房餐桌边的话，不是广告词。\n"
+      "文案公式（每次选一个用，不要混）：\n"
+      "· 场景移植：让店里某个物件开口说话。\"收银台说：今天第50次听到'随便看看'\"——读者自行推断你在干嘛。\n"
+      "· 宜忌体：老黄历格式。\"宜|加辣 忌|减肥\"——四字为佳，极低制作成本，极易栏目化。\n"
+      "· 反向克制：不耍花活说真话。节假日不搞花活，发一句\"今天店开着，随时来\"——朴素一句话比十句花活有人情味。\n"
+      "· 数字双关：热点自带数字，数字在你的语境里另有含义。\"3小时，换回你未来3年的加班\"。\n"
+      "去AI味（写完自检）：\n"
+      "· 删\"开启...新体验\"\"感受...的魅力\"\"遇见...的美好\"这类空话\n"
+      "· 删\"甄选\"\"匠心\"\"极致\"\"私享\"——换成具体的事\n"
+      "· 不强行凑三个排比，一两个就够了\n"
+      "· 结尾给具体动作：\"今天还有8份\"\"5点关门\"——不要\"期待您的光临\"\n"
+      "· 念一遍，像不像一个人在跟另一个人说话？不像就改\n"
+      "用词要像真人：不要\"美味/可口/好吃/香\"轮着用，重复\"好吃\"就好。不要\"通过/为了给大家带来\"——用\"靠着\"\"就是\"。"},
+    {"role": "熟客运营", "temperature": 0.8, "max_tokens": 500,
      "system": "你懂老主顾的人情味，能把文案写到老熟人心里，记得住细节、不套路。"
-      "像街坊聊天一样带一句只有熟客才懂的梗（比如他常点的那道、上次提过的一件小事），不要泛泛\"感谢新老顾客\"。"},
+      "像街坊聊天一样带一句只有熟客才懂的梗（比如他常点的那道、上次提过的一件小事），不要泛泛\"感谢新老顾客\"。\n"
+      "写之前先想：顾客刷到这条的那个瞬间在感受什么？老客看到你的朋友圈，要的是\"这家店还记得我\"的感觉，不是广告。\n"
+      "去AI味：不写\"感谢新老顾客\"\"一路有你\"——写\"王姐上次说想吃辣的，今天加了麻辣牛腱\"。不凑排比，用真人说话的方式。"},
 ]
-_COPY_REVIEWER = {"role": "合规审核", "temperature": 0.2, "max_tokens": 250,
-                  "system": "你是平台审核搭档，专挑广告法违禁词、绝对化用语、虚假优惠，给出修改意见。"}
+_COPY_REVIEWER = {"role": "合规审核", "temperature": 0.2, "max_tokens": 350,
+                  "system": "你是平台审核搭档，做两件事：\n"
+                   "1) 挑广告法违禁词、绝对化用语、虚假优惠——给出修改意见。\n"
+                   "2) AI味检查——逐条过：有没有空话套话？有没有\"甄选/匠心/极致\"这些假词？"
+                   "有没有强行凑三个排比？结尾是不是\"期待您的光临\"这种通用结尾？"
+                   "主文案有没有超过12字（短文案）？形容词能不能换动词？有没有解释自己（\"其实\"\"这意味着\"→删）？"
+                   "念一遍像不像一个人在跟另一个人说话？\n"
+                   "有问题直接指出哪句、怎么改。"}
 
 
 def _copy_degraded(shop_name: str, scene: str, extra: str, context: str = "") -> str:
@@ -145,20 +204,29 @@ def _copy_degraded_process(shop_name: str, scene: str, extra: str) -> dict:
 
 def generate_copy(shop_name: str, scene: str, extra: str, customer_name: str = "",
                   context: str = "", return_process: bool = False):
-    """生成有烟火气的朋友圈文案（多人协作：创意/熟客竞争 → 合规评审 → 掌柜融合）"""
+    """生成有烟火气的朋友圈文案（多人协作：创意/熟客竞争 → 合规评审 → 掌柜融合）
+
+    有 AI Key 时返回 3 条风格各异的变体（不同公式/角度）；
+    无 Key 降级走模板，变体只有 1 条。
+    return_process=False 返回 text（str，向后兼容）；
+    return_process=True 返回 (text, process, variants)。
+    """
     if not ai.ai_available():
         text = _copy_degraded(shop_name, scene, extra, context)
         if not return_process:
             return text
-        return text, _copy_degraded_process(shop_name, scene, extra)
+        return text, _copy_degraded_process(shop_name, scene, extra), [text]
     task = (f"店铺：{shop_name}；场景：{scene}；补充：{extra}\n"
             + (f"熟客：{customer_name}，可自然带一句（不硬凑）\n" if customer_name else "")
             + (f"经营上下文（参考不照抄）：{context}\n" if context else ""))
-    final, process = _run_team("copy", task,
-                               sys_suffix="（请输出一条可直接发的朋友圈文案正文，不超过 80 字，只输出正文。）")
+    final, process, variants = _run_team(
+        "copy", task,
+        sys_suffix="（请输出3条风格各异的朋友圈文案正文，每条不超过80字，分别用不同的文案公式和角度，"
+                   "只输出正文，用 ||| 分隔3条。）",
+        variants=True)
     if not return_process:
         return final
-    return final, process
+    return final, process, variants
 
 
 # ---------------- 域：单店经营诊断（员工竞争 → 掌柜融合） ----------------

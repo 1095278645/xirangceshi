@@ -43,6 +43,8 @@ const state = {
   // 文案
   copyForm: { shop_name: '巷子里的早餐铺', scene: '今日营业', extra: '', customer_name: '' },
   copyResult: '',
+  copyVariants: [],
+  copyLoading: false,
   // 设置
   aiEnabled: false,
   hasKey: false,
