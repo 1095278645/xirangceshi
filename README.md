@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '0698c2f9-8d0a-4cf2-91be-6b381fb1f8f2'
-  PropagateID: '0698c2f9-8d0a-4cf2-91be-6b381fb1f8f2'
-  ReservedCode1: 'd11ae963-665c-4779-a99e-6bda0449cd48'
-  ReservedCode2: 'd11ae963-665c-4779-a99e-6bda0449cd48'
+  ProduceID: 'da29adc5-82ff-416f-a9d4-3ddca3c05658'
+  PropagateID: 'da29adc5-82ff-416f-a9d4-3ddca3c05658'
+  ReservedCode1: '13c0d36d-2f2a-4e4b-b508-a63f7a526370'
+  ReservedCode2: '13c0d36d-2f2a-4e4b-b508-a63f7a526370'
 ---
 
 # 巷子里的AI掌柜

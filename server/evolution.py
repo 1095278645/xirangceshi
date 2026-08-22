@@ -25,13 +25,16 @@ import db_evolution as dbe
 
 # 向后兼容 re-export
 from evolution_lifecycle import (  # noqa: F401
-    suppress_gene, check_and_suppress, record_outcome,
+    suppress_gene, check_and_suppress, record_outcome, classify_failure,
     SUPPRESS_MIN_ATTEMPTS, SUPPRESS_MAX_SUCCESS_RATE, SUPPRESS_CONSECUTIVE_INERT,
+    REASON_GENE, REASON_AGENT, REASON_ENV, FAILURE_REASONS,
 )
 from evolution_growth import (  # noqa: F401
     distill_skill, promote_learning, review_injection,
     DISTILL_SUCCESS_COUNT, DISTILL_HOURS_GAP, DISTILL_SCORE_MULTIPLIER,
     PROMOTE_RECURRENCE, PROMOTE_DISTINCT_TASKS, PROMOTE_DAYS_WINDOW,
+    CONSERVATIVE_CONSTRAINTS, CORE_SIGNAL_KEEP_RATIO,
+    _violates_conservative_constraints,
 )
 
 

@@ -42,7 +42,7 @@ class _TempDB(unittest.TestCase):
         # 每个测试清空进化表，避免互相干扰
         with db.get_conn() as conn:
             for t in ("agent_events", "agent_capsules", "agent_genes",
-                      "agent_learnings"):
+                      "agent_learnings", "agent_trajectories"):
                 conn.execute(f"DELETE FROM {t}")
             conn.execute("DELETE FROM domain_context WHERE key LIKE 'insight_index' "
                         "OR key LIKE 'promoted_%' OR key LIKE 'last_distill%' "
@@ -504,6 +504,126 @@ class TestDistillation(_TempDB):
         event_types = {e["event_type"] for e in events}
         self.assertIn("gene_distilled", event_types)
         self.assertIn("learning_promoted", event_types)
+
+
+# ================================================================
+# 短期P0优化（借鉴 SkillClaw）：失败归因 / 保守编辑 / 轨迹采集
+# ================================================================
+
+class TestFailureReason(_TempDB):
+    """P0: 失败原因分类（SkillClaw 三类问题区分）"""
+
+    def setUp(self):
+        super().setUp()
+        team_evolution.seed_initial_genes()
+
+    def test_classify_failure_default(self):
+        """P1: 未采纳默认归因为基因缺陷 gene_deficiency"""
+        self.assertEqual(evolution.classify_failure(), "gene_deficiency")
+        self.assertEqual(evolution.classify_failure(user_adopted=True), None)
+        self.assertEqual(evolution.classify_failure(user_edited=True), None)
+
+    def test_classify_failure_env(self):
+        """P1: 环境异常归类为 env_instability"""
+        self.assertEqual(evolution.classify_failure(env_error=True), "env_instability")
+        self.assertEqual(evolution.classify_failure(user_adopted=False, env_error=True),
+                         "env_instability")
+
+    def test_record_outcome_failure_reason(self):
+        """P1: record_outcome 记录失败原因到胶囊"""
+        cap_id = evolution.record_outcome(
+            "copy", "gene_copy_scene_transplant", "失败文案",
+            user_adopted=False, failure_reason="agent_runtime")
+        cap = dbe.get_capsule(cap_id)
+        self.assertEqual(cap["failure_reason"], "agent_runtime")
+
+    def test_record_outcome_auto_classify(self):
+        """P1: 未传 reason 时自动归类（不采纳 → gene_deficiency）"""
+        cap_id = evolution.record_outcome(
+            "copy", "gene_copy_scene_transplant", "失败文案", user_adopted=False)
+        cap = dbe.get_capsule(cap_id)
+        self.assertEqual(cap["failure_reason"], "gene_deficiency")
+
+    def test_env_failure_not_counted_in_distill(self):
+        """P1: 环境失败不算入有效样本，避免误判成功率"""
+        # 8 个环境失败 + 2 个成功 = 有效样本仅 2 个，不满足蒸馏
+        for i in range(8):
+            dbe.save_capsule(f"cap-env-{i}", "gene_copy_yiji", "copy",
+                             content=f"环境失败{i}", user_adopted=False,
+                             failure_reason="env_instability")
+        for i in range(2):
+            dbe.save_capsule(f"cap-ok-{i}", "gene_copy_scene_transplant", "copy",
+                             content=f"成功{i}", user_adopted=True)
+        result = evolution.distill_skill("copy")
+        self.assertIsNone(result, "环境失败不占有效样本，有效样本不足应不蒸馏")
+
+
+class TestConservativeConstraints(_TempDB):
+    """P0: 保守编辑约束（SkillClaw 8 条硬约束之核心信号不可变）"""
+
+    def setUp(self):
+        super().setUp()
+        team_evolution.seed_initial_genes()
+
+    def test_constraint_defined(self):
+        """P0: 保守约束常量已定义且非空"""
+        self.assertGreater(len(evolution.CONSERVATIVE_CONSTRAINTS), 0)
+        self.assertIn("不得删除已有能力", "".join(evolution.CONSERVATIVE_CONSTRAINTS))
+
+    def test_constraint_pass_same_signals(self):
+        """P0: 信号保留充足时蒸馏通过"""
+        src = dbe.get_gene("gene_copy_scene_transplant")
+        violation = evolution._violates_conservative_constraints(
+            src, src["trigger_signals"])
+        self.assertIsNone(violation)
+
+    def test_constraint_block_core_loss(self):
+        """P0: 核心信号保留率不足时蒸馏被阻断"""
+        src = dbe.get_gene("gene_copy_scene_transplant")
+        # 构造仅保留 1 个信号（破坏核心）
+        violation = evolution._violates_conservative_constraints(
+            src, [src["trigger_signals"][0]])
+        self.assertIsNotNone(violation, "核心信号流失应触发约束阻断")
+        self.assertIn("核心信号保留率", violation)
+
+    def test_constraint_pass_with_empty_source(self):
+        """P0: 无源基因时宽松通过（不阻断）"""
+        self.assertIsNone(evolution._violates_conservative_constraints(None, ["x"]))
+
+
+class TestTrajectory(_TempDB):
+    """P0: 对话轨迹采集层（SkillClaw Client Capture）"""
+
+    def setUp(self):
+        super().setUp()
+        team_evolution.seed_initial_genes()
+
+    def test_record_trajectory(self):
+        """P0: 轨迹完整写入并可读取"""
+        import evolution_trajectory as et
+        et.record_trajectory(
+            domain="copy", task="给老王面馆写开业文案", gene_id="gene_copy_yiji",
+            mode="collaborative",
+            employees=[{"role": "策划", "system": "sys", "user": "usr",
+                        "output": "新出卤面"}],
+            verdict="采用策划版", final="新出卤面，香得很", adopted=["新出卤面，香得很"])
+        trajs = et.get_trajectories("copy", limit=5)
+        self.assertEqual(len(trajs), 1)
+        t = trajs[0]
+        self.assertTrue(t["traj_id"].startswith("TRJ-"))
+        self.assertEqual(t["task"], "给老王面馆写开业文案")
+        self.assertTrue(t["content_hash"].startswith("sha256:"), "轨迹应有 SHA-256 寻址")
+        # 输入输出完整保留
+        self.assertEqual(t["turns"][0]["output"], "新出卤面")
+        self.assertEqual(t["system_inputs"]["策划"]["user"], "usr")
+
+    def test_trajectory_isolated_domain(self):
+        """P0: 轨迹按域隔离"""
+        import evolution_trajectory as et
+        et.record_trajectory(domain="copy", task="t", employees=[])
+        et.record_trajectory(domain="store", task="t2", employees=[])
+        self.assertEqual(len(et.get_trajectories("copy")), 1)
+        self.assertEqual(len(et.get_trajectories("store")), 1)
 
 
 if __name__ == "__main__":

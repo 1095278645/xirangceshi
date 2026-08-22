@@ -27,20 +27,25 @@ def _conn():
 
 # ---------------- agent_capsules（胶囊库） ----------------
 
-def save_capsule(capsule_id, gene_id, domain, task_context=None, content="",
+def save_capsule(capsule_id, gene_id, domain, task_context=None, content=None,
                  user_adopted=False, user_edited=False, edit_diff=None,
-                 confidence=None):
-    """创建一条胶囊记录"""
+                 confidence=None, failure_reason=None):
+    """创建一条胶囊记录
+
+    failure_reason（借鉴 SkillClaw 三类问题区分）：未采纳时的失败归因，
+    可选值：gene_deficiency / agent_runtime / env_instability / None。
+    仅 gene_deficiency 触发技能蒸馏，避免无效进化。
+    """
     tc_json = json.dumps(task_context, ensure_ascii=False) if task_context else None
     now = datetime.now(timezone.utc).isoformat()
     with _conn() as conn:
         conn.execute(
             "INSERT INTO agent_capsules(capsule_id, gene_id, domain, task_context, "
-            "content, user_adopted, user_edited, edit_diff, confidence, timestamp) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?)",
+            "content, user_adopted, user_edited, edit_diff, confidence, timestamp, "
+            "failure_reason) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
             (capsule_id, gene_id, domain, tc_json, content,
              1 if user_adopted else 0, 1 if user_edited else 0, edit_diff,
-             confidence, now))
+             confidence, now, failure_reason))
     return {"capsule_id": capsule_id, "gene_id": gene_id}
 
 
@@ -210,6 +215,7 @@ def init_evolution_tables(conn):
         edit_diff         TEXT,
         confidence        REAL,
         timestamp         TEXT NOT NULL,
+        failure_reason    TEXT,
         FOREIGN KEY (gene_id) REFERENCES agent_genes(gene_id)
     )""")
 
@@ -224,3 +230,11 @@ def init_evolution_tables(conn):
         timestamp          TEXT NOT NULL,
         content_hash       TEXT
     )""")
+
+    # 兼容旧库：agent_capsules 迁移增加 failure_reason 列（幂等）
+    try:
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(agent_capsules)")]
+        if "failure_reason" not in cols:
+            conn.execute("ALTER TABLE agent_capsules ADD COLUMN failure_reason TEXT")
+    except Exception:  # noqa: BLE001 —— 表尚未创建或读取失败时静默跳过
+        pass

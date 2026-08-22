@@ -21,6 +21,7 @@ from __future__ import annotations
 import ai
 import team
 import evolution
+import evolution_trajectory
 import db_evolution as dbe
 
 # 域数据/降级函数/生成入口从子模块导入
@@ -159,7 +160,7 @@ def _run_team(domain: str, task: str, prev: str = "",
                         {"role": "user", "content": user}],
                        temperature=emp["temperature"], max_tokens=emp["max_tokens"]).strip()
 
-    # 员工并行竞争产出
+    # 员工并行竞争产出（记录完整输入输出，供轨迹采集）
     cands = team.run_parallel([lambda e=e: produce(e) for e in employees])
     cands = list(zip([e["role"] for e in employees], cands))
     if reviewer:
@@ -186,6 +187,26 @@ def _run_team(domain: str, task: str, prev: str = "",
         "verdict": judge["verdict"], "adopted": judge["adopted"],
         "gene_id": gene_id,
     }
+
+    # 任务时轨迹采集（借鉴 SkillClaw Client Capture）：无损保存完整对话，零侵入
+    try:
+        emp_records = []
+        for emp in employees:
+            emp_records.append({
+                "role": emp["role"],
+                "system": emp["system"] + (sys_suffix or ""),
+                "user": task + (user_tail.format(role=emp["role"]) if user_tail else ""),
+                "output": dict(cands).get(emp["role"], ""),
+            })
+        evolution_trajectory.record_trajectory(
+            domain=domain, task=task, gene_id=gene_id,
+            mode=process["mode"], employees=emp_records,
+            verdict=judge["verdict"], final=judge["final"],
+            adopted=judge.get("adopted"),
+        )
+    except Exception:  # noqa: BLE001 —— 轨迹采集失败不影响主链路（采集零侵入）
+        pass
+
     if variants:
         return judge["final"], process, judge.get("variants", [judge["final"]])
     return judge["final"], process

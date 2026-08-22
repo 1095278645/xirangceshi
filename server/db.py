@@ -241,3 +241,6 @@ def init_db():
 
         # ===== 自适应进化层建表（拆到 db_evolution_audit.init_evolution_tables）=====
         init_evolution_tables(conn)
+        # 对话轨迹表（借鉴 SkillClaw Client Capture，任务时循环采集）
+        from db_evolution_trajectory import init_trajectory_tables
+        init_trajectory_tables(conn)
