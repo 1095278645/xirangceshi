@@ -95,11 +95,12 @@ def evolution_daily_check():
     """每日进化检查：经验晋升 / 基因抑制 / 技能蒸馏。
     纯本地算法，不依赖 AI API。返回检查结果摘要。"""
     import team_domains
+    import team_evolution
     import evolution
 
     # 1. 确保初始基因已入库
     try:
-        team_domains.seed_initial_genes()
+        team_evolution.seed_initial_genes()
     except Exception:  # noqa: BLE001
         pass
 

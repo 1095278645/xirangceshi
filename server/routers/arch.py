@@ -11,6 +11,7 @@ from fastapi import APIRouter
 import db
 import heartbeat
 import team_domains
+import team_evolution
 import evolution
 import db_evolution as dbe
 from schemas import (
@@ -126,7 +127,7 @@ def learning_list(domain: str = "", status: str = "", limit: int = 100):
 @router.post("/outcome")
 def outcome_record(data: OutcomeIn):
     """记录用户行为结果（采纳/修改/跳过某条文案变体）"""
-    cap_id = team_domains.record_outcome(
+    cap_id = team_evolution.record_outcome(
         domain=data.domain, gene_id=data.gene_id, content=data.content,
         user_adopted=data.user_adopted, user_edited=data.user_edited,
         edit_diff=data.edit_diff or None, task_context=data.task_context)
@@ -171,13 +172,13 @@ def event_list(domain: str = "", event_type: str = "", limit: int = 50):
 @router.get("/evolution/{domain}")
 def evolution_summary(domain: str):
     """获取某域的进化状态摘要"""
-    return evolution.get_evolution_summary(domain)
+    return team_evolution.get_evolution_summary(domain)
 
 
 @router.post("/evolution/seed")
 def evolution_seed():
     """初始化基因库（幂等：已存在的基因不覆盖统计）"""
-    count = team_domains.seed_initial_genes()
+    count = team_evolution.seed_initial_genes()
     return {"seeded": count}
 
 

@@ -22,6 +22,7 @@ import random
 from datetime import datetime, timezone
 
 import db_evolution as dbe
+import team_evolution as te
 from db_arch import set_domain_context, get_domain_context
 
 # 策略预设（EvoMap/evolver）
@@ -192,8 +193,8 @@ def distill_skill(domain):
 
     # 提取共性策略：从成功胶囊中提取共同特征
     successful = [c for c in recent if c.get("user_adopted")]
-    common_signals = _extract_common_signals(successful)
-    common_content_pattern = _extract_content_pattern(successful)
+    common_signals = te.extract_common_signals(successful)
+    common_content_pattern = te.extract_content_pattern(successful)
 
     # 生成新基因
     gene_id = f"gene_distilled_{domain}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -216,37 +217,13 @@ def distill_skill(domain):
                   details=f"distilled from {success_count}/10 successful capsules")
 
     # 更新 L1 索引
-    _update_insight_index(domain)
+    te.update_insight_index(domain)
 
     # 更新蒸馏时间
     set_domain_context(domain, "last_distill_time",
                        datetime.now(timezone.utc).isoformat())
 
     return new_gene
-
-
-def _extract_common_signals(capsules):
-    """从成功胶囊中提取共性触发信号"""
-    signal_counts = {}
-    for c in capsules:
-        gene = dbe.get_gene(c.get("gene_id"))
-        if gene:
-            for s in gene.get("trigger_signals", []):
-                signal_counts[s] = signal_counts.get(s, 0) + 1
-    # 出现 >= 50% 的信号提取为共性
-    threshold = len(capsules) * 0.5
-    return [s for s, cnt in signal_counts.items() if cnt >= threshold]
-
-
-def _extract_content_pattern(capsules):
-    """从成功胶囊内容中提取策略摘要"""
-    contents = [c.get("content", "") for c in capsules if c.get("content")]
-    if not contents:
-        return "蒸馏策略：从近期成功文案中提取的模式"
-    # 简化：取前 3 条内容的关键特征
-    avg_len = sum(len(c) for c in contents) // max(len(contents), 1)
-    return (f"蒸馏策略（{len(contents)} 条成功样本，平均{avg_len}字）："
-            f"偏短句口语、具体细节、避免排比和空话。")
 
 
 # ---------------- 经验晋升（Layer 1 → Layer 2） ----------------
@@ -298,7 +275,7 @@ def promote_learning(domain):
 
     # 晋升后更新 L1 索引
     if promoted:
-        _update_insight_index(domain)
+        te.update_insight_index(domain)
 
     return promoted
 
@@ -370,45 +347,6 @@ def record_outcome(domain, gene_id, content, user_adopted=False,
     return capsule_id
 
 
-# ---------------- L1 索引更新（内部） ----------------
-
-def _update_insight_index(domain):
-    """重建某域的 L1 极简索引（<=20 行，每行 <80 字符）"""
-    lines = []
-
-    # 从基因库提取摘要
-    genes = dbe.get_all_genes(domain)
-    active_genes = [g for g in genes if g.get("status") == "active"]
-    if active_genes:
-        top = sorted(active_genes, key=lambda g: g.get("confidence", 0), reverse=True)[:3]
-        for g in top:
-            signals = ", ".join(g.get("trigger_signals", [])[:3])
-            conf = g.get("confidence", 0)
-            line = f"{domain}: {signals or g['gene_id']} | conf={conf:.2f}"
-            lines.append(line[:80])
-
-    # 从晋升的经验中提取
-    promoted = dbe.get_learnings(domain, status="promoted", limit=5)
-    for p in promoted:
-        pk = p.get("pattern_key", "")
-        line = f"{domain}: {pk} -> L2:promoted_{pk}"
-        lines.append(line[:80])
-
-    # 从 domain_context 中提取 SOP 引用
-    from db_arch import list_domain_context
-    ctx_items = list_domain_context(domain)
-    for item in ctx_items:
-        key = item.get("key", "")
-        if key.startswith("sop_"):
-            val = str(item.get("value", ""))[:40]
-            line = f"{domain}: -> L3:{key} ({val})"
-            lines.append(line[:80])
-
-    # 硬约束 <=20 行
-    lines = lines[:20]
-    dbe.set_insight_index(domain, lines)
-
-
 # ---------------- 辅助函数 ----------------
 
 def _age_days(iso_str):
@@ -420,30 +358,3 @@ def _age_days(iso_str):
         return max(0, (datetime.now(timezone.utc) - dt).days)
     except (ValueError, TypeError):
         return 0
-
-
-def get_evolution_summary(domain):
-    """获取某域的进化状态摘要（供 API / 前端展示）"""
-    genes = dbe.get_all_genes(domain)
-    active = [g for g in genes if g.get("status") == "active"]
-    suppressed = [g for g in genes if g.get("status") == "suppressed"]
-    capsules = dbe.get_recent_capsules(domain, limit=20)
-    adopted = [c for c in capsules if c.get("user_adopted")]
-    learnings = dbe.get_learnings(domain)
-    pending = [l for l in learnings if l.get("status") == "open"]
-    promoted = [l for l in learnings if l.get("status") == "promoted"]
-
-    return {
-        "domain": domain,
-        "genes_total": len(genes),
-        "genes_active": len(active),
-        "genes_suppressed": len(suppressed),
-        "capsules_recent": len(capsules),
-        "capsules_adopted": len(adopted),
-        "adoption_rate": len(adopted) / len(capsules) if capsules else 0,
-        "learnings_total": len(learnings),
-        "learnings_pending": len(pending),
-        "learnings_promoted": len(promoted),
-        "strategy": auto_strategy(domain),
-        "insight_index": dbe.get_insight_index(domain),
-    }

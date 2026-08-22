@@ -17,6 +17,7 @@ import ai
 import db
 import team
 import team_domains
+import team_evolution
 import evolution
 import heartbeat
 import db_evolution as dbe
@@ -217,7 +218,7 @@ class TestGeneSelection(_TempDB):
 
     def setUp(self):
         super().setUp()
-        team_domains.seed_initial_genes()
+        team_evolution.seed_initial_genes()
 
     def test_gene_selection_laplace(self):
         """P3: Laplace 平滑成功率排序正确"""
@@ -384,7 +385,7 @@ class TestDistillation(_TempDB):
 
     def setUp(self):
         super().setUp()
-        team_domains.seed_initial_genes()
+        team_evolution.seed_initial_genes()
 
     def test_distill_skill(self):
         """P4: 7/10 成功蒸馏为新 Gene"""
@@ -436,7 +437,7 @@ class TestDistillation(_TempDB):
         genes = dbe.get_active_genes("copy")
         self.assertGreater(len(genes), 0, "应有初始基因")
         # 手动触发 L1 更新
-        evolution._update_insight_index("copy")
+        team_evolution.update_insight_index("copy")
         idx = dbe.get_insight_index("copy")
         self.assertGreater(len(idx), 0, "L1 索引应有内容")
         # 每行以 "copy:" 开头
