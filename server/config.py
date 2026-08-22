@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 
+from safe_io import atomic_write_json
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
@@ -42,8 +44,8 @@ def save_settings(api_key: str = "", base_url: str | None = None, model: str | N
     if model:
         cur["model"] = model
     cur["api_key"] = api_key
-    with open(_LOCAL_CONFIG, "w", encoding="utf-8") as f:
-        json.dump(cur, f, ensure_ascii=False, indent=2)
+    # Pattern 21: Atomic Write — 先写 .tmp 再 os.replace，防止写到一半崩溃导致配置损坏
+    atomic_write_json(_LOCAL_CONFIG, cur, indent=2)
     return cur
 
 

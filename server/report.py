@@ -1,6 +1,7 @@
 """月度收支 Excel 报表生成（省账通能力）
 基于 openpyxl 输出：收支汇总 + 分类明细 + 交易流水 三个工作表。
 """
+import os
 from datetime import date
 from pathlib import Path
 
@@ -111,5 +112,12 @@ def get_monthly_report(year: int | None = None, month: int | None = None,
     out_dir = Path(out_dir) if out_dir else DATA_DIR / "reports"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"收支报表_{year}年{month}月.xlsx"
-    wb.save(str(out_path))
+    # Pattern 21: Atomic Write — 先保存 .tmp 再 os.replace，防止报表写到一半损坏
+    tmp = out_path.with_suffix(out_path.suffix + ".tmp")
+    try:
+        wb.save(str(tmp))
+        os.replace(str(tmp), str(out_path))
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
     return {"status": "ok", "file": str(out_path), "year": year, "month": month}
