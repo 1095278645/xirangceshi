@@ -125,5 +125,5 @@
     <view class="howto-text">5. 收款流水自动入账本：有执照用微信支付商户号，无执照用聚合支付（接入中）。</view>
   </view>
 
-  <tabbar current="{{4}}" />
+  <tabbar current="{{5}}" />
 </view>

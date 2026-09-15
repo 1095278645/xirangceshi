@@ -25,7 +25,7 @@ Page({
     citResult: null,
     calendar: null,
     // ---- 科目 ----
-    accounts: [],
+    categories: [],
     // ---- 报表 ----
     downloading: false,
     // ---- AI 经营洞察 ----
@@ -134,7 +134,13 @@ Page({
     const salary = parseFloat(this.data.pitSalary)
     if (!salary || salary <= 0) { wx.showToast({ title: '先填月工资', icon: 'none' }); return }
     api.taxPit(salary, parseFloat(this.data.pitSocial) || 0, parseFloat(this.data.pitSpecial) || 0)
-      .then(r => this.setData({ pitResult: r }))
+      .then(r => {
+        // 字段兜底：后端缺 rate 等字段时避免 WXML 显示 NaN
+        this.setData({ pitResult: {
+          taxable: r.taxable || 0, tax: r.tax || 0,
+          rate: r.rate || 0, quick_deduction: r.quick_deduction || 0
+        } })
+      })
       .catch(() => wx.showToast({ title: '算税失败', icon: 'none' }))
   },
 

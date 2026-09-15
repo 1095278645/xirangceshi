@@ -42,12 +42,16 @@ Page({
   openDetail(e) {
     const id = e.currentTarget.dataset.id
     api.customerDetail(id).then(d => {
-      this.setData({ detail: d, insight: '', insightLoading: true, insightAiUsed: false })
+      // 字段兜底：后端缺 memories/transactions 时避免 wxml 对 undefined 取 .length 崩溃
+      const detail = { ...d, memories: d.memories || [], transactions: d.transactions || [] }
+      this.setData({ detail, insight: '', insightLoading: true, insightAiUsed: false })
       api.customerInsight(id).then(r => {
         this.setData({ insight: r.insight, insightAiUsed: r.ai_used, insightLoading: false })
       }).catch(() => {
         this.setData({ insightLoading: false })
       })
+    }).catch(() => {
+      wx.showToast({ title: '加载失败，请确认后端已启动', icon: 'none' })
     })
   },
 

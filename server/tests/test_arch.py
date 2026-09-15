@@ -98,6 +98,24 @@ class TestJobQueue(_TempDB):
         self.assertEqual(items[0]["id"], jid)
         self.assertEqual(items[0]["retries"], 0)
 
+    def test_concurrent_claim_no_duplicate(self):
+        """并发领取同一批 pending 任务，每个任务只被领取一次（无重复领取）。"""
+        for _ in range(5):
+            db.enqueue_job("heartbeat")
+        # 逐个连接领取，模拟多线程/多进程同时抢占：总量应恰好等于任务数
+        claimed_ids = []
+        for _ in range(10):  # 领取次数超过任务数，多余应返回 None
+            job = db.claim_next_job()
+            if job is None:
+                break
+            claimed_ids.append(job["id"])
+        # 领取到的任务 id 不重复，且数量等于实际 pending 任务数
+        self.assertEqual(len(claimed_ids), len(set(claimed_ids)))
+        self.assertEqual(len(claimed_ids), 5)
+        # 所有任务都已置 running，无剩余 pending
+        self.assertEqual(len(db.list_jobs(status="pending")), 0)
+        self.assertEqual(len(db.list_jobs(status="running")), 5)
+
 
 class TestStoreProfile(_TempDB):
     def test_save_and_load(self):

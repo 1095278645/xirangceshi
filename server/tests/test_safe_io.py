@@ -58,6 +58,28 @@ class TestProtectedPaths(unittest.TestCase):
         self.assertFalse(is_protected("data/reports/report.xlsx"))
         self.assertFalse(is_protected("data/sync_log.txt"))
 
+    def test_case_insensitive_evasion(self):
+        """大小写变体不能绕过保护（Windows/macOS 大小写不敏感）"""
+        # 扩展名大小写变体
+        self.assertTrue(is_protected("main.PY"))
+        self.assertTrue(is_protected("DB.py"))
+        self.assertTrue(is_protected("backup.SQLite"))
+        # 目录名大小写变体
+        self.assertTrue(is_protected("Static/index.html"))
+        self.assertTrue(is_protected("TESTS/test_smoke.py"))
+        self.assertTrue(is_protected("MINIPROGRAM/app.js"))
+        self.assertTrue(is_protected("Routers/orders.py"))
+        # 文件名大小写变体
+        self.assertTrue(is_protected("README.MD"))
+        self.assertTrue(is_protected(".GITIGNORE"))
+
+    def test_path_traversal_evasion(self):
+        """路径穿越（..）不能绕过保护：resolve 规范化后仍识别为受保护目录"""
+        self.assertTrue(is_protected("static/../static/index.html"))
+        self.assertTrue(is_protected("data/../../server/main.py"))
+        # 通过子目录跳到受保护目录
+        self.assertTrue(is_protected("whatever/../tests/test_smoke.py"))
+
     def test_safe_write_blocks_protected(self):
         """safe_write 对受保护文件抛 PermissionError"""
         with self.assertRaises(PermissionError):

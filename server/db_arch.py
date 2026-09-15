@@ -105,17 +105,18 @@ def enqueue_job(task_type, payload=None, max_retries=DEFAULT_MAX_RETRIES):
 
 def claim_next_job():
     """领取一条 pending 任务并置为 running；无任务返回 None。
-    简化版（单进程）：直接把 pending 置 running 返回，避免复杂租约。"""
+    使用 UPDATE...RETURNING 原子领取：查找 pending 与置 running 在同一 SQL 语句
+    内完成，避免多线程/多进程并发下重复领取同一任务（SELECT→UPDATE 非原子）。"""
     with _conn() as conn:
         row = conn.execute(
-            "SELECT * FROM job_tasks WHERE status=? ORDER BY id LIMIT 1",
-            (JOB_PENDING,)).fetchone()
-        if not row:
-            return None
-        conn.execute("UPDATE job_tasks SET status=? WHERE id=?",
-                     (JOB_RUNNING, row["id"]))
+            "UPDATE job_tasks SET status=? "
+            "WHERE id=(SELECT id FROM job_tasks WHERE status=? ORDER BY id LIMIT 1) "
+            "RETURNING *",
+            (JOB_RUNNING, JOB_PENDING)).fetchone()
+    if not row:
+        return None
     job = dict(row)
-    job["status"] = JOB_RUNNING  # 已置 processing，返回最新状态
+    job["status"] = JOB_RUNNING  # 已置 running，返回最新状态
     try:
         job["payload"] = json.loads(job["payload"]) if job["payload"] else None
     except (json.JSONDecodeError, TypeError):

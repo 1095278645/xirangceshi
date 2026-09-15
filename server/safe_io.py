@@ -13,34 +13,40 @@ log = logging.getLogger("safe_io")
 
 # ---- 受保护路径白名单（Pattern 20: Protected Paths）----
 
-# 受保护扩展名：这些类型的文件禁止被自动化脚本直接写入
+# 受保护扩展名：这些类型的文件禁止被自动化脚本直接写入（统一小写，大小写不敏感匹配）
 _PROTECTED_EXTS = frozenset({".py", ".db", ".sqlite", ".sqlite3"})
 
-# 受保护文件名：关键配置/清单文件
+# 受保护文件名：关键配置/清单文件（统一小写）
 _PROTECTED_NAMES = frozenset({
-    ".gitignore", "README.md", "project.config.json",
+    ".gitignore", "readme.md", "project.config.json",
     "initial_genes.json", "app.json", "app.js", "app.wxss",
     "sitemap.json",
 })
 
-# 受保护目录：这些目录下的文件禁止被自动化脚本修改
+# 受保护目录：这些目录下的文件禁止被自动化脚本修改（统一小写）
 _PROTECTED_DIRS = frozenset({
     "routers", "tests", "miniprogram", "static", ".git", ".venv",
 })
 
 
 def is_protected(filepath: str | Path) -> bool:
-    """检查文件是否在受保护白名单中——禁止自动化脚本写入。"""
-    p = Path(filepath)
-    name = p.name
-    # 1. 受保护扩展名（.py / .db / .sqlite）
-    if p.suffix in _PROTECTED_EXTS:
+    """检查文件是否在受保护白名单中——禁止自动化脚本写入。
+
+    在 Windows/macOS 等大小写不敏感文件系统上，路径比较统一转小写，
+    防止用 `main.PY`、`Static/x` 等大小写变体绕过保护。
+    同时 resolve() 规范化 `..` 与符号链接，避免路径穿越绕过白名单。
+    """
+    p = Path(filepath).resolve()
+    name = p.name.lower()
+    parts = [part.lower() for part in p.parts[:-1]]
+    # 1. 受保护扩展名（.py / .db / .sqlite / .sqlite3）
+    if p.suffix.lower() in _PROTECTED_EXTS:
         return True
-    # 2. 受保护文件名
+    # 2. 受保护文件名（统一小写匹配）
     if name in _PROTECTED_NAMES:
         return True
-    # 3. 受保护目录（路径中包含这些目录名）
-    for part in p.parts[:-1]:
+    # 3. 受保护目录（路径中包含这些目录名，统一小写匹配）
+    for part in parts:
         if part in _PROTECTED_DIRS:
             return True
     return False

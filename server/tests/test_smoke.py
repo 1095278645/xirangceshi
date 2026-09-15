@@ -81,6 +81,67 @@ class TestLedger(unittest.TestCase):
         s = db.today_summary()
         self.assertGreaterEqual(s["cnt"], 1)
 
+    def test_voucher_no_unique_on_retry(self):
+        """凭证号撞号时不崩溃：预置占用某凭证号，新交易自动递增跳过冲突。"""
+        cur_period = date.today().isoformat()[:7].replace("-", "")
+        # 查询当前 MAX 序号，预置占用下一个号，让新交易必须跳过它
+        with db.get_conn() as conn:
+            base = f"记-{cur_period}-"
+            cur_max = conn.execute(
+                "SELECT COALESCE(MAX(CAST(substr(voucher_no,11) AS INTEGER)),0) "
+                "FROM vouchers WHERE voucher_no LIKE ?", (base + "%",)
+            ).fetchone()[0]
+            occupied = cur_max + 1
+            conn.execute(
+                "INSERT INTO vouchers(voucher_no, voucher_date, summary) VALUES(?,?,?)",
+                (f"{base}{occupied:03d}", date.today().isoformat(), "占用"))
+        # 新交易应生成 occupied+1（自动跳过被占用的号），不抛 UNIQUE 冲突
+        _, v = db.add_transaction(None, "撞号测试", 99, "income", "主营业务收入")
+        self.assertEqual(v["voucher_no"], f"{base}{occupied + 1:03d}")
+        # 凭证号保持全局唯一
+        with db.get_conn() as conn:
+            n = conn.execute(
+                "SELECT COUNT(*) FROM vouchers WHERE voucher_no=?", (v["voucher_no"],)
+            ).fetchone()[0]
+        self.assertEqual(n, 1)
+
+
+class TestVoucherConcurrency(unittest.TestCase):
+    """凭证号并发撞号：多个线程同时记账，凭证号不重复、不崩溃（独立临时库）"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory()
+        db.DB_PATH = Path(cls._tmp.name) / "test_concurrent.db"
+        db.init_db()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def test_concurrent_voucher_unique(self):
+        import threading
+        results, errors = [], []
+
+        def worker(i):
+            try:
+                _, v = db.add_transaction(None, f"并发{i}", 10 + i, "income", "主营业务收入")
+                results.append(v["voucher_no"])
+            except Exception as e:  # noqa: BLE001
+                errors.append((i, repr(e)))
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # 无错误
+        self.assertEqual(errors, [])
+        # 8 个凭证号全部唯一
+        self.assertEqual(len(results), 8)
+        self.assertEqual(len(set(results)), 8)
+
     def test_monthly_friendly_names(self):
         m = db.monthly_summary()
         for c in m["categories"]:

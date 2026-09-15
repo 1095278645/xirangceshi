@@ -3,6 +3,7 @@
 从 db.py 拆分而来，保持 `import db; db.add_transaction()` 等调用不变。
 连接统一走 db.py 的 get_conn（惰性导入避免循环依赖）。
 """
+import sqlite3
 from datetime import date
 
 from categories import CATEGORY_TO_ACCOUNTS, ACCOUNT_NAMES, FRIENDLY_NAMES
@@ -45,16 +46,31 @@ def _auto_voucher(conn, txn_id, amount, trans_type, category, summary, counterpa
 
     today = date.today().isoformat()
     period = today[:7]
+    # 凭证号带月份前缀：voucher_no 列全局 UNIQUE，若每月从 1 重新编号会在跨月时撞号。
+    # 序号在事务内基于「当月现有最大序号 +1」生成；并发下若两条同时算出相同 seq，
+    # 第二次 INSERT 会触发 UNIQUE 冲突，捕获后递增 seq 重试，避免并发撞号崩溃。
+    base = f"记-{period.replace('-', '')}-"
     seq = conn.execute(
-        "SELECT COUNT(*) FROM vouchers WHERE voucher_date LIKE ?", (period + "%",)
+        "SELECT COALESCE(MAX(CAST(substr(voucher_no, 11) AS INTEGER)), 0) "
+        "FROM vouchers WHERE voucher_no LIKE ?", (base + "%",)
     ).fetchone()[0] + 1
-    # 凭证号带月份前缀：voucher_no 列全局 UNIQUE，若每月从 1 重新编号会在跨月时撞号
-    voucher_no = f"记-{period.replace('-', '')}-{seq:03d}"
-
-    cur = conn.execute(
-        "INSERT INTO vouchers(voucher_no, voucher_date, summary, transaction_id) VALUES(?,?,?,?)",
-        (voucher_no, today, summary, txn_id))
-    vid = cur.lastrowid
+    vid = None
+    voucher_no = None
+    for attempt in range(100):
+        voucher_no = f"{base}{seq:03d}"
+        try:
+            cur = conn.execute(
+                "INSERT INTO vouchers(voucher_no, voucher_date, summary, transaction_id) "
+                "VALUES(?,?,?,?)", (voucher_no, today, summary, txn_id))
+            vid = cur.lastrowid
+            break
+        except sqlite3.IntegrityError:
+            # 撞号（并发或历史遗留）：序号 +1 重试
+            seq += 1
+    else:
+        raise RuntimeError("生成凭证号失败：100 次尝试均与现有凭证号冲突")
+    if vid is None:
+        raise RuntimeError("生成凭证号失败")
 
     conn.execute(
         "INSERT INTO voucher_entries(voucher_id, account_code, account_name, direction, amount) VALUES(?,?,?,?,?)",
