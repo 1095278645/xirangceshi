@@ -66,6 +66,14 @@ class TestCit(unittest.TestCase):
         self.assertEqual(len(r["details"]), 2)
         self.assertAlmostEqual(r["total_tax"], 200_000, places=2)
 
+    def test_over_3m_falls_back_to_standard_rate(self):
+        """回归：年应纳税所得额超过 300 万的小微，超出部分不得漏税，
+        应整体按 25% 标准税率（而非只对 300 万内分段）。"""
+        r = taxcalc.calc_corporate_income_tax(4_000_000, is_small=True)
+        self.assertFalse(r["is_small"])
+        self.assertAlmostEqual(r["tax"], 1_000_000, places=2)   # 400万×25%
+        self.assertEqual(r["rate"], 0.25)
+
     def test_general_standard_rate(self):
         r = taxcalc.calc_corporate_income_tax(10_000_000, is_small=False)
         self.assertAlmostEqual(r["tax"], 2_500_000, places=2)
@@ -81,6 +89,10 @@ class TestCalendar(unittest.TestCase):
     def test_annual_recon_may(self):
         r = taxcalc.get_filing_calendar(2026, 5)
         self.assertTrue(any("汇算清缴" in x["note"] for x in r["reminders"]))
+        # 回归：汇算清缴截止日期必须是合法 YYYY-MM-DD（5月31日），不能是 2026-05-05-31
+        recon = [x for x in r["reminders"] if "汇算清缴" in x["note"]][0]
+        self.assertEqual(recon["deadline"], "2026-05-31")
+        self.assertRegex(recon["deadline"], r"^\d{4}-\d{2}-\d{2}$")
 
     def test_plain_month_two_reminders(self):
         r = taxcalc.get_filing_calendar(2026, 2)
@@ -156,6 +168,16 @@ class TestLedgerExtension(unittest.TestCase):
         self.assertEqual(out["status"], "ok")
         self.assertTrue(Path(out["file"]).exists())
         self.assertGreater(Path(out["file"]).stat().st_size, 0)
+
+    def test_clean_cell_removes_ctrl_and_injection(self):
+        """回归：报表清洗 —— 控制字符不残留、公式注入前置单引号"""
+        self.assertEqual(reportlib._clean_cell("=HYPERLINK(\"http://evil\")"),
+                         "'=HYPERLINK(\"http://evil\")")
+        self.assertEqual(reportlib._clean_cell("@SUM(A1)"), "'@SUM(A1)")
+        self.assertEqual(reportlib._clean_cell("+1+1"), "'+1+1")
+        self.assertEqual(reportlib._clean_cell("正常文本"), "正常文本")
+        self.assertNotIn("\x00", reportlib._clean_cell("a\x00b"))
+        self.assertIsNone(reportlib._clean_cell(None))
 
 
 if __name__ == "__main__":

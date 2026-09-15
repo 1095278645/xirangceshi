@@ -5,8 +5,9 @@ function renderStore() {
   const s = state.store;
   const f = s.form;
   const preset = s.presets.find(p => p.key === s.bizType) || {};
-  const marginHint = preset.margin_default
-    ? `参考毛利率 ${(preset.margin_range[0] * 100).toFixed(0)}%-${(preset.margin_range[1] * 100).toFixed(0)}%（不填自动用默认 ${(preset.margin_default * 100).toFixed(0)}%）`
+  const mr = preset.margin_range || [];
+  const marginHint = (preset.margin_default && mr.length >= 2)
+    ? `参考毛利率 ${(mr[0] * 100).toFixed(0)}%-${(mr[1] * 100).toFixed(0)}%（不填自动用默认 ${(preset.margin_default * 100).toFixed(0)}%）`
     : '';
   const presetOpts = s.presets.map(p => `<option value="${esc(p.key)}" ${p.key === s.bizType ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
 

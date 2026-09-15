@@ -65,7 +65,8 @@ def _split_csv_line(ln: str):
 
 
 def _to_yuan(raw):
-    """金额字段 → 元（微信账单金额单位为元，宽松兼容分）。"""
+    """金额字段 → 元。微信账单金额单位固定为元，不做「分」猜测，
+    否则整百金额（如 100 元）会被误除以 100 变成 1 元。"""
     raw = (raw or "").strip().replace(",", "")
     if not raw:
         return 0.0
@@ -73,9 +74,6 @@ def _to_yuan(raw):
         v = float(raw)
     except ValueError:
         return 0.0
-    # 疑似以“分”为单位的整数（如 1200 表示 12 元）→ 转元
-    if v > 0 and float(v).is_integer() and v >= 100 and "." not in raw:
-        return round(v / 100, 2)
     return round(v, 2)
 
 
@@ -131,6 +129,8 @@ def _fetch_real_bill(cfg, bill_date):
 
     if not (cfg.get("mchid") and cfg.get("private_key_path") and cfg.get("api_v3_key")):
         raise RuntimeError("商户号/私钥路径/APIv3密钥 未配置完整")
+    if not cfg.get("cert_path"):
+        raise RuntimeError("商户证书路径 cert_path 未配置")
 
     # 商户证书序列号（从 PEM 证书解析）
     from cryptography import x509
@@ -138,10 +138,13 @@ def _fetch_real_bill(cfg, bill_date):
         cert = x509.load_pem_x509_certificate(f.read())
     serial = format(cert.serial_number, "x")
 
+    with open(cfg["private_key_path"], "r", encoding="utf-8") as f:
+        private_key = f.read()
+
     wxpay = WeChatPay(
         mchid=cfg["mchid"],
         cert_serial_no=serial,
-        private_key=open(cfg["private_key_path"]).read(),
+        private_key=private_key,
         apiv3_key=cfg["api_v3_key"],
         appid=cfg.get("appid") or "",
     )

@@ -55,6 +55,16 @@ class TestStock(unittest.TestCase):
         p = [x for x in db.list_products() if x["id"] == pid][0]
         self.assertEqual(p["stock_qty"], 0)
 
+    def test_negative_qty_rejected(self):
+        """回归：负数数量/非法数量必须被拒绝，不能让库存反向增加。"""
+        pid = db.add_product("大米", "原材料", "袋", 10)
+        self.assertIsNone(db.move_stock(pid, "out", -5))    # 负出库 → 拒绝
+        self.assertIsNone(db.move_stock(pid, "in", -3))     # 负入库 → 拒绝
+        self.assertIsNone(db.move_stock(pid, "adj", -1))    # 负盘点 → 拒绝
+        self.assertIsNone(db.move_stock(pid, "out", "abc")) # 非数字 → 拒绝
+        p = [x for x in db.list_products() if x["id"] == pid][0]
+        self.assertEqual(p["stock_qty"], 10)                # 库存未变
+
     def test_update_product(self):
         pid = db.add_product("盐", "原材料", "袋", 10)
         self.assertTrue(db.update_product(pid, safety_stock=8, unit_cost=1.5))

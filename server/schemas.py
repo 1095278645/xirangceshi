@@ -3,13 +3,13 @@
 从 main.py 抽出：单一职责（L2）+ 渐进披露（L3），路由层只关心业务。
 所有模型均带默认值，前端不传即用业务兜底。
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class OrderIn(BaseModel):
     text: str                       # 语音转写或手动输入的记账文本
     customer: str = ""              # 可选：手工指定客户
-    amount: float | None = None
+    amount: float | None = Field(default=None, ge=0)
 
 
 class MemoryIn(BaseModel):
@@ -38,22 +38,22 @@ class SettingsIn(BaseModel):
 
 
 class VatIn(BaseModel):
-    quarterly_revenue: float   # 季度销售额
+    quarterly_revenue: float = Field(ge=0)   # 季度销售额
 
 
 class SurtaxIn(BaseModel):
-    vat: float                 # 实缴增值税
+    vat: float = Field(ge=0)   # 实缴增值税
     is_small: bool = True      # 是否小规模纳税人
 
 
 class PitIn(BaseModel):
-    salary: float              # 月工资
-    social_insurance: float = 0
-    special_deduction: float = 0
+    salary: float = Field(ge=0)            # 月工资
+    social_insurance: float = Field(default=0, ge=0)
+    special_deduction: float = Field(default=0, ge=0)
 
 
 class CitIn(BaseModel):
-    annual_income: float       # 年应纳税所得额
+    annual_income: float = Field(ge=0)     # 年应纳税所得额
     is_small: bool = True      # 是否小微企业
 
 
@@ -72,13 +72,13 @@ class PaymentSourceIn(BaseModel):
 
 class StoreModelIn(BaseModel):
     """单店经营模型输入（多业态泛化）"""
-    daily_revenue: float = 0           # 实际日营业额（元）
-    gross_margin: float | None = None  # 毛利率（小数）；None 用业态默认
-    rent: float = 0                    # 月房租
-    salary: float = 0                  # 月人工
-    utilities: float = 0               # 月水电杂费
-    total_investment: float = 0        # 总投资
-    cash_on_hand: float = 0            # 现有现金
+    daily_revenue: float = Field(default=0, ge=0)       # 日营业额（元）
+    gross_margin: float | None = Field(default=None, ge=0)  # 毛利率（小数）；None 用业态默认
+    rent: float = Field(default=0, ge=0)               # 月房租
+    salary: float = Field(default=0, ge=0)             # 月人工
+    utilities: float = Field(default=0, ge=0)          # 月水电杂费
+    total_investment: float = Field(default=0, ge=0)   # 总投资
+    cash_on_hand: float = Field(default=0, ge=0)       # 现有现金
     traffic: str = "一般"              # 商圈客流：差/一般/好
     competitor: str = "一般"           # 周边竞争：多/一般/少
     biz_type: str = "餐饮"             # 业态：餐饮/饮品/零售/生鲜/服务/摆摊
@@ -115,12 +115,12 @@ class StoreProfileIn(BaseModel):
     """单店档案保存（input 直喂 calc_store_model）"""
     name: str = "我的店"
     biz_type: str = "餐饮"
-    gross_margin: float | None = None
-    rent: float = 0
-    salary: float = 0
-    utilities: float = 0
-    total_investment: float = 0
-    cash_on_hand: float = 0
+    gross_margin: float | None = Field(default=None, ge=0)
+    rent: float = Field(default=0, ge=0)
+    salary: float = Field(default=0, ge=0)
+    utilities: float = Field(default=0, ge=0)
+    total_investment: float = Field(default=0, ge=0)
+    cash_on_hand: float = Field(default=0, ge=0)
     traffic: str = "一般"
     competitor: str = "一般"
 
@@ -129,7 +129,7 @@ class BudgetIn(BaseModel):
     """月度预算（亲民：每月计划花/进多少）"""
     month: str                       # YYYY-MM
     scope: str = "expense"           # income / expense
-    amount: float = 0
+    amount: float = Field(default=0, ge=0)
     category: str = ""
     note: str = ""
     bid: int | None = None           # 有值=更新
@@ -139,7 +139,7 @@ class DebtIn(BaseModel):
     """应收应付（亲民：谁欠我钱/我欠谁钱）"""
     party: str = ""
     kind: str = "receivable"         # receivable 应收 / payable 应付
-    amount: float = 0
+    amount: float = Field(default=0, ge=0)
     due_date: str = ""               # YYYY-MM-DD，到期日
     note: str = ""
     did: int | None = None           # 有值=更新
@@ -147,7 +147,7 @@ class DebtIn(BaseModel):
 
 class SettleDebtIn(BaseModel):
     """结清应收应付"""
-    settle_amount: float | None = None   # 默认全额
+    settle_amount: float | None = Field(default=None, ge=0)   # 默认全额
 
 
 class ProductIn(BaseModel):
@@ -155,9 +155,9 @@ class ProductIn(BaseModel):
     name: str
     category: str = ""
     unit: str = ""
-    stock_qty: float = 0
-    safety_stock: float = 0
-    unit_cost: float = 0
+    stock_qty: float = Field(default=0, ge=0)
+    safety_stock: float = Field(default=0, ge=0)
+    unit_cost: float = Field(default=0, ge=0)
     expiry_date: str = ""            # YYYY-MM-DD 保质期
     supplier: str = ""
     note: str = ""
@@ -167,7 +167,7 @@ class ProductIn(BaseModel):
 class StockMoveIn(BaseModel):
     """库存变动（入库/出库/盘点）"""
     movement: str = "in"             # in 入库 / out 出库 / adj 盘点
-    qty: float = 0
+    qty: float = Field(ge=0)         # 数量不允许为负
     note: str = ""
 
 
@@ -176,9 +176,9 @@ class InvoiceIn(BaseModel):
     kind: str = "out"                # out 销项开票 / in 进项收票
     party: str = ""
     invoice_no: str = ""
-    amount: float = 0
-    rate: float = 0
-    tax_amount: float = 0
+    amount: float = Field(ge=0)
+    rate: float = Field(default=0, ge=0)
+    tax_amount: float = Field(default=0, ge=0)
     issued_date: str = ""            # YYYY-MM-DD
     note: str = ""
     iid: int | None = None           # 有值=更新
@@ -186,9 +186,9 @@ class InvoiceIn(BaseModel):
 
 class CashflowIn(BaseModel):
     """现金流滚动预测入参"""
-    cash_on_hand: float = 0
-    months: int = 6
-    safety_buffer: float = 0         # 月均固定成本（用于「不够花」预警）
+    cash_on_hand: float = Field(default=0, ge=0)
+    months: int = Field(default=6, ge=1)
+    safety_buffer: float = Field(default=0, ge=0)   # 月均固定成本（用于「不够花」预警）
 
 
 # ===== 自适应进化层 =====

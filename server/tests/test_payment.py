@@ -122,6 +122,16 @@ class TestBillCsv(unittest.TestCase):
         rows = wechat_pay._parse_csv_text(csv2)
         self.assertEqual(len(rows), 3)
 
+    def test_to_yuan_keeps_integer_yuan(self):
+        """回归：微信账单金额单位是元，整百金额不能当“分”除以 100。
+        100 元 → 100.0（旧逻辑会错成 1.0）"""
+        self.assertEqual(wechat_pay._to_yuan("100"), 100.0)
+        self.assertEqual(wechat_pay._to_yuan("100.00"), 100.0)
+        self.assertEqual(wechat_pay._to_yuan("1,200"), 1200.0)
+        self.assertEqual(wechat_pay._to_yuan("3.50"), 3.5)
+        self.assertEqual(wechat_pay._to_yuan(""), 0.0)
+        self.assertEqual(wechat_pay._to_yuan("abc"), 0.0)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

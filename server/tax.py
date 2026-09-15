@@ -144,9 +144,11 @@ def calc_individual_income_tax(monthly_salary: float, social_insurance: float = 
 
 # ---------------- 企业所得税 ----------------
 def calc_corporate_income_tax(annual_income: float, is_small: bool = True) -> dict:
-    """企业所得税：小微企业按 5%/10% 分段；否则按 25% 标准税率"""
+    """企业所得税：小微企业按 5%/10% 分段（仅限年应纳税所得额≤300万）；
+    超过 300 万或非小微 → 按 25% 标准税率全额计税。"""
     income = max(annual_income or 0, 0)
-    if not is_small:
+    # 小微企业优惠仅适用于年应纳税所得额 ≤ 300 万；超出部分不再适用分段优惠
+    if not is_small or income > CIT_SMALL_INCOME_LIMIT:
         tax = income * CIT_STANDARD_RATE
         return {
             "tax_type": "企业所得税",
@@ -202,7 +204,7 @@ def get_filing_calendar(year: int | None = None, month: int | None = None) -> di
         reminders.append({"tax_type": "企业所得税", "deadline": f"{year}-{month:02d}-{deadline:02d}",
                           "note": "季度预缴申报"})
     if month == FILING_ANNUAL_RECON_MONTH:
-        reminders.append({"tax_type": "企业所得税", "deadline": f"{year}-{month:02d}-{FILING_ANNUAL_RECON_MONTH:02d}-31",
+        reminders.append({"tax_type": "企业所得税", "deadline": f"{year}-{month:02d}-31",
                           "note": "年度汇算清缴截止"})
     return {"year": year, "month": month, "reminders": reminders}
 

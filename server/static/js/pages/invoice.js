@@ -36,7 +36,7 @@ function todayStr() {
 
 async function voidInvoice(iid) {
   if (!confirm('作废这张发票？')) return;
-  try { await api(`/api/invoices/${iid}/void`, 'POST'); await loadInvoices(); }
+  try { await api(`/api/invoices/${iid}/void`, 'POST'); await loadInvoice(); }
   catch (e) { toast(e.message); }
 }
 

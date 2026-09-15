@@ -67,12 +67,18 @@ def delete_product(pid: int) -> bool:
 
 # ---------------- 库存变动（入库 / 出库 / 盘点） ----------------
 def move_stock(pid: int, movement_type: str, qty: float, note: str = ""):
-    """入库(in)/出库(out)/盘点(adj) 并自动更新库存；返回最新库存量"""
+    """入库(in)/出库(out)/盘点(adj) 并自动更新库存；返回最新库存量
+    防御性校验：qty 必须 ≥0，否则视为非法输入直接拒绝。"""
+    try:
+        qty = float(qty)
+    except (TypeError, ValueError):
+        return None
+    if qty < 0:
+        return None
     with _conn() as conn:
         row = conn.execute("SELECT * FROM products WHERE id=?", (pid,)).fetchone()
         if not row:
             return None
-        qty = float(qty)
         cur_qty = float(row["stock_qty"] or 0)
         if movement_type == "in":
             new_qty = cur_qty + qty

@@ -84,7 +84,7 @@ function renderFinance() {
     ${fn.aging && fn.aging.flags.length ? `
     <div class="card">
       <div class="card-title">⏰ 该催/该还的</div>
-      ${fn.aging.flags.map(f => `<div class="note warn">${esc(f)}</div>`).join('')}
+      ${fn.aging.flags.map(f => `<div class="note warn-box">${esc(f)}</div>`).join('')}
     </div>` : ''}
     <div class="card">
       <div class="card-title">记一笔赊账</div>

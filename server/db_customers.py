@@ -46,8 +46,13 @@ def find_or_create_customer(name, phone="", tags="", favorite=""):
             (name, phone)).fetchone()
         if row:
             cid = row["id"]
-            if favorite:
-                conn.execute("UPDATE customers SET favorite=?, last_visit=datetime('now','localtime') WHERE id=?", (favorite, cid))
+            # 已存在客户：更新 favorite / last_visit，并把新标签合并进旧标签（避免静默丢失）
+            new_tags = ",".join(dict.fromkeys(
+                (row["tags"] or "").split(",") + (tags or "").split(","))).strip(",")
+            conn.execute(
+                "UPDATE customers SET favorite=COALESCE(?, favorite), tags=?, "
+                "last_visit=datetime('now','localtime') WHERE id=?",
+                (favorite or None, new_tags, cid))
             return cid, False
         cur = conn.execute(
             "INSERT INTO customers(name, phone, tags, favorite, last_visit) VALUES(?,?,?,?,datetime('now','localtime'))",

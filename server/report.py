@@ -2,6 +2,7 @@
 基于 openpyxl 输出：收支汇总 + 分类明细 + 交易流水 三个工作表。
 """
 import os
+import re
 from datetime import date
 from pathlib import Path
 
@@ -14,6 +15,23 @@ try:
     OPENPYXL_OK = True
 except ImportError:  # pragma: no cover
     OPENPYXL_OK = False
+
+
+# Excel 公式注入防护 + 非法控制字符清洗
+_CTRL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+_INJECT_PREFIX = ("=", "+", "-", "@")
+
+
+def _clean_cell(v):
+    """清洗写入 Excel 的文本：去掉控制字符（否则 openpyxl 抛 IllegalCharacterError）；
+    以 = + - @ 开头的字符串前置单引号，防止被 Excel 当作公式执行（公式注入）。"""
+    if v is None:
+        return v
+    s = str(v)
+    s = _CTRL_CHARS_RE.sub("", s)
+    if s and s[0] in _INJECT_PREFIX:
+        s = "'" + s
+    return s
 
 
 def get_monthly_report(year: int | None = None, month: int | None = None,
@@ -90,14 +108,17 @@ def get_monthly_report(year: int | None = None, month: int | None = None,
         cell.fill = head_fill
     for t in txns:
         ws3.append([
-            (t["created_at"] or "")[:10], t.get("customer_name") or "",
-            t["item"], "收入" if t["trans_type"] == "income" else "支出",
-            t["friendly"], t["amount"], t.get("counterparty") or "", t.get("note") or "",
+            _clean_cell((t["created_at"] or "")[:10]), _clean_cell(t.get("customer_name") or ""),
+            _clean_cell(t["item"]), "收入" if t["trans_type"] == "income" else "支出",
+            _clean_cell(t["friendly"]), t["amount"], _clean_cell(t.get("counterparty") or ""),
+            _clean_cell(t.get("note") or ""),
         ])
     for row in ws3.iter_rows(min_row=4, max_row=ws3.max_row, min_col=1, max_col=8):
         for cell in row:
             cell.border = border
 
+    # 列宽（跳过合并单元格）
+    from openpyxl.utils import get_column_letter
     # 列宽（跳过合并单元格）
     from openpyxl.utils import get_column_letter
     for ws_ in (ws, ws2, ws3):
@@ -120,4 +141,6 @@ def get_monthly_report(year: int | None = None, month: int | None = None,
     except Exception:
         tmp.unlink(missing_ok=True)
         raise
-    return {"status": "ok", "file": str(out_path), "year": year, "month": month}
+    truncated = len(txns) >= 1000
+    return {"status": "ok", "file": str(out_path), "year": year, "month": month,
+            "truncated": truncated}

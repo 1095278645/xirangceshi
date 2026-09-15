@@ -80,7 +80,8 @@ def forecast_cashflow(
     today = date.today()
     cur = start_month or month_key(today)
 
-    balance = _f(cash_on_hand)
+    initial_cash = _f(cash_on_hand)
+    balance = initial_cash
     rows = []
     for i in range(max(1, int(months))):
         m = shift_month(cur, i)
@@ -128,7 +129,7 @@ def forecast_cashflow(
 
     return {
         "start_month": cur,
-        "start_cash": round(balance - rows[0]["net"] if rows else balance, 2),
+        "start_cash": round(initial_cash, 2),
         "months": rows,
         "flags": flags,
         "summary": summary,

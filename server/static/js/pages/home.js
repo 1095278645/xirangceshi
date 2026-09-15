@@ -14,6 +14,7 @@ async function submitOrder(text) {
     state.friendlyCategory = res.friendly_category;
     state.summary = res.summary;
     if (res.amount_missing) toast('金额没听清，只记了流水');
+    if (res.safety_warning) toast('⚠️ ' + res.safety_warning.message);
   } catch (e) {
     toast(e.message);
   } finally {

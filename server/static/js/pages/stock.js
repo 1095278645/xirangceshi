@@ -44,6 +44,16 @@ function promptMove(pid, name, type) {
   doMove(pid, type, n);
 }
 
+// 事件委托：库存行的 进/出/盘/删 按钮（避免把用户数据拼进内联 onclick 造成 XSS）
+document.addEventListener('click', function (e) {
+  const btn = e.target.closest('[data-stock-act]');
+  if (!btn) return;
+  const act = btn.getAttribute('data-stock-act');
+  const pid = Number(btn.getAttribute('data-pid'));
+  if (act === 'del') { deleteProduct(pid); return; }
+  promptMove(pid, btn.getAttribute('data-name') || '', act);
+});
+
 async function doMove(pid, movement, qty) {
   try {
     await api(`/api/products/${pid}/move`, 'POST', { movement, qty, note: '' });
@@ -75,10 +85,10 @@ function renderStock() {
           </div>
           <div class="txn-amount ${over(p) ? 'expense' : ''}">${fmt(p.stock_qty)}${esc(p.unit || '')}</div>
           <div class="pay-row-actions">
-            <button class="btn-mini" onclick="promptMove(${p.id},'${esc(p.name)}','in')">进</button>
-            <button class="btn-mini" onclick="promptMove(${p.id},'${esc(p.name)}','out')">出</button>
-            <button class="btn-mini" onclick="promptMove(${p.id},'${esc(p.name)}','adj')">盘</button>
-            <button class="btn-mini btn-danger" onclick="deleteProduct(${p.id})">删</button>
+            <button class="btn-mini" data-stock-act="in" data-pid="${p.id}" data-name="${esc(p.name)}">进</button>
+            <button class="btn-mini" data-stock-act="out" data-pid="${p.id}" data-name="${esc(p.name)}">出</button>
+            <button class="btn-mini" data-stock-act="adj" data-pid="${p.id}" data-name="${esc(p.name)}">盘</button>
+            <button class="btn-mini btn-danger" data-stock-act="del" data-pid="${p.id}">删</button>
           </div>
         </div>`;
       }).join('');

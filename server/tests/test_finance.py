@@ -28,6 +28,13 @@ class TestForecastEngine(unittest.TestCase):
         self.assertTrue(all(m["safe"] for m in r["months"]))
         self.assertIn("现金流是稳的", r["summary"])
 
+    def test_start_cash_is_input_cash(self):
+        """回归：start_cash 必须是入参期初现金，不能被循环后的 balance 污染。"""
+        r = forecast_cashflow(cash_on_hand=1000, base_income=500,
+                              base_expense=300, months=3)
+        self.assertEqual(r["start_cash"], 1000)
+        self.assertEqual(r["months"][0]["end_balance"], 1200)
+
     def test_danger_forecast(self):
         r = forecast_cashflow(cash_on_hand=500, base_income=1000,
                               base_expense=2000, months=3)
