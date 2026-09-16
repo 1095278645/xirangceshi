@@ -180,14 +180,31 @@ def trial_balance(period: str | None = None, opening: bool = True,
         })
 
     # 借贷平衡自检：所有科目净额之和应为 0（复式记账的必然结果）
-    net_sum = round(sum(x["closing"] for x in lines), 2)
+    #
+    # 但**期初余额**是个例外：它按科目逐个录入，只录了资产（现金/存款）而没录
+    # 对应来源时，净额之和会是"期初净额"而非 0。资产负债表对这种"业主投入"
+    # 会显式补一行权益，所以那里是平的；余额表若还照搬 net_sum == 0，
+    # 同一份数据会出现"资产负债表平衡、余额表不平衡"的自相矛盾（实测：
+    # 录入期初银行存款 20000 后，资产负债表平衡而余额表报不平衡）。
+    # 因此这里把两种口径分开：balanced 只管**凭证本身**是否平衡，
+    # 期初带来的差额单独用 opening_gap 说明。
+    opening_gap = round(sum(
+        float(ob.get("amount") or 0) *
+        (1 if (_BY_CODE.get(ob["account_code"]) or {}).get("direction", 1) > 0 else -1)
+        for ob in (list_opening_balances() if opening else [])))
+    net_sum = round(sum(x["closing"] for x in lines) - opening_gap, 2)
+    balanced = abs(total_debit - total_credit) < 0.01 and abs(net_sum) < 0.01
     return {
         "period": period or "全部",
         "lines": lines,
         "total_debit": round(total_debit, 2),
         "total_credit": round(total_credit, 2),
-        "balanced": abs(total_debit - total_credit) < 0.01 and abs(net_sum) < 0.01,
+        "balanced": balanced,
         "net_sum": net_sum,
+        "opening_gap": opening_gap,
+        "note": ("借贷平衡" if balanced else "凭证借贷不平，请检查凭证")
+                + (f"；期初余额净额 {opening_gap:,.2f} 元来自业主投入（已在资产负债表"
+                   f"按「实收资本（期初投入）」列示）" if abs(opening_gap) > 0.01 else ""),
     }
 
 

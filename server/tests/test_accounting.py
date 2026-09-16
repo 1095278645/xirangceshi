@@ -56,6 +56,38 @@ class TestAccounting(unittest.TestCase):
         self.assertAlmostEqual(tb["total_debit"], tb["total_credit"], places=2)
         self.assertAlmostEqual(tb["net_sum"], 0, places=2)
 
+    def test_one_sided_opening_balance_does_not_fake_imbalance(self):
+        """只录了期初资产（没录来源）时，余额表不能报"借贷不平衡"。
+
+        期初余额是按科目逐个录入的：店主把"开业时银行里有 2 万"录进去，
+        会计上对应的是业主投入（权益），但凭证里没有这笔。资产负债表会显式
+        补一行「实收资本（期初投入）」所以是平的；余额表早期直接要求
+        net_sum == 0，于是同一份数据出现"资产负债表平衡、余额表不平衡"的
+        自相矛盾。现在两种口径分开：balanced 只管凭证，期初差额用 opening_gap 说明。
+        """
+        self._seed()
+        accounting.set_opening_balance("100201", 20000, "开业存入银行")
+        tb = accounting.trial_balance(PERIOD)
+        self.assertTrue(tb["balanced"],
+                        f"凭证本身是平的，不该报不平衡：net_sum={tb['net_sum']}")
+        self.assertAlmostEqual(tb["net_sum"], 0, places=2)
+        self.assertAlmostEqual(tb["opening_gap"], 20000, places=2)
+        self.assertIn("期初", tb["note"])
+        # 同一份数据下资产负债表也必须平衡 —— 两张表不能互相打架
+        bs = accounting.balance_sheet()
+        self.assertTrue(bs["balanced"],
+                        f"资产 {bs['total_assets']} vs 负债+权益 "
+                        f"{bs['liabilities_and_equity']}")
+
+    def test_opening_balance_without_opening_flag_is_ignored(self):
+        """opening=False 时不该把期初算进期末净额（结转流程依赖这一点）。"""
+        self._seed()
+        accounting.set_opening_balance("100201", 20000)
+        tb = accounting.trial_balance(PERIOD, opening=False)
+        by = {x["account_code"]: x for x in tb["lines"]}
+        self.assertAlmostEqual(by["100201"]["closing"], -60, places=2)
+        self.assertAlmostEqual(tb["opening_gap"], 0, places=2)
+
     def test_trial_balance_lines(self):
         self._seed()
         tb = accounting.trial_balance(PERIOD)
