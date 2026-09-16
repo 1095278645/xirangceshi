@@ -214,6 +214,58 @@ class TestVoucherConcurrency(unittest.TestCase):
                 (f"{base}{nxt:04d}", "2099-11-01", "第1000号"))
             self.assertEqual(f"{base}{nxt:04d}", f"{base}1000")
 
+    def test_unmapped_category_warns_instead_of_silent_fallback(self):
+        """回归：分类无科目映射时必须告警，而不是静默落到兜底科目。
+
+        背景：科目映射表只登记了部分分类。直接写库（种子脚本 / 历史数据）
+        不经过记账接口的 is_known_category 校验，未映射分类会被兜底到
+        「主营业务收入 / 办公费」—— 实测「房租」6000 元被记成
+        「管理费用-办公费」，账本页显示的品类与凭证科目一起错，店主看不出。
+        记账接口侧有前置校验，所以这里只需保证**留痕**便于排查。
+        """
+        import logging
+        records = []
+
+        class _Cap(logging.Handler):
+            def emit(self, record):
+                records.append(record.getMessage())
+
+        logger = logging.getLogger("db_ledger")
+        handler = _Cap()
+        logger.addHandler(handler)
+        old_level = logger.level
+        logger.setLevel(logging.WARNING)
+        try:
+            with db.get_conn() as conn:
+                db.add_transaction(None, "交房租", 6000, "expense", "不存在的分类")
+            self.assertTrue(records, "未映射分类应当产生告警")
+            self.assertIn("无科目映射", records[0])
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(old_level)
+
+    def test_mapped_category_no_warning(self):
+        """对照：合法分类不应产生告警（避免告警噪音）。"""
+        import logging
+        records = []
+
+        class _Cap(logging.Handler):
+            def emit(self, record):
+                records.append(record.getMessage())
+
+        logger = logging.getLogger("db_ledger")
+        handler = _Cap()
+        logger.addHandler(handler)
+        old_level = logger.level
+        logger.setLevel(logging.WARNING)
+        try:
+            with db.get_conn() as conn:
+                db.add_transaction(None, "门店房租", 6000, "expense", "租赁及物业费")
+            self.assertEqual(records, [], f"合法分类不该告警：{records}")
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(old_level)
+
     def test_monthly_friendly_names(self):
         m = db.monthly_summary()
         for c in m["categories"]:

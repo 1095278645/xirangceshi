@@ -3,10 +3,13 @@
 从 db.py 拆分而来，保持 `import db; db.add_transaction()` 等调用不变。
 连接统一走 db.py 的 get_conn（惰性导入避免循环依赖）。
 """
+import logging
 import sqlite3
 from datetime import date
 
 from categories import CATEGORY_TO_ACCOUNTS, ACCOUNT_NAMES, FRIENDLY_NAMES
+
+log = logging.getLogger("db_ledger")
 
 __all__ = [
     "add_transaction", "_auto_voucher", "list_vouchers",
@@ -40,7 +43,12 @@ def _auto_voucher(conn, txn_id, amount, trans_type, category, summary, counterpa
     """自动生成借贷凭证：借/贷两条分录，保证借贷平衡"""
     mapping = CATEGORY_TO_ACCOUNTS.get(category)
     if not mapping:
-        # 未知分类：兜底走主营业务收入或办公费
+        # 未知分类：兜底走主营业务收入或办公费，但**必须留痕** ——
+        # 静默兜底会让账本品类与凭证科目对不上（实测「房租」被记成
+        # 管理费用-办公费，店主自己看不出错）。记账接口有 is_known_category
+        # 做前置校验，能走到这里的是直接写库或历史数据，点名报出来便于排查。
+        log.warning("分类 %r 无科目映射，凭证已兜底到 %s（账本品类与科目可能不符）",
+                    category, "主营业务收入" if trans_type == "income" else "办公费")
         mapping = CATEGORY_TO_ACCOUNTS["主营业务收入"] if trans_type == "income" else CATEGORY_TO_ACCOUNTS["办公费"]
     debit_code, credit_code, _friendly = mapping
 

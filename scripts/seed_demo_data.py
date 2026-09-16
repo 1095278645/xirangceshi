@@ -91,10 +91,16 @@ CUSTOMER_BASKET = {
 }
 
 INCOME_CATEGORY = "主营业务收入"
+# 支出分类**必须用 CATEGORY_TO_ACCOUNTS 里登记的规范名**，否则：
+#   1) 账本页显示的品类是自造名（与科目表对不上）
+#   2) 自动凭证会落到兜底科目 —— 实测「房租」会被记成「管理费用-办公费」
+# 规范名对照：房租 → 租赁及物业费；水电费 → 租赁及物业费；
+#             工资 → 职工薪酬；日常耗材 → 办公费
 COST_ITEMS = [("面粉和猪肉", "进货"), ("大豆和食用油", "进货"), ("蔬菜和调料", "进货"),
               ("一次性餐具和包装", "进货"), ("冷冻半成品", "进货"), ("鸡蛋和豆制品", "进货")]
 MISC_ITEMS = [("清洁用品", "办公费"), ("餐巾纸和打包袋", "办公费"),
               ("一次性手套", "办公费"), ("洗洁精和抹布", "办公费")]
+FIXED_ITEMS = [("门店房租", "租赁及物业费"), ("水电杂费", "租赁及物业费")]
 
 PRICE = {name: price for name, price, _w in MENU}
 WEIGHTS = [w for _n, _p, w in MENU]
@@ -126,6 +132,28 @@ def _backdate(txn_id, d: date, hour: int, minute: int):
     with db.get_conn() as conn:
         conn.execute("UPDATE transactions SET created_at=? WHERE id=?",
                      (f"{d.isoformat()} {hour:02d}:{minute:02d}:00", txn_id))
+
+
+def _assert_categories_valid():
+    """写入前校验分类名都在科目映射表里。
+
+    为什么必须卡这一关：直接写库（本脚本）不经过记账接口的
+    is_known_category 兜底修正，无效分类会被静默落到兜底科目 ——
+    实测「房租」会被自动凭证记成「管理费用-办公费」，账本页与凭证一起错。
+    """
+    from categories import CATEGORY_TO_ACCOUNTS
+
+    used = {INCOME_CATEGORY}
+    used |= {c for _i, c in COST_ITEMS}
+    used |= {c for _i, c in MISC_ITEMS}
+    used |= {c for _i, c in FIXED_ITEMS}
+    bad = sorted(c for c in used if c not in CATEGORY_TO_ACCOUNTS)
+    if bad:
+        raise SystemExit(
+            f"❌ 分类名无效（不在科目映射表中）：{bad}\n"
+            f"   可用分类：{sorted(CATEGORY_TO_ACCOUNTS)}\n"
+            f"   否则账本品类与自动凭证都会落到兜底科目。")
+    print(f"  分类校验通过（{len(used)} 个分类均在科目映射表中）")
 
 
 def _guard_repeat():
@@ -223,8 +251,8 @@ def seed_transactions(ids):
 
     # ---- 固定成本：房租月初、水电月中（都落在当月内）----
     mid = MONTH_START + timedelta(days=min(14, max(DAYS - 1, 0)))
-    for cat, item, amt, day in (("房租", "门店房租", RENT, MONTH_START),
-                                ("水电费", "水电杂费", UTILITIES, mid)):
+    for (item, cat), day in zip(FIXED_ITEMS, (MONTH_START, mid)):
+        amt = RENT if day == MONTH_START else UTILITIES
         txn_id, _ = db.add_transaction(None, item, amt, "expense", cat,
                                        note="[演示] 固定成本")
         _backdate(txn_id, day, 9, 0)
@@ -307,6 +335,28 @@ def report():
         else:
             print("    ✅ 与模型月利润量级一致，洞察结论不会自相矛盾")
 
+    # --- 分类是否都有科目映射（否则账本品类与凭证科目都会错）---
+    from categories import CATEGORY_TO_ACCOUNTS
+    with db.get_conn() as conn:
+        cats = [r[0] for r in conn.execute(
+            "SELECT DISTINCT category FROM transactions").fetchall() if r[0]]
+    unmapped = sorted(c for c in cats if c not in CATEGORY_TO_ACCOUNTS)
+    print(f"  账本品类：{cats}")
+    if unmapped:
+        print(f"    ❌ 无科目映射（会自动落到兜底科目）：{unmapped}")
+    else:
+        print("    ✅ 全部品类都有对应会计科目")
+
+    # --- 固定成本科目是否正确落在「租赁及物业费」---
+    with db.get_conn() as conn:
+        rent_rows = conn.execute(
+            "SELECT item, category, amount FROM transactions "
+            "WHERE item IN ('门店房租','水电杂费')").fetchall()
+    for r in rent_rows:
+        ok = r["category"] == "租赁及物业费"
+        print(f"  {r['item']} {r['amount']:,.0f} 元 -> 分类 {r['category']} "
+              f"{'✅' if ok else '❌ 应落在 租赁及物业费'}")
+
     # --- 熟客 ---
     print(f"  熟客 {len(customers)} 人，"
           f"消费记录共 {sum(c['order_count'] for c in customers)} 笔")
@@ -333,6 +383,7 @@ if __name__ == "__main__":
     if not _guard_repeat():
         sys.exit(1)
     print(f"生成演示数据（{MONTH_START} ~ {TODAY}，共 {DAYS} 天）：")
+    _assert_categories_valid()
     _ids = seed_customers()
     seed_transactions(_ids)
     seed_reminders(_ids)
