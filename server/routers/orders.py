@@ -21,6 +21,10 @@ def create_order(data: OrderIn):
     幽灵记录 —— 店主当天发现不了，月底对不上账也查不出来源。
     现在改为返回 amount_missing + draft（草稿字段），由界面追问"这笔多少钱"，
     用户补上金额后再记一次。熟客仍然照常归档（这一步没有副作用，且补记时要用）。
+
+    **一句话多笔**：店主常说"今天收入1250，支出320"这种一句两笔。以前要么把
+    两笔加成一个数、要么只记第一笔（实测 8 条多笔用例 0 通过）。现在解析层会
+    给出 transactions 列表，这里**逐笔记账**（各自生成凭证），并返回 recorded_list。
     """
     # 补记路径：界面把 AI 已解析的字段（item/category）连同金额一起带回来时，
     # 直接采信这些字段，**不再调一次 AI** —— 既省一次调用，也保证补记的科目与
@@ -39,6 +43,12 @@ def create_order(data: OrderIn):
         }
     else:
         parsed = ai.parse_transaction(data.text)
+
+    # 一句话多笔：逐笔记账（见函数 docstring）
+    subs = parsed.get("transactions") or []
+    if len(subs) >= 2:
+        return _record_multi(parsed, subs, data.text)
+
     customer = data.customer or parsed.get("customer", "")
     cid = None
     is_new = False
@@ -115,10 +125,106 @@ def create_order(data: OrderIn):
         "summary": db.today_summary(), "safety_warning": safety_warning,
     }
 
+
+def _record_multi(parsed: dict, subs: list[dict], text: str) -> dict:
+    """一句话里有多笔：逐笔记账，各自生成凭证。
+
+    取舍说明：
+      - 每笔的熟客各自 find_or_create（"刘姐9块，赵姐15块"是两个人）；
+      - 分类逐笔归一 + 关键词兜底（不能用整句去兜底，否则两笔会串科目）；
+      - **只要有一笔没听出金额就整句都不落库**，把缺的那几笔列出来让店主补。
+        理由是"记一半"最坑：店主以为记完了，其实少一笔，月底对不上账。
+        返回 missing 列表，界面一次问全。
+      - 顶层 recorded 取第一笔，保证老前端不改也能显示一条；
+        新前端读 recorded_list 展示全部（每条都能就地更正）。
+    """
+    missing = [s for s in subs if not s.get("amount")]
+    if missing:
+        log.info("多笔中有 %s 笔缺金额，未落库：text=%r", len(missing), text)
+        return {
+            "order_id": None,
+            "parsed": parsed,
+            "customer_id": None,
+            "customer_new": False,
+            "amount_missing": True,
+            "multi": True,
+            "missing": [
+                {"item": s.get("item", "") or text,
+                 "customer": s.get("customer", ""),
+                 "trans_type": s.get("trans_type", "income"),
+                 "category": s.get("category", "")}
+                for s in missing],
+            "subs": subs,
+            "draft": {
+                "text": text,
+                "item": (missing[0].get("item") or text),
+                "customer": missing[0].get("customer", ""),
+                "trans_type": missing[0].get("trans_type", "income"),
+                "category": missing[0].get("category", ""),
+                "note": "",
+            },
+            "voucher": None,
+            "friendly_category": db.FRIENDLY_NAMES.get(
+                missing[0].get("category", ""), missing[0].get("category", "")),
+            "summary": db.today_summary(),
+            "safety_warning": f"这句话里听出 {len(subs)} 笔，其中 "
+                              f"{len(missing)} 笔没说金额 —— 都没记账，补上金额我再记",
+        }
+
+    recorded_list = []
+    for sub in subs:
+        cust = (sub.get("customer") or "").strip()
+        cid = None
+        if cust:
+            cid, _is_new = db.find_or_create_customer(
+                cust, tags="", favorite=sub.get("item", ""), set_favorite=False)
+        raw_cat = (sub.get("category") or "").strip()
+        category = normalize_category(raw_cat)
+        ttype = sub.get("trans_type") or "income"
+        if not category:
+            # 用这一笔自己的文本兜底，不要用整句（整句会把两笔的科目混起来）
+            category, ttype2 = db.detect_category(
+                f"{sub.get('item', '')} {raw_cat}".strip() or text)
+            if ttype not in ("income", "expense"):
+                ttype = ttype2
+        tid, voucher = db.add_transaction(
+            cid, sub.get("item", "") or text, sub["amount"],
+            trans_type=ttype, category=category,
+            counterparty=cust, note=sub.get("note", ""))
+        recorded_list.append({
+            "transaction_id": tid,
+            "amount": sub["amount"],
+            "trans_type": ttype,
+            "category": category,
+            "friendly_category": db.FRIENDLY_NAMES.get(category, category),
+            "item": sub.get("item", "") or text,
+            "customer": cust,
+            "voucher_no": (voucher or {}).get("voucher_no") if voucher else None,
+            "category_normalized": bool(raw_cat and raw_cat != category),
+            "raw_category": raw_cat,
+        })
+
+    log.info("order created（多笔 %s 条）：text=%r", len(recorded_list), text)
+    first = recorded_list[0]
+    return {
+        "order_id": first["transaction_id"],
+        "parsed": parsed,
+        "customer_id": None,
+        "customer_new": False,
+        "amount_missing": False,
+        "voucher": None,
+        "multi": True,
+        "recorded": first,               # 向后兼容：老前端至少显示第一笔
+        "recorded_list": recorded_list,  # 新前端：逐条展示与更正
+        "friendly_category": first["friendly_category"],
+        "summary": db.today_summary(),
+        "safety_warning": f"这句话里听出 {len(recorded_list)} 笔，都记上了，请核一下",
+    }
+
+
 @router.get("/orders/today")
 def orders_today():
     return db.today_summary()
-
 @router.get("/orders/monthly")
 def orders_monthly(year: int | None = None, month: int | None = None):
     return db.monthly_summary(year, month)

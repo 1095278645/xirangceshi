@@ -90,8 +90,24 @@
 
   <!-- 缺金额：不落库，当场追问（旧版会留一条 0 元幽灵记录，没人会发现） -->
   <view class="card ask-card" wx:if="{{amountDraft}}">
-    <view class="card-title">这笔多少钱？</view>
-    <view class="ask-why">这句话里没听出金额，<text class="ask-strong">没有记进账本</text>——补上我就记。</view>
+    <view class="card-title">
+      {{amountMissing.length > 1 ? '有 ' + amountMissing.length + ' 笔没说金额' : '这笔多少钱？'}}
+    </view>
+    <view class="ask-why">
+      <block wx:if="{{amountMissing.length}}">
+        这句话里听出好几笔，其中以下几笔没听出金额，<text class="ask-strong">一笔都没记</text>——
+      </block>
+      <block wx:else>
+        这句话里没听出金额，<text class="ask-strong">没有记进账本</text>——
+      </block>
+      补上我就记。
+    </view>
+    <!-- 多笔缺金额：先把缺的列清楚，界面上按第一笔追问 -->
+    <view class="ask-missing" wx:if="{{amountMissing.length}}">
+      <view class="ask-missing-item" wx:for="{{amountMissing}}" wx:key="index">
+        · {{item.item}}（{{item.customer || '散客'}}，{{item.trans_type === 'income' ? '收入' : '支出'}}）
+      </view>
+    </view>
     <view class="parsed-grid">
       <view class="parsed-item">
         <text class="parsed-label">顾客</text>
@@ -151,22 +167,26 @@
   </view>
 
   <!-- 我这么理解的，对吗？—— AI 理解错了当场就能改，不用等到月底对账 -->
-  <view class="card recorded-card" wx:if="{{recorded}}">
-    <view class="card-title">我这么记的，对吗？</view>
-    <view class="rec-line">
-      <text class="rec-amount {{recorded.trans_type === 'income' ? 'in' : 'out'}}">
-        {{recorded.trans_type === 'income' ? '+' : '-'}}{{recorded.amount}}
-      </text>
-      <text class="rec-item">{{recorded.item}}</text>
+  <view class="card recorded-card" wx:if="{{recordedList.length}}">
+    <view class="card-title">
+      {{multi ? '这句话我听出 ' + recordedList.length + ' 笔，对吗？' : '我这么记的，对吗？'}}
     </view>
-    <view class="rec-meta">
-      {{recorded.customer || '散客'}} · {{recorded.friendly_category || recorded.category}}
-      <text wx:if="{{recorded.category_normalized}}" class="rec-note">
-        （原话是「{{recorded.raw_category}}」，已归到「{{recorded.category}}」）
-      </text>
-    </view>
-    <view class="rec-actions">
-      <view class="rec-fix" bindtap="fixRecorded">记错了？点这里改</view>
+    <view class="rec-item-row" wx:for="{{recordedList}}" wx:key="transaction_id">
+      <view class="rec-line">
+        <text class="rec-amount {{item.trans_type === 'income' ? 'in' : 'out'}}">
+          {{item.trans_type === 'income' ? '+' : '-'}}{{item.amount}}
+        </text>
+        <text class="rec-item">{{item.item}}</text>
+      </view>
+      <view class="rec-meta">
+        {{item.customer || '散客'}} · {{item.friendly_category || item.category}}
+        <text wx:if="{{item.category_normalized}}" class="rec-note">
+          （原话是「{{item.raw_category}}」，已归到「{{item.category}}」）
+        </text>
+      </view>
+      <view class="rec-actions">
+        <view class="rec-fix" data-index="{{index}}" bindtap="fixRecorded">这条记错了？改</view>
+      </view>
     </view>
   </view>
 

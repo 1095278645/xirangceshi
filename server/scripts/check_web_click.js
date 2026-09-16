@@ -289,6 +289,31 @@ async function main() {
     check('快照接口按域返回事实', snapApi && snapApi.money && snapApi.customers,
           Object.keys(snapApi || {}).join(','));
 
+    // ---------- 0c. 一句话多笔 ----------
+    console.log('\n== 0c. 一句话多笔（真模型解析） ==');
+    const cntOf2 = 'api("/api/orders/today").then(r => r.cnt)';
+    const beforeMulti = await cdp.eval(`(async () => ${cntOf2})()`);
+    // 这句是店主真会说的说法：一收一支两笔
+    await cdp.eval(`submitOrder('今天收入1250，支出320')`, true, 90000);
+    await waitFor(cdp, 'state.recordedList && state.recordedList.length >= 2',
+                  '多笔被逐条识别', 90000);
+    const list = await cdp.eval('state.recordedList');
+    check('一句两笔被识别成两条（不是加总成一条）', list.length === 2, `识别出 ${list.length} 条`);
+    const amts = list.map(x => x.amount).sort((a, b) => a - b);
+    check('两条金额分别是 320 和 1250（没有被加成 1570）',
+          Math.abs(amts[0] - 320) < 0.01 && Math.abs(amts[1] - 1250) < 0.01,
+          JSON.stringify(amts));
+    const dirs = list.map(x => x.trans_type).sort();
+    check('一收一支方向正确', dirs.join(',') === 'expense,income', dirs.join(','));
+    const afterMulti = await cdp.eval(`(async () => ${cntOf2})()`);
+    check('两笔都真的落库了（今日笔数 +2）', afterMulti === beforeMulti + 2,
+          `${beforeMulti} → ${afterMulti}`);
+    check('页面上出现「这句话我听出 2 笔」提示',
+          (await cdp.eval('document.body.innerText')).includes('我听出 2 笔'));
+    check('每条都有自己的「改」入口',
+          (await cdp.eval('document.querySelectorAll(".rec-item-row").length')) === 2,
+          String(await cdp.eval('document.querySelectorAll(".rec-item-row").length')));
+
     // ---------- 1. 收款页 ----------
     console.log('\n== 1. 收款页（生成收款码 → 一键入账）==');
     await cdp.eval('go("collect")');

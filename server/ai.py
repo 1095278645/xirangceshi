@@ -160,13 +160,26 @@ def parse_transaction(text: str) -> dict:
         "customer(顾客称呼,没有则空串)、item(买的东西/事由)、amount(金额,数字,没提到则null)、\n"
         "trans_type(\"income\"收入或\"expense\"支出，判断这笔钱是收进还是花出)、\n"
         "category(分类，从下面选一个最贴切的：主营业务收入/其他收入/进货/办公费/业务招待费/快递物流费/"
-        "租赁及物业费/差旅费/车辆使用费/广告宣传费/软件服务费/培训费/工资)、\n"
+        "租赁及物业费/差旅费/车辆使用费/广告宣传费/软件服务费/培训费/职工薪酬)、\n"
         "note(补充说明)、tags(适合给客户打的标签数组，没有则空数组)。\n"
+        "**判断方向的关键**：说话的人是**店主**，他在讲店里刚发生的事。\n"
+        "· \"某某吃了/拿了/要了/带走…\"→ 是**顾客消费**，店主收钱，所以是 income；\n"
+        "  不要因为出现\"吃\"\"买\"就判成支出 —— 那是顾客在买，不是店主在买。\n"
+        "· \"买了/进了/交了/花了/发了…\"且主语是店主或店里 → 才是 expense。\n"
+        "· 存疑时按店铺视角（收入优先），拿不准就用 income。\n"
+        "另外要留意**一句话里说了好几件事**的情况（店主常这么讲）：\n"
+        "· 如果这句话包含**两笔或更多互不相干的收支**（不同的人、不同的东西、"
+        "或一收一支），用 transactions 字段逐笔列出，每笔都要有 item/amount/trans_type/category；\n"
+        "· **绝对不要把几笔的钱加在一起**当一个金额（\"收了50，又收了80\"是两笔，不是130）；\n"
+        "· 也**不要只取第一笔**把其余丢掉；\n"
+        "· 只有一笔（或同一笔的不同部分，如\"两个肉包一杯豆浆6块\"）时，transactions 留空数组，"
+        "照常填上面的单笔字段。\n"
         f"店主说：{text}"
     )
     try:
         out = _extract_json(chat([{"role": "user", "content": prompt}], temperature=0.1))
-        return {
+        subs = _normalize_sub_transactions(out.get("transactions"))
+        result = {
             "customer": out.get("customer", ""),
             "item": out.get("item", ""),
             "amount": out.get("amount"),
@@ -175,10 +188,66 @@ def parse_transaction(text: str) -> dict:
             "category": out.get("category", ""),
             "trans_type": out.get("trans_type", "income"),
         }
+        if subs:
+            # 多笔时，顶层字段对齐第一笔，老调用方（只读 amount/customer）仍能用
+            first = subs[0]
+            result["transactions"] = subs
+            result["amount"] = first["amount"]
+            result["trans_type"] = first["trans_type"]
+            result["category"] = first["category"] or result["category"]
+            result["item"] = first["item"] or result["item"]
+            result["customer"] = first["customer"] or result["customer"]
+        return result
     except Exception:
         category, trans_type = detect_category(text)
         return {"customer": "", "item": text, "amount": None, "note": "",
                 "tags": "", "category": category, "trans_type": trans_type}
+
+
+def _normalize_sub_transactions(raw) -> list[dict]:
+    """把模型给的 transactions 洗干净。
+
+    两条规矩：
+      1. **金额无法解析的笔要保留**（amount 置 None），不要丢掉 ——
+         丢掉等于"店主说了两笔、系统只记一笔"且不吭声。保留它会让上层走
+         "缺金额追问"，店主当场补上。
+      2. 只有一笔时不算多笔，交回单笔路径（避免前端多套一层列表，也让
+         "子笔没金额"能落到单笔的追问流程上）。
+    """
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for it in raw:
+        if not isinstance(it, dict):
+            continue
+        raw_amt = it.get("amount")
+        if raw_amt is None or (isinstance(raw_amt, str) and not raw_amt.strip()):
+            amt = None                      # 真没提金额
+        else:
+            try:
+                amt = float(raw_amt)
+            except (TypeError, ValueError):
+                amt = None                  # 提了但解析不出来 → 也当"没听清"
+        if amt is not None and amt <= 0:
+            amt = None
+        ttype = it.get("trans_type")
+        if ttype not in ("income", "expense"):
+            ttype = "income"
+        cat = (it.get("category") or "").strip()
+        try:
+            from categories import normalize_category
+            cat = normalize_category(cat) or cat
+        except Exception:  # noqa: BLE001
+            pass
+        out.append({
+            "customer": (it.get("customer") or "").strip(),
+            "item": (it.get("item") or "").strip(),
+            "amount": amt,
+            "trans_type": ttype,
+            "category": cat,
+            "note": (it.get("note") or "").strip(),
+        })
+    return out if len(out) >= 2 else []
 
 
 # ---------------- 3. 熟客提醒生成 ----------------

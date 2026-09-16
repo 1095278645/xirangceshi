@@ -1,0 +1,1055 @@
+{
+  "model": "deepseek-flash",
+  "total": 55,
+  "hits": {
+    "amount": 55,
+    "direction": 55,
+    "category": 55,
+    "customer": 55,
+    "ok": 55
+  },
+  "per_category": {
+    "金额": {
+      "n": 14,
+      "ok": 14
+    },
+    "口语": {
+      "n": 18,
+      "ok": 18
+    },
+    "多笔": {
+      "n": 8,
+      "ok": 8
+    },
+    "边界": {
+      "n": 15,
+      "ok": 15
+    }
+  },
+  "cases": {
+    "王阿姨买了两个肉包一杯豆浆，6块": {
+      "category": "金额",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 6,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "王阿姨",
+        "transactions": null
+      }
+    },
+    "刚卖了30块钱的包子": {
+      "category": "金额",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 30,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "收了张叔20块": {
+      "category": "金额",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 20,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "张叔",
+        "transactions": null
+      }
+    },
+    "刘姐买了三杯豆浆，一共九块": {
+      "category": "金额",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 9,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "刘姐",
+        "transactions": null
+      }
+    },
+    "老郑早餐吃了12块5": {
+      "category": "金额",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 12.5,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "老郑",
+        "transactions": null
+      }
+    },
+    "早上卖了八百多": {
+      "category": "金额",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 800,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "买了面粉花了一百二": {
+      "category": "金额",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 120,
+        "trans_type": "expense",
+        "category": "进货",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "今天营业额1250": {
+      "category": "金额",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 1250,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "收了15.5": {
+      "category": "金额",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 15.5,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "买调料花了 33.8": {
+      "category": "金额",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 33.8,
+        "trans_type": "expense",
+        "category": "进货",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "营业额一千五": {
+      "category": "金额",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 1500,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "王阿姨充了200块会员卡": {
+      "category": "金额",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 200,
+        "trans_type": "income",
+        "category": "其他收入",
+        "customer": "王阿姨",
+        "transactions": null
+      }
+    },
+    "进了两千块钱的货": {
+      "category": "金额",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 2000,
+        "trans_type": "expense",
+        "category": "进货",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "卖了1000整": {
+      "category": "金额",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 1000,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "李叔拿了两斤猪肉，38，支出": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 38,
+        "trans_type": "expense",
+        "category": "进货",
+        "customer": "李叔",
+        "transactions": null
+      }
+    },
+    "水电费这个月580": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 580,
+        "trans_type": "expense",
+        "category": "租赁及物业费",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "今天房租交了6000": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 6000,
+        "trans_type": "expense",
+        "category": "租赁及物业费",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "给小工发了3500工资": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 3500,
+        "trans_type": "expense",
+        "category": "职工薪酬",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "买了点办公用品，45块": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 45,
+        "trans_type": "expense",
+        "category": "办公费",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "打广告花了800": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 800,
+        "trans_type": "expense",
+        "category": "广告宣传费",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "张叔要了两笼包子，算他18": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 18,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "张叔",
+        "transactions": null
+      }
+    },
+    "小周打包带走三份，24": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 24,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "小周",
+        "transactions": null
+      }
+    },
+    "赵姐带同事来，一共105": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 105,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "赵姐",
+        "transactions": null
+      }
+    },
+    "换了个冰柜，花了2800": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 2800,
+        "trans_type": "expense",
+        "category": "办公费",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "隔壁老王来吃了碗面，记他10块": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 10,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "隔壁老王",
+        "transactions": null
+      }
+    },
+    "发工资了，一共发出去8000": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 8000,
+        "trans_type": "expense",
+        "category": "职工薪酬",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "收到张叔还款60": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 60,
+        "trans_type": "income",
+        "category": "其他收入",
+        "customer": "张叔",
+        "transactions": null
+      }
+    },
+    "退了顾客15块": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 15,
+        "trans_type": "expense",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "张叔欠着60块，先记上": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 60,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "张叔",
+        "transactions": null
+      }
+    },
+    "修了下冰箱，花了300": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 300,
+        "trans_type": "expense",
+        "category": "办公费",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "买菜钱260": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 260,
+        "trans_type": "expense",
+        "category": "进货",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "豆浆卖完了，今天一共卖光了3桶": {
+      "category": "口语",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": null,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "今天收入1250，支出320": {
+      "category": "多笔",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": 2,
+      "got": {
+        "amount": 1250.0,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": [
+          {
+            "customer": "",
+            "item": "今日营业收入",
+            "amount": 1250.0,
+            "trans_type": "income",
+            "category": "主营业务收入",
+            "note": ""
+          },
+          {
+            "customer": "",
+            "item": "今日支出",
+            "amount": 320.0,
+            "trans_type": "expense",
+            "category": "进货",
+            "note": ""
+          }
+        ]
+      }
+    },
+    "王阿姨拿了两杯豆浆6块，李叔拿了一斤肉28块": {
+      "category": "多笔",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": 2,
+      "got": {
+        "amount": 6.0,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "王阿姨",
+        "transactions": [
+          {
+            "customer": "王阿姨",
+            "item": "两杯豆浆",
+            "amount": 6.0,
+            "trans_type": "income",
+            "category": "主营业务收入",
+            "note": ""
+          },
+          {
+            "customer": "李叔",
+            "item": "一斤肉",
+            "amount": 28.0,
+            "trans_type": "income",
+            "category": "主营业务收入",
+            "note": ""
+          }
+        ]
+      }
+    },
+    "卖了300块，另外买了100块的米": {
+      "category": "多笔",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": 2,
+      "got": {
+        "amount": 300.0,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": [
+          {
+            "customer": "",
+            "item": "卖货",
+            "amount": 300.0,
+            "trans_type": "income",
+            "category": "主营业务收入",
+            "note": ""
+          },
+          {
+            "customer": "",
+            "item": "买米",
+            "amount": 100.0,
+            "trans_type": "expense",
+            "category": "进货",
+            "note": ""
+          }
+        ]
+      }
+    },
+    "上午收800，下午收600": {
+      "category": "多笔",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": 2,
+      "got": {
+        "amount": 800.0,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": [
+          {
+            "customer": "",
+            "item": "上午营业收入",
+            "amount": 800.0,
+            "trans_type": "income",
+            "category": "主营业务收入",
+            "note": ""
+          },
+          {
+            "customer": "",
+            "item": "下午营业收入",
+            "amount": 600.0,
+            "trans_type": "income",
+            "category": "主营业务收入",
+            "note": ""
+          }
+        ]
+      }
+    },
+    "今天进货花了500，卖了900": {
+      "category": "多笔",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": 2,
+      "got": {
+        "amount": 500.0,
+        "trans_type": "expense",
+        "category": "进货",
+        "customer": "",
+        "transactions": [
+          {
+            "customer": "",
+            "item": "进货",
+            "amount": 500.0,
+            "trans_type": "expense",
+            "category": "进货",
+            "note": ""
+          },
+          {
+            "customer": "",
+            "item": "卖货",
+            "amount": 900.0,
+            "trans_type": "income",
+            "category": "主营业务收入",
+            "note": ""
+          }
+        ]
+      }
+    },
+    "收了50，又收了80": {
+      "category": "多笔",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": 2,
+      "got": {
+        "amount": 50.0,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": [
+          {
+            "customer": "",
+            "item": "营业收入",
+            "amount": 50.0,
+            "trans_type": "income",
+            "category": "主营业务收入",
+            "note": ""
+          },
+          {
+            "customer": "",
+            "item": "营业收入",
+            "amount": 80.0,
+            "trans_type": "income",
+            "category": "主营业务收入",
+            "note": ""
+          }
+        ]
+      }
+    },
+    "买面粉120，买鸡蛋80": {
+      "category": "多笔",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": 2,
+      "got": {
+        "amount": 120.0,
+        "trans_type": "expense",
+        "category": "进货",
+        "customer": "",
+        "transactions": [
+          {
+            "customer": "",
+            "item": "面粉",
+            "amount": 120.0,
+            "trans_type": "expense",
+            "category": "进货",
+            "note": ""
+          },
+          {
+            "customer": "",
+            "item": "鸡蛋",
+            "amount": 80.0,
+            "trans_type": "expense",
+            "category": "进货",
+            "note": ""
+          }
+        ]
+      }
+    },
+    "刘姐买了9块，赵姐买了15块，小周买了6块": {
+      "category": "多笔",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": 3,
+      "got": {
+        "amount": 9.0,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "刘姐",
+        "transactions": [
+          {
+            "customer": "刘姐",
+            "item": "消费",
+            "amount": 9.0,
+            "trans_type": "income",
+            "category": "主营业务收入",
+            "note": ""
+          },
+          {
+            "customer": "赵姐",
+            "item": "消费",
+            "amount": 15.0,
+            "trans_type": "income",
+            "category": "主营业务收入",
+            "note": ""
+          },
+          {
+            "customer": "小周",
+            "item": "消费",
+            "amount": 6.0,
+            "trans_type": "income",
+            "category": "主营业务收入",
+            "note": ""
+          }
+        ]
+      }
+    },
+    "张叔拿了个包子": {
+      "category": "边界",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": null,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "张叔",
+        "transactions": null
+      }
+    },
+    "修了下冰箱": {
+      "category": "边界",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": null,
+        "trans_type": "expense",
+        "category": "办公费",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "今天生意不错": {
+      "category": "边界",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": null,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "王阿姨来了": {
+      "category": "边界",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": null,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "王阿姨",
+        "transactions": null
+      }
+    },
+    "进货": {
+      "category": "边界",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": null,
+        "trans_type": "expense",
+        "category": "进货",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "记一笔": {
+      "category": "边界",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": null,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "0元": {
+      "category": "边界",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": null,
+        "trans_type": "income",
+        "category": "其他收入",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "卖了一万二的货": {
+      "category": "边界",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 12000,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "付了房租六千": {
+      "category": "边界",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 6000,
+        "trans_type": "expense",
+        "category": "租赁及物业费",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "张三李四王五都来了，共36": {
+      "category": "边界",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 36,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "张三、李四、王五",
+        "transactions": null
+      }
+    },
+    "微信收款88": {
+      "category": "边界",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 88,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "支付宝到账66.6": {
+      "category": "边界",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 66.6,
+        "trans_type": "income",
+        "category": "主营业务收入",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "给员工发红包200": {
+      "category": "边界",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 200,
+        "trans_type": "expense",
+        "category": "职工薪酬",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "买了台收银机1500，这个月就不买别的了": {
+      "category": "边界",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": 1500,
+        "trans_type": "expense",
+        "category": "办公费",
+        "customer": "",
+        "transactions": null
+      }
+    },
+    "今天没开门": {
+      "category": "边界",
+      "ok": true,
+      "amount": true,
+      "direction": true,
+      "category_ok": true,
+      "customer_ok": true,
+      "multi": null,
+      "got": {
+        "amount": null,
+        "trans_type": "expense",
+        "category": "其他收入",
+        "customer": "",
+        "transactions": null
+      }
+    }
+  }
+}

@@ -16,12 +16,19 @@ async function submitOrder(text, extra) {
     // 金额没听懂：**没有落库**，进入"补金额"状态（旧版会留一条 0 元幽灵记录）
     if (res.amount_missing) {
       state.amountDraft = res.draft || null;
+      state.amountMissing = res.missing || [];   // 多笔时缺的是哪几笔
       state.amountInput = '';
       state.recorded = null;
+      state.recordedList = [];
       return;
     }
     state.recorded = res.recorded || null;
+    // 一句话多笔：逐条列出，每条都能单独改
+    state.recordedList = res.recorded_list || (res.recorded ? [res.recorded] : []);
+    state.multi = !!res.multi;
+    state.amountMissing = res.missing || [];
     state.amountDraft = null;
+    if (res.multi) toast(`听出 ${state.recordedList.length} 笔，都记上了`);
     if (res.safety_warning) toast('⚠️ ' + res.safety_warning.message);
   } catch (e) {
     toast(e.message);
@@ -56,13 +63,16 @@ function cancelAmount() {
 }
 
 // ---------- 就地更正（AI 记错了当场改，不用等到月底对账） ----------
-async function fixRecorded() {
-  const r = state.recorded;
+async function fixRecorded(index) {
+  const list = state.recordedList || [];
+  const i = (typeof index === 'number' && list[index]) ? index : -1;
+  const r = i >= 0 ? list[i] : state.recorded;
   if (!r || !r.transaction_id) return;
   const which = prompt('改什么？填 1=改金额  2=改成支出  3=改成收入', '1');
   if (which === null) return;
   const choice = String(which).trim();
   try {
+    let merged = r;
     if (choice === '1') {
       const v = prompt('改成多少？', String(r.amount));
       if (v === null) return;
@@ -70,15 +80,24 @@ async function fixRecorded() {
       if (isNaN(amt) || amt < 0) { toast('金额不对'); return; }
       const res = await api('/api/transactions/' + r.transaction_id, 'POST',
                             { amount: amt, reason: '店主当场更正金额' });
-      state.recorded = Object.assign({}, r, { amount: (res.transaction || {}).amount });
+      merged = Object.assign({}, r, { amount: (res.transaction || {}).amount });
     } else if (choice === '2' || choice === '3') {
       const want = choice === '2' ? 'expense' : 'income';
       if (want === r.trans_type) { toast('本来就是' + (want === 'income' ? '收入' : '支出')); return; }
       const res = await api('/api/transactions/' + r.transaction_id, 'POST',
                             { trans_type: want, reason: '店主当场更正收支方向' });
-      state.recorded = Object.assign({}, r, { trans_type: (res.transaction || {}).trans_type });
+      merged = Object.assign({}, r, { trans_type: (res.transaction || {}).trans_type });
     } else {
       return;
+    }
+    if (i >= 0) {
+      const next = list.slice();
+      next[i] = merged;
+      state.recordedList = next;
+      state.recorded = next[0];
+    } else {
+      state.recorded = merged;
+      state.recordedList = [merged];
     }
     toast('已更正（留痕可查）');
   } catch (e) { toast(e.message); }
@@ -190,8 +209,19 @@ function renderHome() {
 
   ${state.amountDraft ? `
   <div class="card ask-card">
-    <div class="card-title">这笔多少钱？</div>
-    <div class="acct-note">这句话里没听出金额，<strong>没有记进账本</strong>——补上我就记。</div>
+    <div class="card-title">${(state.amountMissing || []).length > 1
+      ? `有 ${state.amountMissing.length} 笔没说金额`
+      : '这笔多少钱？'}</div>
+    <div class="acct-note">
+      ${(state.amountMissing || []).length
+        ? '这句话里听出好几笔，其中以下几笔没听出金额，<strong>一笔都没记</strong>——'
+        : '这句话里没听出金额，<strong>没有记进账本</strong>——'}
+      补上我就记。
+    </div>
+    ${(state.amountMissing || []).length ? `
+      <div class="snap-box">${state.amountMissing.map(m =>
+        `· ${esc(m.item || '')}（${esc(m.customer || '散客')}，`
+        + `${m.trans_type === 'income' ? '收入' : '支出'}）`).join('<br/>')}</div>` : ''}
     <div class="parsed-grid">
       <div class="parsed-item"><span class="parsed-label">顾客</span><span class="parsed-value">${esc(state.amountDraft.customer || '散客')}</span></div>
       <div class="parsed-item"><span class="parsed-label">事由</span><span class="parsed-value">${esc(state.amountDraft.item || '')}</span></div>
@@ -220,21 +250,27 @@ function renderHome() {
     </div>
   </div>` : ''}
 
-  ${state.recorded ? `
+  ${state.recordedList && state.recordedList.length ? `
   <div class="card recorded-card">
-    <div class="card-title">我这么记的，对吗？</div>
-    <div class="rec-line">
-      <span class="rec-amount ${state.recorded.trans_type === 'income' ? 'in' : 'out'}">
-        ${state.recorded.trans_type === 'income' ? '+' : '-'}${fmt(state.recorded.amount)}</span>
-      <span class="rec-item">${esc(state.recorded.item || '')}</span>
-    </div>
-    <div class="rec-meta">
-      ${esc(state.recorded.customer || '散客')} · ${esc(state.recorded.friendly_category || state.recorded.category || '')}
-      ${state.recorded.category_normalized
-        ? `<span class="rec-note">（原话是「${esc(state.recorded.raw_category)}」，已归到「${esc(state.recorded.category)}」）</span>`
-        : ''}
-    </div>
-    <div class="rec-actions"><button class="btn-mini" onclick="fixRecorded()">记错了？点这里改</button></div>
+    <div class="card-title">${state.multi
+      ? `这句话我听出 ${state.recordedList.length} 笔，对吗？`
+      : '我这么记的，对吗？'}</div>
+    ${state.recordedList.map((r, i) => `
+      <div class="rec-item-row">
+        <div class="rec-line">
+          <span class="rec-amount ${r.trans_type === 'income' ? 'in' : 'out'}">
+            ${r.trans_type === 'income' ? '+' : '-'}${fmt(r.amount)}</span>
+          <span class="rec-item">${esc(r.item || '')}</span>
+        </div>
+        <div class="rec-meta">
+          ${esc(r.customer || '散客')} · ${esc(r.friendly_category || r.category || '')}
+          ${r.category_normalized
+            ? `<span class="rec-note">（原话是「${esc(r.raw_category)}」，已归到「${esc(r.category)}」）</span>`
+            : ''}
+        </div>
+        <div class="rec-actions">
+          <button class="btn-mini" onclick="fixRecorded(${i})">这条记错了？改</button></div>
+      </div>`).join('')}
   </div>` : ''}
 
   <div class="card">

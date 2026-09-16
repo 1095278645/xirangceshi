@@ -26,8 +26,11 @@ Page({
     // 金额没听懂时的草稿（不落库，等店主补金额）
     amountDraft: null,
     amountInput: '',
+    amountMissing: [],   // 多笔时缺金额的明细（一次列出）
     // 记成之后 AI 的最终理解（金额/方向/分类/熟客），显示出来供当场核对与更正
     recorded: null,
+    recordedList: [],    // 一句话多笔时逐条列出
+    multi: false,
     manualText: '',
     review: '',          // 掌柜今日复盘
     snapshot: '',        // 掌柜看到的全店原始事实（原文）
@@ -171,8 +174,10 @@ Page({
             voucher: null,
             friendlyCategory: '',
             amountDraft: res.draft || {},
+            amountMissing: res.missing || [],   // 多笔时：缺的是哪几笔
             amountInput: '',
             recorded: null,
+            recordedList: [],
             submitting: false,
             manualText: ''
           })
@@ -184,13 +189,20 @@ Page({
           friendlyCategory: res.friendly_category,
           // AI 到底把这句话记成了什么：四项全摆出来，店主当场就能核对
           recorded: res.recorded || null,
+          // 一句话多笔时逐条列出（每条都能单独改）
+          recordedList: res.recorded_list || (res.recorded ? [res.recorded] : []),
+          multi: !!res.multi,
           amountDraft: null,
+          amountMissing: [],
           submitting: false,
           summary: res.summary,
           manualText: ''
         })
         this.loadMonth()
-        if (res.customer_new) {
+        if (res.multi) {
+          wx.showToast({ title: `听出 ${(res.recorded_list || []).length} 笔，都记上了`,
+                         icon: 'none', duration: 2500 })
+        } else if (res.customer_new) {
           wx.showToast({ title: '新熟客已记住', icon: 'none' })
         }
       })
@@ -241,9 +253,15 @@ Page({
   },
 
   // ---------- 就地更正（AI 记错了，别等到月底才发现） ----------
-  fixRecorded() {
-    const r = this.data.recorded
+  fixRecorded(e) {
+    // 支持传具体的某一条（多笔时每条各有自己的「改」入口）
+    const list = this.data.recordedList || []
+    let r = this.data.recorded
+    const idx = e && e.currentTarget && e.currentTarget.dataset
+      ? Number(e.currentTarget.dataset.index) : NaN
+    if (!isNaN(idx) && list[idx]) r = list[idx]
     if (!r) return
+    this._fixingIndex = isNaN(idx) ? -1 : idx
     wx.showActionSheet({
       itemList: ['改金额', '改成支出', '改成收入'],
       success: res => {
@@ -274,7 +292,9 @@ Page({
   },
 
   applyFix(patch) {
-    const r = this.data.recorded
+    const list = this.data.recordedList || []
+    const i = typeof this._fixingIndex === 'number' ? this._fixingIndex : -1
+    const r = (i >= 0 && list[i]) ? list[i] : this.data.recorded
     if (!r || !r.transaction_id) return
     const body = {
       reason: patch.reason || '就地更正',
@@ -284,12 +304,17 @@ Page({
     api.editTransaction(r.transaction_id, body)
       .then(res => {
         const t = (res && res.transaction) || {}
-        this.setData({
-          recorded: Object.assign({}, r, {
-            amount: t.amount !== undefined ? t.amount : r.amount,
-            trans_type: t.trans_type || r.trans_type
-          })
+        const merged = Object.assign({}, r, {
+          amount: t.amount !== undefined ? t.amount : r.amount,
+          trans_type: t.trans_type || r.trans_type
         })
+        if (i >= 0 && list[i]) {
+          const next = list.slice()
+          next[i] = merged
+          this.setData({ recordedList: next, recorded: next[0] })
+        } else {
+          this.setData({ recorded: merged })
+        }
         this.loadMonth()
         wx.showToast({ title: '已更正（留痕可查）', icon: 'none' })
       })

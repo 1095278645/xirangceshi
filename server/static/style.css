@@ -438,6 +438,9 @@ input[type=password] { -webkit-text-security: disc; }
 .rec-meta { font-size: 13px; color: var(--brown); line-height: 1.7; }
 .rec-note { color: var(--orange-dark); }
 .rec-actions { margin-top: 10px; }
+/* 多笔时每条之间用细线隔开，避免看成一整条 */
+.rec-item-row { padding: 10px 0; border-bottom: 1px solid #f3ece6; }
+.rec-item-row:last-child { border-bottom: none; padding-bottom: 0; }
 
 /* ---- 掌柜今日复盘（多 agent：五位伙计 → 掌柜裁决） ---- */
 .review-card { border-left: 4px solid var(--orange-dark); }
