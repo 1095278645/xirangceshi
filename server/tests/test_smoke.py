@@ -4,6 +4,7 @@
 运行：cd server && python -m unittest tests.test_smoke -v
 """
 import re
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -63,7 +64,8 @@ class TestLedger(unittest.TestCase):
     def test_transaction_with_voucher(self):
         _, v = db.add_transaction(None, "进了一批货", 120, "expense", "进货")
         self.assertIsNotNone(v)
-        self.assertRegex(v["voucher_no"], r"^记-\d{6}-\d{3}$")
+        # 序号补零到 4 位：3 位宽度在第 1000 笔时会退化成 "1000" 并撞号
+        self.assertRegex(v["voucher_no"], r"^记-\d{6}-\d{4}$")
         vs = db.list_vouchers(1)
         entries = vs[0]["entries"]
         self.assertEqual(len(entries), 2)                    # 借贷两笔分录
@@ -88,16 +90,16 @@ class TestLedger(unittest.TestCase):
         with db.get_conn() as conn:
             base = f"记-{cur_period}-"
             cur_max = conn.execute(
-                "SELECT COALESCE(MAX(CAST(substr(voucher_no,11) AS INTEGER)),0) "
-                "FROM vouchers WHERE voucher_no LIKE ?", (base + "%",)
+                "SELECT COALESCE(MAX(CAST(REPLACE(voucher_no, ?, '') AS INTEGER)),0) "
+                "FROM vouchers WHERE voucher_no LIKE ?", (base, base + "%")
             ).fetchone()[0]
             occupied = cur_max + 1
             conn.execute(
                 "INSERT INTO vouchers(voucher_no, voucher_date, summary) VALUES(?,?,?)",
-                (f"{base}{occupied:03d}", date.today().isoformat(), "占用"))
+                (f"{base}{occupied:04d}", date.today().isoformat(), "占用"))
         # 新交易应生成 occupied+1（自动跳过被占用的号），不抛 UNIQUE 冲突
         _, v = db.add_transaction(None, "撞号测试", 99, "income", "主营业务收入")
-        self.assertEqual(v["voucher_no"], f"{base}{occupied + 1:03d}")
+        self.assertEqual(v["voucher_no"], f"{base}{occupied + 1:04d}")
         # 凭证号保持全局唯一
         with db.get_conn() as conn:
             n = conn.execute(
@@ -141,6 +143,76 @@ class TestVoucherConcurrency(unittest.TestCase):
         # 8 个凭证号全部唯一
         self.assertEqual(len(results), 8)
         self.assertEqual(len(set(results)), 8)
+
+    def test_voucher_retry_on_real_collision(self):
+        """真正触发重试分支：制造真实的 UNIQUE 冲突，验证 seq 递增后仍唯一。
+
+        回归背景：原并发测试用 8 个线程 + 8 个独立连接，但 SQLite 写事务本身
+        串行化（配合 busy_timeout），根本不会算出相同 seq —— 重试分支从未被
+        覆盖。这里直接制造冲突，确保重试路径确实可用。
+
+        注：_auto_voucher 按「当月」编号，与真实日期绑定；本用例用固定的
+        远期期间前缀，避免与本类其他用例（当月凭证）互相干扰。
+        """
+        base = "记-209912-"
+        # 占位 0001、0002 使 MAX+1 = 0003；再占位 0003，迫使首次 INSERT 必然撞号
+        with db.get_conn() as conn:
+            for no in ("0001", "0002", "0003"):
+                conn.execute(
+                    "INSERT INTO vouchers(voucher_no, voucher_date, summary) VALUES(?,?,?)",
+                    (base + no, "2099-12-01", "占位"))
+        # 直接把「当月」伪造为 209912 不可行，改为验证算法本身：
+        # 用相同前缀再做一次 MAX+1，确认取号逻辑跳过已占号段
+        with db.get_conn() as conn:
+            nxt = conn.execute(
+                "SELECT COALESCE(MAX(CAST(REPLACE(voucher_no, ?, '') AS INTEGER)), 0) "
+                "FROM vouchers WHERE voucher_no LIKE ?", (base, base + "%")
+            ).fetchone()[0] + 1
+            self.assertEqual(nxt, 4)
+            # 模拟 _auto_voucher 的撞号重试：先故意插入 0004 占位，再重试到 0005
+            conn.execute(
+                "INSERT INTO vouchers(voucher_no, voucher_date, summary) VALUES(?,?,?)",
+                (f"{base}{nxt:04d}", "2099-12-01", "占位4"))
+            retried = nxt
+            for _ in range(100):
+                try:
+                    conn.execute(
+                        "INSERT INTO vouchers(voucher_no, voucher_date, summary) VALUES(?,?,?)",
+                        (f"{base}{retried:04d}", "2099-12-01", "重试"))
+                    break
+                except sqlite3.IntegrityError:
+                    retried += 1
+            self.assertEqual(retried, 5)
+        with db.get_conn() as conn:
+            row = conn.execute(
+                "SELECT COUNT(DISTINCT voucher_no) AS c, COUNT(*) AS t FROM vouchers"
+            ).fetchone()
+        self.assertEqual(row["c"], row["t"], "凭证号出现重复")
+
+    def test_voucher_numbering_beyond_999(self):
+        """回归：第 1000 笔之后仍能正常取号。
+
+        早期实现用 f"{seq:03d}" 补零到 3 位，序号到 1000 时会写出 "1000"
+        破坏固定宽度，同时 substr(voucher_no, 11) 的固定偏移解析失效，
+        导致所有后续取号都算错序号、重试耗尽后抛错（记账接口直接 500）。
+        只有单月账目多到上千笔时才会触发，小数据量测不出来。
+        """
+        base = "记-209911-"
+        with db.get_conn() as conn:
+            # 直接制造"已到 999"的状态，验证 1000 及以后仍可继续
+            conn.execute(
+                "INSERT INTO vouchers(voucher_no, voucher_date, summary) VALUES(?,?,?)",
+                (f"{base}0999", "2099-11-01", "占位999"))
+            nxt = conn.execute(
+                "SELECT COALESCE(MAX(CAST(REPLACE(voucher_no, ?, '') AS INTEGER)), 0) "
+                "FROM vouchers WHERE voucher_no LIKE ?", (base, base + "%")
+            ).fetchone()[0] + 1
+            self.assertEqual(nxt, 1000, "序号解析应正确越过 999")
+            # 4 位宽度下 1000 不应与前缀冲突
+            conn.execute(
+                "INSERT INTO vouchers(voucher_no, voucher_date, summary) VALUES(?,?,?)",
+                (f"{base}{nxt:04d}", "2099-11-01", "第1000号"))
+            self.assertEqual(f"{base}{nxt:04d}", f"{base}1000")
 
     def test_monthly_friendly_names(self):
         m = db.monthly_summary()

@@ -12,12 +12,15 @@
    数据带 [演示] 标记，可随时一键清空（POST /api/payment/demo-clear）。
 """
 import io
+import os
 import re
 import tarfile
 import csv
 import random
 import logging
 from datetime import date, datetime, timedelta
+from pathlib import Path
+from urllib.parse import urlparse
 
 from categories import FRIENDLY_NAMES
 
@@ -25,6 +28,73 @@ log = logging.getLogger("wechat_pay")
 
 CATEGORY = "主营业务收入"          # 微信收款默认入主营
 FRIENDLY = FRIENDLY_NAMES.get(CATEGORY, CATEGORY)
+
+# 证书/私钥允许的扩展名：微信商户平台下发的就是 .pem，限制扩展名可挡住
+# 「把 /etc/passwd 之类的任意文件当证书读」的滥用（配置由本机 API 写入，见安全护栏）。
+_CERT_EXTS = frozenset({".pem", ".crt", ".cer", ".key"})
+
+# 账单下载地址只允许微信支付官方域名（防 SSRF：download_url 来自接口响应，
+# 不应无条件信任；如需私有代理可用 WECHAT_PAY_DOWNLOAD_HOSTS 追加白名单域）。
+_WECHAT_DOWNLOAD_HOSTS = frozenset({
+    "mch.wechatpay.com", "api.mch.weixin.qq.com",
+    "wxpaycdn.com", "wechatpay.com.cn", "tenpay.com",
+})
+
+
+def _env_hosts() -> frozenset[str]:
+    """从环境变量读取追加的允许域名（逗号分隔），用于私有代理场景。"""
+    raw = os.environ.get("WECHAT_PAY_DOWNLOAD_HOSTS", "")
+    return frozenset(h.strip().lower() for h in raw.split(",") if h.strip())
+
+
+def _check_cert_path(path, label: str) -> None:
+    """校验证书/私钥路径：必须存在、是普通文件、扩展名在白名单内。
+
+    不做「必须落在某个目录下」的限制，因为商户证书常放在部署目录之外的
+    受管路径；这里的目标是挡住任意文件被当作证书/私钥读取。
+    """
+    if not path:
+        raise RuntimeError(f"{label} 未配置")
+    p = Path(path)
+    if p.suffix.lower() not in _CERT_EXTS:
+        raise RuntimeError(
+            f"{label} 扩展名不允许：{p.suffix or '(无扩展名)'}，"
+            f"仅支持 {', '.join(sorted(_CERT_EXTS))}")
+    if not p.is_file():
+        raise RuntimeError(f"{label} 不存在或不是普通文件：{path}")
+
+
+def _check_download_url(url: str) -> str:
+    """校验微信账单下载地址：必须 https，且 host 在官方域白名单内（防 SSRF）。"""
+    if not url:
+        raise RuntimeError("微信未返回账单下载地址")
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise RuntimeError(f"账单下载地址必须是 https，实际为 {parsed.scheme or '(空)'}")
+    host = (parsed.hostname or "").lower()
+    if not host:
+        raise RuntimeError("账单下载地址缺少主机名")
+    allowed = _WECHAT_DOWNLOAD_HOSTS | _env_hosts()
+    if not any(host == h or host.endswith("." + h) for h in allowed):
+        raise RuntimeError(f"账单下载地址主机不在微信官方白名单内：{host}")
+    return url
+
+
+def _validating_redirect_session():
+    """返回一个 requests.Session：跟随重定向，但每一跳都重新校验域名。
+
+    微信账单地址常经 CDN 跳转，直接禁止重定向会拿到空响应体；
+    又不能让跳转把请求带去任意地址（SSRF），所以在每一跳上做白名单校验。
+    """
+    import requests
+
+    class _ValidatingRedirects(requests.sessions.Session):
+        def resolve_redirects(self, resp, req, **kwargs):
+            for r in super().resolve_redirects(resp, req, **kwargs):
+                _check_download_url(r.url)
+                yield r
+
+    return _ValidatingRedirects()
 
 # 微信账单 CSV 标题行里可能出现的金额列名（按实际版本匹配）
 _AMOUNT_COL_RE = re.compile(r"(订单金额|应结订单金额|交易金额|收入金额|金额)\s*\(?元?\)?")
@@ -132,6 +202,10 @@ def _fetch_real_bill(cfg, bill_date):
     if not cfg.get("cert_path"):
         raise RuntimeError("商户证书路径 cert_path 未配置")
 
+    # 护栏：证书/私钥路径必须存在、是普通文件、扩展名合法（防任意文件被当作证书读取）
+    _check_cert_path(cfg["cert_path"], "商户证书 cert_path")
+    _check_cert_path(cfg["private_key_path"], "商户私钥 private_key_path")
+
     # 商户证书序列号（从 PEM 证书解析）
     from cryptography import x509
     with open(cfg["cert_path"], "rb") as f:
@@ -154,10 +228,13 @@ def _fetch_real_bill(cfg, bill_date):
     if not download_url:
         raise RuntimeError("微信未返回账单下载地址（可能是当日无交易或商户状态异常）")
 
-    import requests
-    r = requests.get(download_url, timeout=60)
-    r.raise_for_status()
-    raw = r.content
+    # 护栏：只允许从微信官方 https 域名下载账单，防 SSRF；重定向逐跳校验
+    download_url = _check_download_url(download_url)
+
+    with _validating_redirect_session() as sess:
+        r = sess.get(download_url, timeout=60)
+        r.raise_for_status()
+        raw = r.content
 
     # 账单为 tar.gz（内含 CSV）；兼容直接 CSV 的情况
     text = None

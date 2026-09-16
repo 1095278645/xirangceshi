@@ -178,5 +178,57 @@ class TestConfigAtomicWrite(unittest.TestCase):
                 config._LOCAL_CONFIG = orig
 
 
+class TestReportExportGuard(unittest.TestCase):
+    """受保护路径护栏必须真正接在请求可达的写入点上。
+
+    回归背景：is_protected() 原先只被 safe_write_* 调用，而 safe_write_*
+    在生产代码里零调用 → 护栏是死代码。报表导出是唯一受请求参数影响落盘
+    位置的写入点，现在在此处强制执行。
+    """
+
+    def setUp(self):
+        import db
+        import report as reportlib
+        self.reportlib = reportlib
+        self.db = db
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._tmp.name)
+        self._orig_db = db.DB_PATH
+        db.DB_PATH = self.tmp / "guard.db"
+        db.init_db()
+        db.add_transaction(None, "测试", 100, "income", "主营业务收入")
+
+    def tearDown(self):
+        self.db.DB_PATH = self._orig_db
+        self._tmp.cleanup()
+
+    def test_normal_export_allowed(self):
+        r = self.reportlib.get_monthly_report(2026, 9, out_dir=str(self.tmp / "reports"))
+        self.assertNotIn("error", r, r)
+        self.assertTrue(Path(r["file"]).exists())
+
+    def test_export_into_protected_dir_refused(self):
+        """把报表导出到 tests/ 这类受保护目录必须被拒绝，而不是覆盖源码。"""
+        protected = self.tmp / "server" / "tests"
+        protected.mkdir(parents=True)
+        victim = protected / "收支报表_2026年9月.xlsx"
+        victim.write_text("原始源码内容", encoding="utf-8")
+        r = self.reportlib.get_monthly_report(2026, 9, out_dir=str(protected))
+        self.assertIn("error", r)
+        self.assertIn("受保护", r["error"])
+        # 原文件未被覆盖
+        self.assertEqual(victim.read_text(encoding="utf-8"), "原始源码内容")
+
+    def test_export_path_traversal_resolved(self):
+        """`..` 穿越到受保护目录同样被拦（is_protected 内部已 resolve 规范化）。"""
+        safe_dir = self.tmp / "server" / "reports"
+        safe_dir.mkdir(parents=True)
+        escape = safe_dir / ".." / "tests"
+        (self.tmp / "server" / "tests").mkdir(parents=True, exist_ok=True)
+        r = self.reportlib.get_monthly_report(2026, 9, out_dir=str(escape))
+        self.assertIn("error", r)
+        self.assertIn("受保护", r["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

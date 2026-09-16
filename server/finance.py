@@ -19,11 +19,21 @@ DANGER_THRESHOLD = 0       # 期末现金 < 0 视为危险（亲民：这个月�
 
 
 def _f(v, default=0.0):
+    """把入参收敛为浮点数；无法解析时返回 default。
+
+    注意：这里**不把负数归零**。现金流预测的负数是有意义的输入
+    （期初现金为负=已经垫钱、月均支出为负=账目异常），归零会让预测偏乐观。
+    """
     try:
-        v = float(v)
+        return float(v)
     except (TypeError, ValueError):
         return default
-    return v if v > 0 else default
+
+
+def _f_pos(v, default=0.0):
+    """非负收敛：用于「月均基准收入/支出」这类只应取非负值的入参。"""
+    f = _f(v, default)
+    return f if f > 0 else default
 
 
 def month_key(dt) -> str:
@@ -65,10 +75,9 @@ def forecast_cashflow(
         "summary": "一句店主视角总结",
       }
     """
-    income = _f(base_income)
-    expense = _f(base_expense)
+    income = _f_pos(base_income)
+    expense = _f_pos(base_expense)
     safety = _f(safety_buffer)
-    net_in = income - expense
 
     # 应收应付到期归集到月
     debt_plan: dict[str, float] = {}
@@ -82,6 +91,7 @@ def forecast_cashflow(
 
     initial_cash = _f(cash_on_hand)
     balance = initial_cash
+    overdraft = initial_cash < 0
     rows = []
     for i in range(max(1, int(months))):
         m = shift_month(cur, i)
@@ -110,6 +120,9 @@ def forecast_cashflow(
 
     # ---------- 亲民预警 ----------
     flags = []
+    if overdraft:
+        flags.append(f"期初现金已经是 -{abs(round(initial_cash, 2)):,.0f} 元（账上在垫钱），"
+                     f"下面按实际余额往前滚动。")
     for r in rows:
         if r["end_balance"] < 0:
             flags.append(f"{r['month']} 现金预计 -{abs(r['end_balance']):,.0f} 元，"
@@ -123,7 +136,10 @@ def forecast_cashflow(
                      f"现金流是稳的。")
 
     first = rows[0]["end_balance"] if rows else 0
-    summary = f"按现在收支，这个月预计还能剩 {first:,.0f} 元。"
+    if first < 0:
+        summary = f"按现在收支，这个月月底预计要垫 {abs(first):,.0f} 元。"
+    else:
+        summary = f"按现在收支，这个月预计还能剩 {first:,.0f} 元。"
     if flags:
         summary += " " + flags[0]
 

@@ -55,6 +55,29 @@ class TestForecastEngine(unittest.TestCase):
         # 期末 1000 元 >= 900 安全垫，不应告警
         self.assertTrue(all(m["enough"] for m in r["months"]))
 
+    def test_negative_start_cash_preserved(self):
+        """回归：期初现金为负（账上在垫钱）必须如实保留，不能被归零。
+
+        旧实现用「>0 否则默认值」的收敛函数，把 -50000 吞成 0，
+        导致预测凭空多出 5 万现金、结论偏乐观。
+        """
+        r = forecast_cashflow(cash_on_hand=-50000, base_income=10000,
+                              base_expense=8000, months=3)
+        self.assertEqual(r["start_cash"], -50000)
+        # 首月期末 = -50000 + 2000
+        self.assertEqual(r["months"][0]["end_balance"], -48000)
+        self.assertFalse(r["months"][0]["safe"])
+        # 必须提示期初已透支，且不能说成「还能剩 -X」
+        self.assertTrue(any("期初现金已经是" in f for f in r["flags"]))
+        self.assertIn("垫", r["summary"])
+        self.assertNotIn("还能剩 -", r["summary"])
+
+    def test_negative_base_expense_not_zeroed(self):
+        """回归：月均基准支出为负（账目异常）不能被归零成 0 而美化成不花钱。"""
+        r = forecast_cashflow(cash_on_hand=10000, base_income=3000,
+                              base_expense=-2000, months=2)
+        self.assertEqual(r["months"][0]["outflow"], 0)
+
     def test_month_shift(self):
         self.assertEqual(finance.shift_month("2026-01", -1), "2025-12")
         self.assertEqual(finance.shift_month("2026-12", 1), "2027-01")

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import db
 from config import DATA_DIR
+from safe_io import is_protected
 
 try:
     import openpyxl
@@ -119,8 +120,6 @@ def get_monthly_report(year: int | None = None, month: int | None = None,
 
     # 列宽（跳过合并单元格）
     from openpyxl.utils import get_column_letter
-    # 列宽（跳过合并单元格）
-    from openpyxl.utils import get_column_letter
     for ws_ in (ws, ws2, ws3):
         for col_idx in range(1, ws_.max_column + 1):
             max_len = 0
@@ -133,6 +132,11 @@ def get_monthly_report(year: int | None = None, month: int | None = None,
     out_dir = Path(out_dir) if out_dir else DATA_DIR / "reports"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"收支报表_{year}年{month}月.xlsx"
+    # 护栏（Pattern 20）：报表是唯一由请求参数影响落盘位置的写入点，
+    # 必须确认目标不在受保护白名单内（源码/数据库/关键配置），
+    # 否则 out_dir 可被用来覆盖源码或数据库。is_protected 已做 resolve() 规范化。
+    if is_protected(out_path):
+        return {"error": f"目标路径受保护，拒绝写入报表：{out_path}"}
     # Pattern 21: Atomic Write — 先保存 .tmp 再 os.replace，防止报表写到一半损坏
     tmp = out_path.with_suffix(out_path.suffix + ".tmp")
     try:
