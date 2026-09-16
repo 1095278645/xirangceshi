@@ -129,9 +129,13 @@ python scripts\check_mp_api.py     # 小程序调的接口在后端是否都存�
 python scripts\check_mp_pages.py   # 页面是否已注册 + bindtap 处理函数是否存在 + 文件编码
 python scripts\check_web_pages.py  # 网页端 onclick 引用的函数是否存在 + 路由闭环
 node   scripts\check_web_render.js # 在 Node 里真跑一遍网页端所有渲染函数（需本机有 node）
+python scripts\run_browser_check.py # 用真实浏览器真点一遍网页端五个新页面（需 Edge/Chrome）
 ```
 
-全部输出 ✅ 就说明前端接线是对的。
+全部输出 ✅ 就说明前端接线是对的。最后一个最接近"真人操作"：它会复制一份
+演示数据、起独立后端、开无头浏览器，真的生成收款码、另开标签当顾客付款、
+一键入账、切会计期间、结转与反结转、备份与恢复、发测试推送、建店切店；
+跑完会确认你的**真实演示库没被改动**。演示前一天建议跑一遍。
 
 ### 6. 清掉演示脏数据
 

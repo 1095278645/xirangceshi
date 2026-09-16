@@ -99,6 +99,46 @@ class TestAccounting(unittest.TestCase):
         self.assertAlmostEqual(by["5401"]["closing"], 60, places=2)
         self.assertAlmostEqual(by["100201"]["closing"], -60, places=2)
 
+    def test_income_statement_shows_only_period_activity(self):
+        """利润表只能反映**本期发生额**，不能把期初累计当成本期利润。
+
+        真实缺陷：早期实现直接取余额表的期末余额（= 期初 + 本期发生），
+        而期初包含该期间之前的全部损益。于是选一个完全没有流水的期间，
+        利润表也会报出利润 —— 实测"2099-01"（空期间）报出净利 700 元。
+        做演示时随便点一下月份就会看到不该有的数字。
+        """
+        self._seed()                       # 收入 100 / 进货 60，都记在 PERIOD
+        this_month = accounting.income_statement(PERIOD)
+        self.assertAlmostEqual(this_month["net_profit"], 40, places=2)
+
+        empty = accounting.income_statement("2099-01")
+        self.assertAlmostEqual(empty["total_revenue"], 0, places=2,
+                               msg="空期间不该有收入（期初累计不算本期）")
+        self.assertAlmostEqual(empty["total_expense"], 0, places=2,
+                               msg="空期间不该有成本费用")
+        self.assertAlmostEqual(empty["net_profit"], 0, places=2)
+
+        # 不带期间 = 全部：应与唯一有流水的期间一致
+        all_time = accounting.income_statement(None)
+        self.assertAlmostEqual(all_time["net_profit"], 40, places=2)
+
+    def test_income_statement_is_zero_after_closing(self):
+        """结转后本期利润表要显示 0（结转凭证把损益清零了）。
+
+        和上一条是一对：只看本期发生额，但**要**包含结转凭证。
+        早期修 bug 时把结转凭证也排除掉，结果结转后仍显示原利润，
+        与"已结转"自相矛盾。
+        """
+        self._seed()
+        accounting.close_period(PERIOD)
+        after = accounting.income_statement(PERIOD)
+        self.assertAlmostEqual(after["net_profit"], 0, places=2,
+                               msg="已结转的期间，利润表应显示 0")
+        # 反结转后利润回来
+        accounting.reopen_period(PERIOD)
+        back = accounting.income_statement(PERIOD)
+        self.assertAlmostEqual(back["net_profit"], 40, places=2)
+
     def test_trial_balance_period_isolation(self):
         """指定期间时期初应等于该期间之前的累计（按正常余额方向表示）。"""
         self._seed()

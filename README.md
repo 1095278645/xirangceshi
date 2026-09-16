@@ -352,14 +352,19 @@ python scripts/check_mp_api.py         # 小程序调用的接口是否都真实
 python scripts/check_mp_pages.py       # 页面注册 + bindtap 处理函数是否存在 + 文件编码
 python scripts/check_web_pages.py      # 网页端内联 onclick 引用的函数是否存在 + 路由闭环
 node   scripts/check_web_render.js     # 在 Node 里真跑一遍网页端所有渲染函数
+python scripts/run_browser_check.py    # 用真实浏览器（Edge 无头）真点一遍网页端
 python ../scripts/prewarm_cache.py     # 预热 AI 缓存（需先起后端）
 ```
 
-这几个脚本专门防一类"编译不报错、点下去没反应"的问题：小程序的
-`bindtap="foo"`、网页端的 `onclick="foo()"`，只要 `foo` 不存在，都不会在
-加载时报错，只在点的那一刻变成一次无声失败；渲染函数里的模板串写错更是直接
-白屏。`check_web_render.js` 用 Node 打桩最小浏览器环境，把每个 `renderXxx()`
-真跑一遍并断言产出了 HTML（需要本机有 node）。
+前几个脚本防的是"编译不报错、点下去没反应"：小程序的 `bindtap="foo"`、
+网页端的 `onclick="foo()"`，只要 `foo` 不存在都不会在加载时报错；
+渲染函数里的模板串写错更是直接白屏。
+
+**`run_browser_check.py` 是最强的一关**（需要本机装了 Edge/Chrome 和 node）：
+它把演示库复制一份到临时目录、用副本起一个独立后端，然后真的开一个
+无头浏览器把五个页面点一遍 —— 生成收款码、**另开一个标签当顾客扫码付款**、
+一键入账、切会计期间、期末结转与反结转、备份与恢复、发测试推送、建店切店。
+脚本结束时还会比对真实演示库的关键计数，确认它**没被碰过**。
 
 ## 主动触达（把复盘与提醒推到店主手机上）
 
