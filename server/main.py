@@ -7,7 +7,9 @@
 """
 import asyncio
 import logging
+import os
 import re
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -63,25 +65,40 @@ async def _daily_sync_loop():
         await asyncio.sleep(SYNC_INTERVAL_SECONDS)
 
 
+def _is_test_env() -> bool:
+    """是否跑在测试里（pytest）。
+
+    为什么需要：心跳循环会在启动后（以及每 6 小时）调一次掌柜复盘 ——
+    这现在是**多 agent 编排**（5 位伙计 + 掌柜裁决 = 6 次模型调用，约 6.5 秒，
+    按量付费）。而测试里每 new 一个 TestClient 就会跑一次 lifespan：
+    实测整个套件从 21 秒变成 127 秒，还白白消耗真实 API 额度。
+    测试关心的是"接口契约/落盘/降级"，不是真的生成一段复盘。
+    """
+    return "PYTEST_CURRENT_TEST" in os.environ or "pytest" in sys.modules
+
+
 async def _heartbeat_loop():
     """后台定时任务：每天生成经营复盘 + 跑进化检查（经验晋升/基因抑制/技能蒸馏），
     落盘领域上下文供前端/推送取用。
 
     生成后主动推送给订阅者 —— 这是"主动触达"的定时触发点：原先复盘只躺在
     数据库里，店主不看就等于不存在。
+
+    测试环境跳过"生成复盘"这一步（见 _is_test_env），只保留进化检查（纯本地）。
     """
     first = True
     while True:
-        try:
-            text = await asyncio.to_thread(heartbeat.generate_daily_review)
-            # 幂等：同一业务日期内只推一次，避免重启/重复触发刷屏
-            await asyncio.to_thread(
-                notifications.dispatch_event, "daily_review",
-                "今日经营复盘", text or "",
-                business_key=_today_key(), dedup_days=1)
-            await asyncio.to_thread(_maybe_warn_revenue)
-        except Exception as e:  # noqa: BLE001
-            log.error("heartbeat loop error: %s", e)
+        if not _is_test_env():
+            try:
+                text = await asyncio.to_thread(heartbeat.generate_daily_review)
+                # 幂等：同一业务日期内只推一次，避免重启/重复触发刷屏
+                await asyncio.to_thread(
+                    notifications.dispatch_event, "daily_review",
+                    "今日经营复盘", text or "",
+                    business_key=_today_key(), dedup_days=1)
+                await asyncio.to_thread(_maybe_warn_revenue)
+            except Exception as e:  # noqa: BLE001
+                log.error("heartbeat loop error: %s", e)
         try:
             evo = await asyncio.to_thread(heartbeat.evolution_daily_check)
             if evo and any(evo.get(k) for k in ("promoted", "suppressed", "distilled")):

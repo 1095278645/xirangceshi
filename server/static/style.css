@@ -438,3 +438,18 @@ input[type=password] { -webkit-text-security: disc; }
 .rec-meta { font-size: 13px; color: var(--brown); line-height: 1.7; }
 .rec-note { color: var(--orange-dark); }
 .rec-actions { margin-top: 10px; }
+
+/* ---- 掌柜今日复盘（多 agent：五位伙计 → 掌柜裁决） ---- */
+.review-card { border-left: 4px solid var(--orange-dark); }
+.review-head { display: flex; align-items: center; justify-content: space-between; }
+/* 复盘正文：比普通说明文字大一号，读起来像掌柜在交代事情 */
+.review-box {
+  font-size: 15px; line-height: 1.85; color: #4a3a2c;
+  padding: 4px 0; word-break: break-all;
+}
+.snap-toggle { font-size: 13px; color: var(--orange-dark); margin-top: 12px; cursor: pointer; }
+.snap-box {
+  margin-top: 10px; background: #faf5f1; border-radius: 10px;
+  padding: 12px; font-size: 12px; line-height: 1.9; color: #7a6a5c;
+  word-break: break-all;
+}

@@ -30,6 +30,10 @@ Page({
     recorded: null,
     manualText: '',
     review: '',          // 掌柜今日复盘
+    snapshot: '',        // 掌柜看到的全店原始事实（原文）
+    snapshotLines: [],   // 拆行后的快照，供 wx:for
+    snapOpen: false,     // 是否展开原始事实
+    reviewBusy: false,   // 正在让掌柜复盘
     connBroken: false,   // 后端连不上时显示常驻提示条
     serverAddr: ''
   },
@@ -64,8 +68,38 @@ Page({
 
   loadReview() {
     api.heartbeat().then(h => {
-      this.setData({ review: (h && h.ok && h.review) ? h.review : '' })
+      this._applyReview(h)
     }).catch(err => this.markConnError(err))
+  },
+
+  // WXML 不支持方法调用：快照按行拆成数组，模板才能 wx:for
+  _applyReview(h) {
+    const snap = (h && h.snapshot) ? String(h.snapshot) : ''
+    this.setData({
+      review: (h && h.ok && h.review) ? h.review : (h && h.review) || '',
+      snapshot: snap,
+      snapshotLines: snap.split('\n').map(s => s.trim()).filter(Boolean),
+    })
+  },
+
+  // 让掌柜立刻复盘一次（五位伙计各管一摊 → 掌柜裁决，约 5~10 秒）
+  reviewNow() {
+    if (this.data.reviewBusy) return
+    this.setData({ reviewBusy: true, snapOpen: false })
+    api.reviewNow()
+      .then(h => {
+        this._applyReview(h)
+        wx.showToast({ title: '掌柜已复盘', icon: 'none' })
+      })
+      .catch(err => {
+        wx.showToast({ title: err.message, icon: 'none' })
+      })
+      .then(() => this.setData({ reviewBusy: false }))
+  },
+
+  // 展开"掌柜看到的原始事实"：让结论可查证，也提醒哪些经营动作还没记
+  toggleSnap() {
+    this.setData({ snapOpen: !this.data.snapOpen })
   },
 
   // 失败时既弹一次提示，也把首页顶部提示条点亮（持续可见，便于当场排查）

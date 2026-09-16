@@ -275,7 +275,9 @@ class TestTeamRegistry(_TempDB):
         """每个已注册域都有可调用的薄壳入口（经 ai 兼容导出）"""
         self.assertTrue(callable(ai.generate_copy))
         self.assertTrue(callable(ai.generate_store_diagnosis))
-        self.assertEqual(set(team_domains.list_team_domains()), {"copy", "store"})
+        self.assertTrue(callable(ai.generate_daily_review))
+        self.assertEqual(set(team_domains.list_team_domains()),
+                         {"copy", "store", "review"})
 
     @mock.patch.object(ai, "ai_available", return_value=False)
     def test_degraded_process_matches_registry(self, _m):

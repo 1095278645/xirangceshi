@@ -314,6 +314,22 @@ def generate_tax_advice(quarterly_revenue: float, vat_result: dict, prev_advice:
                 max_tokens=400, reasoning_effort="high").strip()
 
 
-# 多 agent 团队编排（朋友圈文案协作流水线 / 单店诊断竞争融合）在 team_domains.py，
-# 此处再导出以保持既有入口 ai.generate_copy / ai.generate_store_diagnosis 兼容。
-from team_domains import generate_copy, generate_store_diagnosis  # noqa: E402,F401
+# 多 agent 团队编排（朋友圈文案 / 单店诊断 / 掌柜复盘）在 team_domains.py。
+# 这里**不再用顶层 import 做再导出** —— 那会和 team_domains 形成循环：
+#   team_domains →（导入）ai →（末尾导入）team_domains（尚未初始化完）→ ImportError
+# 实测：先 `import ai` 侥幸能用（ai 先注册进 sys.modules 了），
+# 先 `import team_domains` 则直接崩。靠导入顺序活着太脆，改用 PEP 562 的
+# 模块级 __getattr__ 惰性转发：`ai.generate_copy` 这类老入口照旧可用
+# （mock.patch("ai.generate_copy") 也仍然有效），但导入期不再互相牵扯。
+_TEAM_EXPORTS = ("generate_copy", "generate_store_diagnosis", "generate_daily_review")
+
+
+def __getattr__(name):
+    if name in _TEAM_EXPORTS:
+        import team_domains
+        return getattr(team_domains, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    return sorted(list(globals()) + list(_TEAM_EXPORTS))

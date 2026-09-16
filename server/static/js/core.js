@@ -162,6 +162,9 @@ const state = {
     profiles: [], profileName: '我的店', savingProfile: false, applyingProfile: null },
   // 掌柜今日复盘（心跳）
   review: '',
+  snapshot: '',        // 掌柜看到的全店原始事实
+  snapOpen: false,
+  reviewBusy: false,
   // 财务（现金流 / 预算 / 应收应付）
   finance: { tab: 0, month: '', cash: { cash_on_hand: '', months: 6, result: null, loading: false },
     budForm: { month: '', scope: 'expense', amount: '', category: '', note: '' },

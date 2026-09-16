@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from datetime import date, timedelta
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -141,6 +142,20 @@ class TestStoreProfile(_TempDB):
 
 
 class TestHeartbeat(_TempDB):
+    """每日复盘：现在走多 agent 掌柜编排（五位伙计各管一摊 → 掌柜取舍）。
+
+    注意测试里**必须把 AI 打桩**：本机若配了 Key，不打桩就会真的调模型
+    （实测这一组用例从 1 秒变成 135 秒，还白烧额度）。
+    """
+
+    def setUp(self):
+        super().setUp()
+        # 让 ai_available() 恒为 False → 走规则降级，离线且确定
+        import ai
+        self._patch = mock.patch("ai.ai_available", return_value=False)
+        self._patch.start()
+        self.addCleanup(self._patch.stop)
+
     def test_generate_and_read(self):
         # 插入一笔今日流水，让今日汇总有数
         today = date.today().isoformat()
@@ -149,14 +164,42 @@ class TestHeartbeat(_TempDB):
                 "INSERT INTO transactions(trans_type, category, item, amount, created_at) "
                 "VALUES('income','主营业务收入','卖货',100,?)", (f"{today} 10:00:00",))
         text = heartbeat.generate_daily_review()
-        self.assertIn("今日", text)
-        self.assertEqual(heartbeat.daily_review_text(), text)
+        self.assertTrue(text, "复盘不能为空")
+        self.assertEqual(heartbeat.daily_review_text(), text, "复盘要落盘可读")
+        # 快照也要落盘：前端要能展开"掌柜看到的原始事实"
+        snap = heartbeat.daily_snapshot_text()
+        self.assertTrue(snap, "全店快照要落盘")
+        self.assertIn("[今日]", snap)
+        self.assertIn("100", snap, "今日那笔流水要出现在快照里")
 
     def test_no_profile_still_generates(self):
-        # 无店档案时也要能生成复盘（含引导建档案一句话）
+        # 无店档案时也要能生成复盘（不因为缺档案就报错/空转）
         text = heartbeat.generate_daily_review()
         self.assertTrue(text)
-        self.assertIn("今日", text)
+        self.assertTrue(heartbeat.daily_snapshot_text())
+
+    def test_snapshot_covers_all_business_domains(self):
+        """快照要覆盖全店经营动作，而不是只有收支。
+
+        这是"掌柜知晓全店全流程"的落脚点：缺哪一块，对应岗位就没话说。
+        """
+        import shop_snapshot
+        facts = shop_snapshot.snapshot_facts()
+        for domain in ("money", "customers", "stock", "cash", "invoice"):
+            with self.subTest(domain=domain):
+                self.assertIn(domain, facts)
+                self.assertTrue(facts[domain], f"{domain} 这一段不该是空的"
+                                               f"（没数据也要说明『还没建』）")
+
+    def test_team_domain_registered_with_five_roles(self):
+        """review 域要按经营维度分工，不能是五个同质员工。"""
+        import team_domains
+        cfg = team_domains.TEAM_DOMAINS["review"]
+        roles = [e["role"] for e in cfg["employees"]]
+        self.assertGreaterEqual(len(roles), 4, "至少四个岗位才谈得上『全流程』")
+        self.assertEqual(len(roles), len(set(roles)), "岗位不能重名")
+        for r in ("账房先生", "熟客管家", "采买师傅", "税务管事", "经营监察"):
+            self.assertIn(r, roles)
 
     def test_one_liner_with_profile(self):
         db.save_store_profile("测试店", biz_type="餐饮", rent=6000, salary=3000,

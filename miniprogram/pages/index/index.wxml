@@ -14,10 +14,24 @@
     <view class="status-detail">点这里去「设置」页填写电脑的局域网地址，并点「测试连接」自检。</view>
   </view>
 
-  <!-- 掌柜今日复盘 -->
-  <view class="card" wx:if="{{review}}">
-    <view class="card-title">📋 掌柜今日复盘</view>
-    <view class="review-box">{{review}}</view>
+  <!-- 掌柜今日复盘（五位伙计各管一摊 → 掌柜裁决；可展开原始事实查证） -->
+  <view class="card review-card" wx:if="{{review || reviewBusy}}">
+    <view class="review-head">
+      <view class="card-title">🏮 掌柜今日复盘</view>
+      <view class="review-again {{reviewBusy ? 'busy' : ''}}" bindtap="reviewNow">
+        {{reviewBusy ? '掌柜在看账…' : '让掌柜再看一遍'}}
+      </view>
+    </view>
+    <view class="review-box" wx:if="{{review}}">{{review}}</view>
+    <view class="review-wait" wx:else>五位伙计正在各自看账（账目·熟客·库存·票税·监察），约 10 秒…</view>
+
+    <view class="snap-toggle" wx:if="{{snapshot}}" bindtap="toggleSnap">
+      {{snapOpen ? '收起' : '掌柜看到的原始事实'}} ▾
+    </view>
+    <view class="snap-box" wx:if="{{snapOpen}}">
+      <view class="snap-line" wx:for="{{snapshotLines}}" wx:key="index">{{item}}</view>
+      <view class="snap-note">结论都是从这些事实里挑出来的；没记的经营动作也会出现在这里。</view>
+    </view>
   </view>
 
   <!-- 今日汇总 -->

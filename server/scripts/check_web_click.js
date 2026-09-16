@@ -257,6 +257,38 @@ async function main() {
       '(async () => (await api("/api/audits")).audits.length)()');
     check('更正留下了审计记录', audits > 0, String(audits));
 
+    // ---------- 0b. 掌柜复盘（多 agent，可展开原始事实） ----------
+    console.log('\n== 0b. 掌柜今日复盘 ==');
+    // 先直接让掌柜复盘一次（真实编排：五位伙计 → 掌柜裁决；配了 Key 约 6~10 秒）
+    await cdp.eval('reviewNow()', true, 90000);
+    await waitFor(cdp, 'state.review && state.review.length > 4', '掌柜复盘生成', 90000);
+    const review = await cdp.eval('state.review');
+    check('点「让掌柜再看一遍」能拿到复盘正文', typeof review === 'string' && review.length > 4,
+          String(review).slice(0, 80));
+    check('复盘不是照抄快照的标签（[今日]/[库存] 这类分区标记不该出现）',
+          !/\[(今日|本月|熟客|库存|赊账|发票|报税|经营水平|账目更正)\]/.test(review),
+          String(review).slice(0, 120));
+    check('页面上出现「掌柜今日复盘」', (await cdp.eval('document.body.innerText')).includes('掌柜今日复盘'));
+
+    await waitFor(cdp, 'state.snapshot && state.snapshot.length > 10', '快照随复盘返回', 20000);
+    const snap = await cdp.eval('state.snapshot');
+    check('复盘带回了「掌柜看到的原始事实」', snap.includes('['), String(snap).slice(0, 80));
+    check('快照覆盖多个经营维度（不只收支）',
+          ['[熟客]', '[库存]', '[赊账]', '[发票]'].filter(t => snap.includes(t)).length >= 2,
+          String(snap).slice(0, 200));
+
+    // 真点展开 / 收起
+    await cdp.eval('toggleSnap()');
+    await waitFor(cdp, 'state.snapOpen === true', '展开原始事实');
+    check('点「掌柜看到的原始事实」能展开', true);
+    await cdp.eval('toggleSnap()');
+    check('再点一次能收起', (await cdp.eval('state.snapOpen')) === false);
+
+    // 接口层面：快照端点可用且带分域事实
+    const snapApi = await cdp.eval('(async () => (await api("/api/heartbeat/snapshot")).facts)()');
+    check('快照接口按域返回事实', snapApi && snapApi.money && snapApi.customers,
+          Object.keys(snapApi || {}).join(','));
+
     // ---------- 1. 收款页 ----------
     console.log('\n== 1. 收款页（生成收款码 → 一键入账）==');
     await cdp.eval('go("collect")');

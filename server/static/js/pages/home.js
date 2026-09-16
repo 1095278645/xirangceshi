@@ -92,10 +92,29 @@ async function loadHome() {
       api('/api/orders/today'), api('/api/orders/monthly'), api('/api/heartbeat')]);
     state.summary = s;
     state.month = m;
-    state.review = hb.ok ? (hb.review || '') : '';
+    state.review = (hb.review || '');
+    state.snapshot = (hb.snapshot || '');
   } catch (_) {}
   render();
 }
+
+// 让掌柜立刻复盘一次（五位伙计各管一摊 → 掌柜裁决，约 5~10 秒）
+async function reviewNow() {
+  if (state.reviewBusy) return;
+  state.reviewBusy = true;
+  state.snapOpen = false;
+  render();
+  try {
+    const h = await api('/api/heartbeat', 'POST', {});
+    state.review = h.review || '';
+    state.snapshot = h.snapshot || '';
+    toast('掌柜已复盘');
+  } catch (e) { toast(e.message); }
+  state.reviewBusy = false;
+  render();
+}
+
+function toggleSnap() { state.snapOpen = !state.snapOpen; render(); }
 
 async function loadMonth() {
   try { state.month = await api('/api/orders/monthly'); } catch (_) {}
@@ -117,10 +136,23 @@ function renderHome() {
     <div class="hero-sub">巷子里的早餐铺 · AI掌柜已就位</div>
   </div>
 
-  ${state.review ? `
-  <div class="card">
-    <div class="card-title">📋 掌柜今日复盘</div>
-    <div class="review-box">${esc(state.review)}</div>
+  ${(state.review || state.reviewBusy) ? `
+  <div class="card review-card">
+    <div class="review-head">
+      <div class="card-title">🏮 掌柜今日复盘</div>
+      <button class="btn-mini ${state.reviewBusy ? 'disabled' : ''}" onclick="reviewNow()">
+        ${state.reviewBusy ? '掌柜在看账…' : '让掌柜再看一遍'}</button>
+    </div>
+    ${state.review
+      ? `<div class="review-box">${esc(state.review)}</div>`
+      : '<div class="acct-note">五位伙计正在各自看账（账目·熟客·库存·票税·监察），约 10 秒…</div>'}
+    ${state.snapshot ? `
+      <div class="snap-toggle" onclick="toggleSnap()">
+        ${state.snapOpen ? '收起' : '掌柜看到的原始事实'} ▾</div>` : ''}
+    ${state.snapOpen && state.snapshot ? `
+      <div class="snap-box">${esc(state.snapshot).replace(/\n/g, '<br/>')}
+        <div class="acct-note">结论都是从这些事实里挑出来的；没记的经营动作也会出现在这里。</div>
+      </div>` : ''}
   </div>` : ''}
 
   <div class="voice-card">

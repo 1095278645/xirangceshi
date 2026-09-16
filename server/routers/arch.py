@@ -56,9 +56,32 @@ def profile_delete(profile_id: int):
 # -- 心跳复盘 --
 @router.post("/heartbeat")
 def heartbeat_generate():
-    return {"ok": True, "review": heartbeat.generate_daily_review()}
+    """立即让掌柜复盘一次（多 agent：五位伙计各管一摊 → 掌柜裁决）。
+
+    耗时约 5~10 秒（6 次模型调用），前端要给出等待提示。
+    """
+    text = heartbeat.generate_daily_review()
+    return {"ok": True, "review": text,
+            "snapshot": heartbeat.daily_snapshot_text()}
+
 
 @router.get("/heartbeat")
 def heartbeat_read():
     text = heartbeat.daily_review_text()
-    return {"ok": bool(text), "review": text}
+    return {"ok": bool(text), "review": text,
+            "snapshot": heartbeat.daily_snapshot_text()} if text else {
+        "ok": False, "review": None, "snapshot": None}
+
+
+@router.get("/heartbeat/snapshot")
+def heartbeat_snapshot():
+    """掌柜看到的全店事实（原始快照，不含 AI 加工）。
+
+    为什么要单独暴露：复盘是**取舍后**的结论，"为什么这么说"要能查证。
+    这块也能让店主看到店里哪些经营动作还没记账（库存、发票、赊账…）。
+    """
+    import shop_snapshot
+    live = shop_snapshot.build_snapshot()
+    return {"ok": True, "snapshot": live,
+            "cached": heartbeat.daily_snapshot_text(),
+            "facts": shop_snapshot.snapshot_facts()}

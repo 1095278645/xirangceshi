@@ -363,7 +363,17 @@ class TestGeneSelection(_TempDB):
             self.assertIn(evo.get("strategy"), ("auto", "balanced", "innovate",
                                                 "harden", "repair_only"))
             self.assertIsInstance(evo.get("genes"), list)
-            self.assertGreaterEqual(len(evo["genes"]), 2)
+        # genes 可以为空：新域（如 review）还没有任何"验证有效的基因"，
+        # 硬塞几条凭空想的基因等于伪造经验。空列表时 select_gene 返回 None，
+        # _run_team 会跳过策略注入、照常出结果（已有测试覆盖该分支）。
+        self.assertGreaterEqual(len(
+            team_domains.TEAM_DOMAINS["copy"]["evolution"]["genes"]), 2,
+            "老域应当仍带着已沉淀的基因")
+        for name in team_domains.list_team_domains():
+            genes = team_domains.TEAM_DOMAINS[name]["evolution"]["genes"]
+            for gid in genes:
+                self.assertTrue(isinstance(gid, str) and gid.startswith("gene_"),
+                                f"{name} 的基因 id 形状不对：{gid!r}")
 
     def test_degraded_with_evolution(self):
         """P3: 无 Key 时进化层不启动，走原始降级"""

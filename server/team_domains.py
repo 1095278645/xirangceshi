@@ -35,10 +35,14 @@ from team_domain_store import (
     _store_diagnosis_degraded, _store_degraded_process,
     generate_store_diagnosis,
 )
+from team_domain_review import (
+    _REVIEW_EMPLOYEES, _review_degraded_process,
+    generate_daily_review,
+)
 
 # 向后兼容 re-export（调用方仍可 team_domains.generate_copy 等）
 __all__ = [
-    "generate_copy", "generate_store_diagnosis",
+    "generate_copy", "generate_store_diagnosis", "generate_daily_review",
     "TEAM_DOMAINS", "list_team_domains",
 ]
 
@@ -249,6 +253,23 @@ TEAM_DOMAINS = {
                 "gene_store_diagnose",
                 "gene_store_margin_alert",
             ],
+            "distill_threshold": 0.7,
+            "suppress_threshold": 0.15,
+        },
+    },
+    "review": {
+        "mode": "competitive",
+        "employees": _REVIEW_EMPLOYEES,
+        "reviewer": None,
+        "judge": "这家店今天该动手的一两件事（五位伙计各从自己那一摊发言：账目/熟客/"
+                 "库存/票税/监察，你要做取舍）。先给最要紧的那个数字，再给动作，"
+                 "动作要具体到人/货/钱；其余一句话带过或干脆不提，"
+                 "严禁\"提升运营\"\"加强管理\"这类空话",
+        "degraded": _review_degraded_process,
+        "evolution": {
+            "enabled": True,
+            "strategy": "auto",
+            "genes": [],
             "distill_threshold": 0.7,
             "suppress_threshold": 0.15,
         },
