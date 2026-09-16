@@ -133,12 +133,20 @@ def db_size() -> int:
 # ---------------- 备份清单 ----------------
 
 def list_backups() -> list[dict]:
-    """列出全部备份（含导出包），按时间倒序。"""
+    """列出全部备份（含导出包），**按生成时间倒序**（最新的在前）。
+
+    注意必须按 mtime 排，不能按文件名排：文件名前缀是 kind
+    （`manual-` / `pre_restore-` / `auto-` / `ai_shopkeeper_export_`），
+    按名字倒序会把所有 `pre_restore-*` 抬到最前面 —— 于是"最新的一份备份"
+    实际是一个几天前的恢复前快照。实测就踩到了：界面/测试取 list[0] 去恢复，
+    恢复了个旧快照，看起来像"恢复没生效"。
+    """
     _ensure_dir()
+    files = [p for p in _backup_dir().iterdir() if p.is_file()]
+    # mtime 相同时（同一秒内连做多份）用文件名兜底，保证顺序稳定
+    files.sort(key=lambda p: (p.stat().st_mtime, p.name), reverse=True)
     out = []
-    for p in sorted(_backup_dir().iterdir(), key=lambda x: x.name, reverse=True):
-        if not p.is_file():
-            continue
+    for p in files:
         is_bundle = p.suffix == ".zip"
         out.append({
             "name": p.name,

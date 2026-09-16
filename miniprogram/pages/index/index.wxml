@@ -74,9 +74,40 @@
     <view class="voice-result" wx:if="{{result}}">{{result}}</view>
   </view>
 
+  <!-- 缺金额：不落库，当场追问（旧版会留一条 0 元幽灵记录，没人会发现） -->
+  <view class="card ask-card" wx:if="{{amountDraft}}">
+    <view class="card-title">这笔多少钱？</view>
+    <view class="ask-why">这句话里没听出金额，<text class="ask-strong">没有记进账本</text>——补上我就记。</view>
+    <view class="parsed-grid">
+      <view class="parsed-item">
+        <text class="parsed-label">顾客</text>
+        <text class="parsed-value">{{amountDraft.customer || '散客'}}</text>
+      </view>
+      <view class="parsed-item">
+        <text class="parsed-label">事由</text>
+        <text class="parsed-value">{{amountDraft.item}}</text>
+      </view>
+      <view class="parsed-item">
+        <text class="parsed-label">方向</text>
+        <text class="parsed-value">{{amountDraft.trans_type === 'income' ? '收入' : '支出'}}</text>
+      </view>
+      <view class="parsed-item">
+        <text class="parsed-label">分类</text>
+        <text class="parsed-value">{{amountDraft.category}}</text>
+      </view>
+    </view>
+    <view class="ask-row">
+      <input class="ask-input" type="digit" placeholder="填金额，如 12.5"
+             value="{{amountInput}}" bindinput="onAmountInput"
+             confirm-type="done" bindconfirm="confirmAmount" />
+      <view class="ask-btn" bindtap="confirmAmount">记下</view>
+    </view>
+    <view class="ask-cancel" bindtap="cancelAmount">这次不记了</view>
+  </view>
+
   <!-- 解析结果 -->
   <view class="card" wx:if="{{parsed}}">
-    <view class="card-title">已记下</view>
+    <view class="card-title">{{amountDraft ? '待补金额' : '已记下'}}</view>
     <view class="type-badge {{parsed.trans_type === 'income' ? 'badge-income' : 'badge-expense'}}">
       {{parsed.trans_type === 'income' ? '收入' : '支出'}}
     </view>
@@ -103,6 +134,26 @@
       </view>
     </view>
     <view class="tag" wx:for="{{parsed.tagsArr}}" wx:key="index">{{item}}</view>
+  </view>
+
+  <!-- 我这么理解的，对吗？—— AI 理解错了当场就能改，不用等到月底对账 -->
+  <view class="card recorded-card" wx:if="{{recorded}}">
+    <view class="card-title">我这么记的，对吗？</view>
+    <view class="rec-line">
+      <text class="rec-amount {{recorded.trans_type === 'income' ? 'in' : 'out'}}">
+        {{recorded.trans_type === 'income' ? '+' : '-'}}{{recorded.amount}}
+      </text>
+      <text class="rec-item">{{recorded.item}}</text>
+    </view>
+    <view class="rec-meta">
+      {{recorded.customer || '散客'}} · {{recorded.friendly_category || recorded.category}}
+      <text wx:if="{{recorded.category_normalized}}" class="rec-note">
+        （原话是「{{recorded.raw_category}}」，已归到「{{recorded.category}}」）
+      </text>
+    </view>
+    <view class="rec-actions">
+      <view class="rec-fix" bindtap="fixRecorded">记错了？点这里改</view>
+    </view>
   </view>
 
   <!-- 手动输入兜底 -->

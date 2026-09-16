@@ -147,7 +147,9 @@ module.exports = {
   resetFailFlag,
   connectionBroken,
   // 记账
-  createOrder: (text) => request('/api/orders', 'POST', { text }),
+  // 记账。extra 用于"补金额"场景：把 AI 已解析好的字段原样带回，
+  // 后端据此跳过重解析（科目/熟客不会漂移）
+  createOrder: (text, extra) => request('/api/orders', 'POST', { text, ...(extra || {}) }),
   todaySummary: () => request('/api/orders/today'),
   monthlySummary: () => request('/api/orders/monthly'),
   vouchers: () => request('/api/vouchers'),

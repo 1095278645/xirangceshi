@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 import ai
 import db
 import tax as taxcalc
-from categories import is_known_category
+from categories import is_known_category, normalize_category
 from schemas import (InsightIn, OrderIn, RefundIn, TransactionEditIn, VoidIn)
 
 log = logging.getLogger("orders")
@@ -14,8 +14,31 @@ router = APIRouter(prefix="/api", tags=["orders"])
 
 @router.post("/orders")
 def create_order(data: OrderIn):
-    """一句话记账：AI解析 + 熟客归档 + 借贷凭证"""
-    parsed = ai.parse_transaction(data.text)
+    """一句话记账：AI解析 + 熟客归档 + 借贷凭证。
+
+    **金额没听懂时不落库**：旧实现会插一行 amount=0 的流水并弹一句
+    "金额没听清，只记了流水"，结果流水里留下一条既不进合计、又不会消失的
+    幽灵记录 —— 店主当天发现不了，月底对不上账也查不出来源。
+    现在改为返回 amount_missing + draft（草稿字段），由界面追问"这笔多少钱"，
+    用户补上金额后再记一次。熟客仍然照常归档（这一步没有副作用，且补记时要用）。
+    """
+    # 补记路径：界面把 AI 已解析的字段（item/category）连同金额一起带回来时，
+    # 直接采信这些字段，**不再调一次 AI** —— 既省一次调用，也保证补记的科目与
+    # 熟客跟第一次解析完全一致（重新解析有漂移的风险）。
+    explicit = bool((data.item or "").strip() and data.amount is not None
+                    and float(data.amount or 0) > 0)
+    if explicit:
+        parsed = {
+            "customer": data.customer,
+            "item": data.item.strip(),
+            "amount": data.amount,
+            "note": data.note,
+            "tags": "",
+            "category": data.category or "主营业务收入",
+            "trans_type": data.trans_type or "income",
+        }
+    else:
+        parsed = ai.parse_transaction(data.text)
     customer = data.customer or parsed.get("customer", "")
     cid = None
     is_new = False
@@ -27,22 +50,67 @@ def create_order(data: OrderIn):
             customer, tags=parsed.get("tags", ""), favorite=parsed.get("item", ""),
             set_favorite=False)
     amount = data.amount if data.amount is not None else parsed.get("amount")
-    amount_missing = amount is None
     trans_type = parsed.get("trans_type", "income")
-    category = parsed.get("category", "")
-    if not category or not is_known_category(category):
+
+    # 分类归一：模型可能返回近义词（实测返回过"工资"）。旧实现直接判
+    # is_known_category → False → 静默兜底到办公费，账本品类与凭证科目对不上。
+    # 现在先归一，归一时记日志；仍认不出来才走关键词兜底。
+    raw_category = parsed.get("category", "") or ""
+    category = normalize_category(raw_category)
+    if category and raw_category.strip() != category:
+        log.info("分类已归一：%r → %r", raw_category, category)
+    if not category:
+        if raw_category:
+            log.warning("分类无法归一（模型返回 %r），改用关键词兜底", raw_category)
         category, trans_type = db.detect_category(data.text)
+
+    # 金额缺失（或显式给 0）：不落库，返回草稿让界面追问
+    if amount is None or float(amount or 0) <= 0:
+        log.info("金额缺失，未落库（draft）：text=%r customer=%s", data.text, customer or "-")
+        return {
+            "order_id": None,
+            "parsed": parsed,
+            "customer_id": cid,
+            "customer_new": cid and is_new,
+            "amount_missing": True,
+            "draft": {
+                "text": data.text,
+                "item": parsed.get("item", "") or data.text,
+                "customer": customer,
+                "trans_type": trans_type,
+                "category": category,
+                "note": parsed.get("note", ""),
+            },
+            "voucher": None,
+            "friendly_category": db.FRIENDLY_NAMES.get(category, category),
+            "summary": db.today_summary(),
+            "safety_warning": "这笔账还缺金额，没有记进账本 —— 补上金额我再记一次",
+        }
+
     tid, voucher = db.add_transaction(
         cid, parsed.get("item", "") or data.text, amount,
         trans_type=trans_type, category=category,
         counterparty=customer, note=parsed.get("note", ""))
     safety_warning = taxcalc.detect_boundary(data.text) or taxcalc.check_amount_guard(amount)
-    log.info("order created tid=%s type=%s category=%s amount=%s customer=%s missing=%s",
-             tid, trans_type, category, amount, customer or "-", amount_missing)
+    log.info("order created tid=%s type=%s category=%s amount=%s customer=%s",
+             tid, trans_type, category, amount, customer or "-")
     return {
         "order_id": tid, "parsed": parsed,
         "customer_id": cid, "customer_new": cid and is_new,
-        "amount_missing": amount_missing, "voucher": voucher,
+        "amount_missing": False, "voucher": voucher,
+        # 把"这笔到底记成了什么"回给前端：金额/方向/分类/熟客四项都摆出来，
+        # 界面上可当场核对与就地更正（AI 理解错了才有机会被发现）
+        "recorded": {
+            "transaction_id": tid,
+            "amount": amount,
+            "trans_type": trans_type,
+            "category": category,
+            "friendly_category": db.FRIENDLY_NAMES.get(category, category),
+            "item": parsed.get("item", "") or data.text,
+            "customer": customer,
+            "category_normalized": bool(raw_category and raw_category.strip() != category),
+            "raw_category": raw_category,
+        },
         "friendly_category": db.FRIENDLY_NAMES.get(category, category),
         "summary": db.today_summary(), "safety_warning": safety_warning,
     }

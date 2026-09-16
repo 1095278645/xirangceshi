@@ -10,6 +10,13 @@ class OrderIn(BaseModel):
     text: str                       # 语音转写或手动输入的记账文本
     customer: str = ""              # 可选：手工指定客户
     amount: float | None = Field(default=None, ge=0)
+    # 补记金额时用：界面在"金额没听懂"之后，把 AI 已经解析好的字段原样带回来
+    # （item + amount 都给齐时后端不再调 AI —— 既省一次调用，也保证补记的
+    #   科目/熟客与第一次解析完全一致，不会因为重解析而漂移）
+    item: str = ""
+    category: str = ""
+    trans_type: str = ""
+    note: str = ""
 
 
 class MemoryIn(BaseModel):

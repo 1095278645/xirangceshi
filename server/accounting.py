@@ -62,12 +62,25 @@ def _conn():
 
 
 def _period_bounds(period: str | None) -> tuple[str, str]:
-    """把 'YYYY-MM' 转成 [起, 止) 的字符串边界；None 表示不限。"""
+    """把 'YYYY-MM' 转成 [起, 止) 的字符串边界；None 表示不限。
+
+    非法期间**直接报错**而不是当成"不限"：
+    trial_balance 的返回里 period 可能是 "全部"（period=None 时），
+    界面若把这个字符串回传给 /close、/reopen，旧实现会拿 int("全部"[:4]) 去算边界，
+    抛 ValueError → 500。宁可在这里给出明确的 400 提示。
+    """
     if not period:
         return "0000-00", "9999-99"
-    y, m = int(period[:4]), int(period[5:7])
+    p = str(period).strip()
+    try:
+        y, m = int(p[:4]), int(p[5:7])
+    except (ValueError, TypeError):
+        raise ValueError(
+            f"会计期间格式不对：{period!r}，应为 'YYYY-MM'（如 2026-09）") from None
+    if not (1 <= m <= 12) or y < 1900 or y > 9999:
+        raise ValueError(f"会计期间超出范围：{period!r}")
     nxt = f"{y + 1:04d}-01" if m == 12 else f"{y:04d}-{m + 1:02d}"
-    return period, nxt
+    return f"{y:04d}-{m:02d}", nxt
 
 
 # ---------------- 期初余额（可选：把历史账套接进来） ----------------

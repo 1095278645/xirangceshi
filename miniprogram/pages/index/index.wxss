@@ -163,6 +163,36 @@
   font-weight: 500;
 }
 
+/* ---- 缺金额追问（AI 没听懂金额时，不落库先问） ---- */
+.ask-card { border: 2rpx solid #e8b48a; background: #fffaf5; }
+.ask-why { font-size: 25rpx; color: #a08d7b; line-height: 1.7; margin-bottom: 12rpx; }
+.ask-strong { color: #b4532a; font-weight: 600; }
+.ask-row { display: flex; align-items: center; margin-top: 16rpx; }
+.ask-input {
+  flex: 1; border: 1rpx solid #e5ded7; border-radius: 12rpx;
+  padding: 18rpx; font-size: 30rpx; background: #fff;
+}
+.ask-btn {
+  margin-left: 16rpx; background: #b4532a; color: #fff; font-size: 29rpx;
+  font-weight: 600; padding: 18rpx 38rpx; border-radius: 12rpx;
+}
+.ask-cancel { text-align: center; font-size: 25rpx; color: #a08d7b; margin-top: 18rpx; }
+
+/* ---- 我这么记的，对吗？（记完当场核对 + 就地更正） ---- */
+.recorded-card { border-left: 8rpx solid #b4532a; }
+.rec-line { display: flex; align-items: baseline; margin: 8rpx 0 6rpx; }
+.rec-amount { font-size: 46rpx; font-weight: 700; margin-right: 16rpx; }
+.rec-amount.in { color: #2e9e5b; }
+.rec-amount.out { color: #d64545; }
+.rec-item { font-size: 28rpx; color: #3d2c1e; }
+.rec-meta { font-size: 25rpx; color: #a08d7b; line-height: 1.7; }
+.rec-note { color: #b4532a; }
+.rec-actions { margin-top: 14rpx; }
+.rec-fix {
+  display: inline-block; font-size: 25rpx; color: #b4532a;
+  border: 1rpx solid #b4532a; border-radius: 10rpx; padding: 10rpx 22rpx;
+}
+
 /* 手动输入 */
 .manual-input {
   width: 100%;

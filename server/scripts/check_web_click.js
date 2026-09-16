@@ -193,6 +193,70 @@ async function main() {
     const title = await cdp.eval('document.querySelector(".tabbar") ? "ok" : "no tabbar"');
     check('首页加载出底部导航', title === 'ok', title);
 
+    // ---------- 0. 一句话记账的"最后一环"（缺金额追问 / 记完核对 / 就地改） ----------
+    console.log('\n== 0. 记账：缺金额追问 + 记完当场核对 ==');
+    // 找一个当前路由能记账：先回首页
+    await cdp.eval('go("home")');
+    await waitFor(cdp, 'typeof state.parsed !== "undefined"', '首页就绪');
+
+    // 用"今日笔数"而不是 /api/transactions 的长度：
+    // 后者是**带 limit 的窗口**（默认 100 条），演示库有 3000+ 笔，
+    // 新记一笔不会让这个数字变化（第一版就因此误判"没落库"）。
+    const cntOf = 'api("/api/orders/today").then(r => r.cnt)';
+    const txnsBefore = await cdp.eval(`(async () => ${cntOf})()`);
+    // 真调 submitOrder（首页语音/手动输入走的就是它），提交一句"没说金额"的话。
+    // 这条话会被真实模型解析：金额应当解析不出来 → 进入补金额流程。
+    await cdp.eval(`submitOrder('测试一句没有金额的话')`, true, 60000);
+    await waitFor(cdp,
+      'state.amountDraft !== null || state.recorded !== null',
+      '记账请求返回（草稿或已记录）', 60000);
+
+    const wentDraft = await cdp.eval('state.amountDraft !== null');
+    if (wentDraft) {
+      check('没听出金额时进入「补金额」而不是静默记一笔', true);
+      await waitFor(cdp, 'document.querySelector(".ask-input") !== null',
+                    '页面上出现金额输入框');
+      check('界面上真的问出了「这笔多少钱？」',
+            (await cdp.eval('document.body.innerText')).includes('这笔多少钱'));
+      const txnsMid = await cdp.eval(`(async () => ${cntOf})()`);
+      check('补金额之前没有落库（不留 0 元幽灵记录）', txnsMid === txnsBefore,
+            `${txnsBefore} → ${txnsMid}`);
+
+      // 真填金额、真点「记下」
+      await cdp.eval('onAmountInput("7.5")');
+      await cdp.eval('confirmAmount()', true, 60000);
+      await waitFor(cdp, 'state.recorded !== null', '补记完成', 60000);
+      check('填完金额点「记下」后真的记上了', true);
+      const rec = await cdp.eval('state.recorded');
+      check('记的金额就是刚填的 7.5', rec && Math.abs(rec.amount - 7.5) < 0.001,
+            JSON.stringify(rec));
+      const txnsAfter = await cdp.eval(`(async () => ${cntOf})()`);
+      check('补记后今日笔数 +1（真的落库了）', txnsAfter === txnsBefore + 1,
+            `${txnsBefore} → ${txnsAfter}`);
+    } else {
+      // 模型把金额解析出来了（这句话带了数字之类）—— 那条路径同样要验证核对卡
+      check('这次金额被解析出来了（走核对路径）', true);
+    }
+
+    // 不论走哪条路径，最后都该有一张"我这么记的，对吗？"的卡
+    await waitFor(cdp, 'state.recorded !== null', '出现核对卡', 30000);
+    check('页面上出现「我这么记的，对吗？」',
+          (await cdp.eval('document.body.innerText')).includes('我这么记的'));
+    check('核对卡上有「记错了？点这里改」入口',
+          (await cdp.eval('document.body.innerText')).includes('记错了'));
+
+    // 真点「改」→ 改金额（prompt 打桩）→ 校验服务端金额变了
+    const recId = await cdp.eval('state.recorded.transaction_id');
+    await cdp.eval(`window.prompt = (msg, def) => (String(msg).includes('改什么') ? '1' : '99.5');
+                    fixRecorded()`, true, 40000);
+    await waitFor(cdp,
+      `api('/api/transactions/' + ${recId}).then(r => Math.abs(r.transaction.amount - 99.5) < 0.001)`,
+      '就地改金额已落库', 30000);
+    check('点「记错了？点这里改」能真的改掉账（且留痕）', true);
+    const audits = await cdp.eval(
+      '(async () => (await api("/api/audits")).audits.length)()');
+    check('更正留下了审计记录', audits > 0, String(audits));
+
     // ---------- 1. 收款页 ----------
     console.log('\n== 1. 收款页（生成收款码 → 一键入账）==');
     await cdp.eval('go("collect")');
@@ -301,12 +365,23 @@ async function main() {
           Math.abs(emptyPeriod) < 0.01, String(emptyPeriod));
 
     // 期末结转 → 反结转（真点按钮）
+    //
+    // 同样不能只等"结转列表里有这个期间"就断言利润表 —— loadAccount() 里三张表
+    // 是各自 await 的，closings 先回来时 inc 可能还是上一次的数据。
+    // 必须等利润表**自己**变成 0（或等它标明的期间+已加载）。
     const period = await cdp.eval('state.accounting.period');
     await cdp.eval(`confirm = () => true; closePeriod()`);
     await waitFor(cdp, 'state.accounting.closings.some(c => c.period === ' + JSON.stringify(period) + ')',
                   '结转后列表里出现该期间', 20000);
+    // 结转后可能还带着旧记录，这里确认拿到的是 status='closed'
+    await waitFor(cdp,
+      'state.accounting.closings.some(c => c.period === ' + JSON.stringify(period) + ' && c.status === "closed")',
+      '该期间状态为已结转', 20000);
     check('点「期末结转」后该期间被结转', true);
-    const afterClose = await cdp.eval('state.accounting.inc.net_profit');
+    check('点「期末结转」后该期间被结转', true);
+    await waitFor(cdp, '!state.accounting.loading && state.accounting.inc && Math.abs(state.accounting.inc.net_profit) < 0.01',
+                  '结转后利润表归零', 20000).catch(() => {});
+    const afterClose = await cdp.eval('state.accounting.inc && state.accounting.inc.net_profit');
     check('结转后本期净利归零', Math.abs(afterClose) < 0.01, String(afterClose));
     await cdp.eval(`confirm = () => true; reopenPeriod()`);
     await waitFor(cdp,

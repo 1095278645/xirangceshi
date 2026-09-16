@@ -109,6 +109,11 @@ const state = {
   parsed: null,
   voucher: null,
   friendlyCategory: '',
+  // 金额没听懂时的草稿（不落库，等店主补金额）
+  amountDraft: null,
+  amountInput: '',
+  // 记成之后 AI 的最终理解（金额/方向/分类/熟客），显示出来供当场核对与更正
+  recorded: null,
   manualText: '',
   voiceSupported: false,
   // 熟客

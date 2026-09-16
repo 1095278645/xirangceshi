@@ -97,12 +97,15 @@ class TestDemoFlow(unittest.TestCase):
             self.assertEqual(p2["trans_type"], "expense")
             self.assertEqual(p2["category"], "进货", "进货分类决定毛利率能否算对")
 
-            # 无金额不崩、且标记出来
+            # 无金额不崩、且标记出来；并且**不落库**（旧实现会插一条 0 元幽灵记录，
+            # 既不进合计也不会消失 —— 首页笔数当场就对不上）
             r3 = c.post("/api/orders", json={"text": "张叔拿了个包子"})
             self.assertTrue(r3.json().get("amount_missing"))
+            self.assertIsNone(r3.json().get("order_id"), "缺金额不该产生订单")
+            self.assertTrue(r3.json().get("draft"), "要返回草稿字段供界面追问金额")
 
             s = c.get("/api/orders/today").json()
-            self.assertEqual(s["cnt"], 3)
+            self.assertEqual(s["cnt"], 2, "没记成的第三笔不该计入笔数")
 
     # ---------------- 第 2 站 ----------------
     def test_station2_customers(self):
