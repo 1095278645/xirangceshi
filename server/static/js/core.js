@@ -171,7 +171,27 @@ const state = {
   invoice: { summary: null, loading: false,
     form: { kind: 'out', party: '', invoice_no: '', amount: '', rate: '', tax_amount: '',
       issued_date: '', note: '' } },
+  // 会计报表（利润表 / 资产负债表 / 科目余额表 / 期末结转）
+  accounting: { period: '', loading: false, tb: null, tbError: '',
+    inc: null, bs: null, closings: [] },
+  // 数据备份 / 导出 / 恢复
+  backup: { list: [], loading: false, busy: false },
+  // 主动触达（推送通道 / 订阅 / 记录）
+  notify: { providers: [], subs: [], logs: [], inbox: [], loading: false,
+    form: { channel: '', target: '', name: '', events: ['daily_review'] } },
+  // 收款（收款码 / 一键入账）
+  collect: { list: [], pending: 0, loading: false, current: null,
+    qrSvg: '', qrLoading: false, form: { amount: '', item: '' } },
+  // 多店 / 成员
+  shops: { list: [], users: [], members: [], ctx: {}, currentId: null,
+    memberShopId: null, canManage: true, loading: false },
 };
+
+// 会计期间默认当月（各页面 onload 时初始化）
+(function initAccountingPeriod() {
+  const n = new Date();
+  state.accounting.period = n.getFullYear() + '-' + pad2(n.getMonth() + 1);
+})();
 
 // ---------- 辅助 ----------
 function fmt(n) { return Number(n || 0).toFixed(0); }
@@ -228,9 +248,16 @@ function render() {
   else if (r === 'finance') html = renderFinance();
   else if (r === 'stock') html = renderStock();
   else if (r === 'invoice') html = renderInvoice();
+  else if (r === 'accounting') html = renderAccounting();
+  else if (r === 'backup') html = renderBackup();
+  else if (r === 'notify') html = renderNotify();
+  else if (r === 'collect') html = renderCollect();
+  else if (r === 'shops') html = renderShops();
   else html = renderHome();
   document.getElementById('app').innerHTML = html;
-  const inMore = (r === 'finance' || r === 'stock' || r === 'invoice' || r === 'settings');
+  const MORE_ROUTES = ['finance', 'stock', 'invoice', 'settings',
+    'accounting', 'backup', 'notify', 'collect', 'shops'];
+  const inMore = MORE_ROUTES.includes(r);
   document.querySelectorAll('.tab-item').forEach(t => {
     const r2 = t.dataset.route;
     t.classList.toggle('active', inMore ? (r2 === 'more') : (r2 === r));
@@ -263,4 +290,9 @@ function go(route) {
   else if (route === 'finance') loadFinance();
   else if (route === 'stock') loadStock();
   else if (route === 'invoice') loadInvoice();
+  else if (route === 'accounting') loadAccounting();
+  else if (route === 'backup') loadBackup();
+  else if (route === 'notify') loadNotify();
+  else if (route === 'collect') loadCollect();
+  else if (route === 'shops') loadShops();
 }

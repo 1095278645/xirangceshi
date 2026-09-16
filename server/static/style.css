@@ -373,3 +373,41 @@ input[type=password] { -webkit-text-security: disc; }
 }
 .copy-variant .result-text { font-size: 15px; line-height: 1.7; margin: 8px 0; }
 .copy-variant .btn-ghost { margin-top: 4px; }
+
+/* ---- 会计报表 / 备份 / 触达 / 收款 / 多店（本轮新增页） ---- */
+/* 报表里的分节小标题（资产 / 负债 / 所有者权益） */
+.acct-sub {
+  font-size: 12px; font-weight: 600; color: var(--orange-dark);
+  margin: 12px 0 2px; padding-top: 8px; border-top: 1px dashed var(--border);
+}
+.acct-sub:first-of-type { border-top: none; padding-top: 0; }
+/* 小计 / 合计行：加粗并与明细区分 */
+.txn-row.acct-total { border-bottom: none; font-weight: 600; }
+.txn-row.acct-total .txn-item { font-weight: 600; }
+.txn-row.acct-net .txn-amount { color: var(--orange-dark); font-size: 18px; }
+/* 平衡自检徽标 */
+.acct-badge {
+  margin-top: 10px; padding: 8px 12px; border-radius: 10px;
+  font-size: 13px; line-height: 1.5;
+}
+.acct-badge.ok { background: #eef7ee; color: #2e7d32; }
+.acct-badge.bad { background: #fdeeee; color: var(--red); }
+/* 说明性文字（比 .txn-sub 更适合放长句） */
+.acct-note {
+  font-size: 12px; color: var(--brown); line-height: 1.7;
+  margin-top: 8px; word-break: break-all;
+}
+/* 收款码容器：白底居中，保证扫码识别 */
+.qr-holder {
+  text-align: center; margin: 12px 0; min-height: 60px;
+}
+.qr-holder svg {
+  width: 200px; height: 200px; background: #fff;
+  border: 1px solid var(--border); border-radius: 10px; padding: 6px;
+}
+/* 多店：当前店高亮 */
+.pay-row.shop-current {
+  background: #fff8f0; border-radius: 10px; padding-left: 10px; padding-right: 10px;
+}
+/* 分段的“更多”里的路由项：翻页后回到顶部，长列表更好读 */
+#app { scroll-behavior: smooth; }

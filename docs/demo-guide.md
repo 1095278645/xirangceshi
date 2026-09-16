@@ -127,9 +127,11 @@ python ..\scripts\mp_demo_check.py
 cd server
 python scripts\check_mp_api.py     # 小程序调的接口在后端是否都存在（含方法是否匹配）
 python scripts\check_mp_pages.py   # 页面是否已注册 + bindtap 处理函数是否存在 + 文件编码
+python scripts\check_web_pages.py  # 网页端 onclick 引用的函数是否存在 + 路由闭环
+node   scripts\check_web_render.js # 在 Node 里真跑一遍网页端所有渲染函数（需本机有 node）
 ```
 
-两个都输出 ✅ 就说明前端接线是对的。
+全部输出 ✅ 就说明前端接线是对的。
 
 ### 6. 清掉演示脏数据
 
@@ -428,6 +430,9 @@ curl.exe -s -X POST http://127.0.0.1:8000/api/tax/advice `
 
 主线 8 分钟演完后，如果店主还在听，从底部「**更多**」页进这三个入口。
 它们回答店主最常见的三句追问：**"数据丢了怎么办"**、**"怎么收钱"**、**"开第二家店呢"**。
+
+> 网页版（手机浏览器打开 `http://电脑IP:8000`）的「更多」抽屉里同样有这三个入口，
+> 效果与小程序一致；网页端多一个好处：**收款码可以直接投屏给顾客扫**，不用第二台设备。
 
 ### 加分 1 · 收款（约 1 分钟）—— 现场就能收钱
 

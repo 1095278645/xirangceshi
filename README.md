@@ -134,8 +134,8 @@ AIGC:
     ├── wechat_pay.py   # 微信支付 v3 交易账单同步（真实对接 + DEMO 演示）
     ├── aggregate_pay.py# 聚合支付适配器（预留收钱吧/付桥等服务商）
     ├── config.py       # 配置读取（环境变量 > config.local.json > 默认值）
-    ├── scripts/        # check_mp_api.py（接口一致性）/ check_mp_pages.py（页面自检）
-    ├── tests/          # pytest 测试（480 项）
+    ├── scripts/        # 自检脚本（接口一致性 / 小程序页面 / 网页端页面 / 渲染试跑）
+    ├── tests/          # pytest 测试（482 项）
     └── static/         # 网页版（手机浏览器可直接访问）
         ├── index.html   # 单页入口（按依赖顺序加载 js/）
         ├── style.css
@@ -148,6 +148,14 @@ AIGC:
             │   ├── copy.js    # 朋友圈文案
             │   ├── books.js   # 账本（流水/算税/科目/报表）
             │   ├── store.js   # 单店模型
+            │   ├── finance.js # 资金健康（现金流/预算/赊账）
+            │   ├── stock.js   # 库存进销存
+            │   ├── invoice.js # 发票台账
+            │   ├── accounting.js # 会计报表（三表 + 期末结转）
+            │   ├── backup.js  # 数据备份 / 导出 / 恢复
+            │   ├── notify.js  # 主动触达（推送通道 / 订阅 / 记录）
+            │   ├── collect.js # 收款（收款码 / 一键入账）
+            │   ├── shops.js   # 多店 / 成员
             │   └── settings.js# 设置（AI 模型 + 收款账户）
             └── init.js        # 初始化（hash 路由 / 导航绑定 / 首渲染）
 ```
@@ -215,7 +223,12 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8000
 
 ### 3. 打开网页版（推荐）
 
-后端启动后，手机与电脑连同一 WiFi，浏览器打开 `http://电脑局域网IP:8000` 即可使用全部功能（记账/熟客/文案/账本/设置）。电脑本地直接访问 `http://127.0.0.1:8000`。
+后端启动后，手机与电脑连同一 WiFi，浏览器打开 `http://电脑局域网IP:8000` 即可使用全部功能（记账/熟客/文案/账本/单店）。电脑本地直接访问 `http://127.0.0.1:8000`。
+
+网页端底部「更多」里还有：**收款**（现场生成收款码 · 一键入账）、**会计报表**（利润表 /
+资产负债表 / 科目余额表 / 期末结转）、**数据备份**（备份 · 导出 · 恢复）、
+**主动触达**（推送复盘与提醒）、**多店 / 成员**（开店 · 切店 · 角色令牌）、
+以及财务（现金流/预算/赊账）、库存、发票、设置。
 
 ### 4. 打开小程序
 
@@ -337,12 +350,16 @@ cd server
 python ../scripts/mp_demo_check.py     # 接口契约 + 模板绑定 + 演示数据 + 演示配置
 python scripts/check_mp_api.py         # 小程序调用的接口是否都真实存在
 python scripts/check_mp_pages.py       # 页面注册 + bindtap 处理函数是否存在 + 文件编码
+python scripts/check_web_pages.py      # 网页端内联 onclick 引用的函数是否存在 + 路由闭环
+node   scripts/check_web_render.js     # 在 Node 里真跑一遍网页端所有渲染函数
 python ../scripts/prewarm_cache.py     # 预热 AI 缓存（需先起后端）
 ```
 
-后两个脚本专门防一类"编译不报错、真机上点不动"的问题：小程序的
-`bindtap="foo"` 里的 `foo` 不存在，或 `api.js` 里写了个不存在的接口路径，
-都不会在编译期报错，只会在演示现场变成"点了没反应"。
+这几个脚本专门防一类"编译不报错、点下去没反应"的问题：小程序的
+`bindtap="foo"`、网页端的 `onclick="foo()"`，只要 `foo` 不存在，都不会在
+加载时报错，只在点的那一刻变成一次无声失败；渲染函数里的模板串写错更是直接
+白屏。`check_web_render.js` 用 Node 打桩最小浏览器环境，把每个 `renderXxx()`
+真跑一遍并断言产出了 HTML（需要本机有 node）。
 
 ## 主动触达（把复盘与提醒推到店主手机上）
 
