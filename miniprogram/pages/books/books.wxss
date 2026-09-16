@@ -62,6 +62,49 @@
 
 .insight-refresh.disabled { color: #bbb; border-color: #ddd; }
 
+/* ===== 资金健康 / 库存 / 发票 三块新增样式 ===== */
+
+/* 现金流逐月预测 */
+.fin-month { padding: 14rpx 0; border-bottom: 1rpx solid #f5f5f5; }
+.fin-month:last-child { border-bottom: none; }
+.fin-month-head { display: flex; justify-content: space-between; align-items: center; }
+.fin-month-head text:first-child { font-size: 28rpx; color: #444; }
+.fin-bal { font-size: 30rpx; font-weight: 700; }
+.fin-bal.pos { color: #16a34a; }
+.fin-bal.neg { color: #d64545; }
+
+/* 行内「计划 vs 实际」等两列布局（store 页的同名类是页面级作用域，这里要独立定义） */
+.dim-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12rpx 0; border-bottom: 1rpx solid #f5f5f5;
+}
+.dim-row:last-child { border-bottom: none; }
+.dim-name { font-size: 27rpx; color: #666; }
+.dim-level { font-size: 27rpx; color: #333; font-weight: 600; }
+
+/* 列表行尾操作（删 / 结清 / 作废） */
+.row-del {
+  font-size: 24rpx; color: #d64545; padding: 6rpx 16rpx;
+  border: 1rpx solid #f0c9c9; border-radius: 18rpx; margin-left: 12rpx;
+}
+
+/* picker 显示的当前值 */
+.picker-val { font-size: 28rpx; color: #333; }
+
+/* 库存行的 进/出/盘/删 */
+.stock-acts { display: flex; align-items: center; }
+.stock-acts .act {
+  font-size: 24rpx; color: #B4532A; padding: 6rpx 14rpx; margin-left: 8rpx;
+  border: 1rpx solid #e8cdbd; border-radius: 18rpx;
+}
+.stock-acts .act.del { color: #d64545; border-color: #f0c9c9; }
+
+/* 发票「作废」标记 */
+.void-badge {
+  font-size: 20rpx; color: #d64545; background: #fbe9e9;
+  padding: 2rpx 10rpx; border-radius: 10rpx; margin-left: 8rpx;
+}
+
 /* 科目表 */
 .cat-row { display: flex; padding: 10rpx 0; border-bottom: 1rpx solid #f5f5f5; }
 .cat-row:last-child { border-bottom: none; }

@@ -275,5 +275,87 @@ class TestDemoFlow(unittest.TestCase):
         self.assertEqual(unmapped, [], f"这些品类没有科目映射：{unmapped}")
 
 
+    # ---------------- 资金健康 / 库存 / 发票（小程序第 5~7 个标签） ----------------
+    def test_finance_contract(self):
+        """资金健康三块：现金流 / 预算 / 赊账。
+
+        页面直接读这些字段，缺了会渲染空白而不报错 —— 必须锁住字段名。
+        （实测写错过 product_count/count/void_count 三个名字）
+        """
+        with self._client() as c:
+            r = c.post("/api/cashflow", json={"cash_on_hand": 50000, "months": 6})
+            self.assertEqual(r.status_code, 200)
+            j = r.json()
+            self.assertTrue(j.get("months"), "要有逐月预测")
+            for k in ("month", "inflow", "outflow", "net", "end_balance"):
+                self.assertIn(k, j["months"][0], f"月份缺字段 {k}")
+            self.assertIsInstance(j.get("flags"), list)
+
+            today = date.today()
+            month = f"{today.year:04d}-{today.month:02d}"
+            self.assertEqual(c.post("/api/budgets", json={
+                "month": month, "scope": "expense", "amount": 8000,
+                "category": "进货", "note": ""}).status_code, 200)
+            b = c.get(f"/api/budgets?month={month}").json()
+            items = b if isinstance(b, list) else b.get("items", [])
+            self.assertTrue(items)
+            for k in ("id", "scope", "amount"):
+                self.assertIn(k, items[0], f"预算缺字段 {k}")
+
+            vs = c.get(f"/api/budgets/actual?month={month}").json()
+            self.assertIn("plan_total", vs)
+            self.assertIn("actual", vs)
+
+            self.assertEqual(c.post("/api/debts", json={
+                "party": "隔壁王老板", "kind": "receivable", "amount": 500,
+                "due_date": "", "note": ""}).status_code, 200)
+            d = c.get("/api/debts").json()
+            debts = d if isinstance(d, list) else d.get("items", [])
+            self.assertTrue(debts)
+            for k in ("id", "party", "kind", "balance"):
+                self.assertIn(k, debts[0], f"赊账缺字段 {k}")
+            self.assertIsInstance(c.get("/api/debts/aging").json().get("flags"), list)
+
+    def test_stock_contract(self):
+        """库存：字段名与页面一致（total_items / low_stock / expiring）。"""
+        with self._client() as c:
+            r = c.post("/api/products", json={
+                "name": "面粉", "category": "", "unit": "袋", "stock_qty": 10,
+                "safety_stock": 3, "unit_cost": 45, "expiry_date": "",
+                "supplier": "", "note": ""})
+            self.assertEqual(r.status_code, 200)
+            pid = r.json()["product_id"]
+
+            j = c.get("/api/stock").json()
+            for k in ("total_items", "total_value", "low_stock", "expiring",
+                      "products", "flags"):
+                self.assertIn(k, j, f"库存接口缺字段 {k}（页面直接读）")
+            p = j["products"][0]
+            for k in ("id", "name", "stock_qty", "unit", "safety_stock"):
+                self.assertIn(k, p, f"商品缺字段 {k}")
+
+            self.assertEqual(c.post(f"/api/products/{pid}/move", json={
+                "movement": "out", "qty": 2, "note": ""}).status_code, 200)
+            after = c.get("/api/stock").json()
+            qty = next(x["stock_qty"] for x in after["products"] if x["id"] == pid)
+            self.assertEqual(qty, 8, "出库后库存应减少")
+
+    def test_invoice_contract(self):
+        """发票：by_kind 用 cnt（不是 count），且无 void_count 字段。"""
+        with self._client() as c:
+            r = c.post("/api/invoices", json={
+                "kind": "out", "party": "某某公司", "invoice_no": "INV001",
+                "amount": 10000, "rate": 0.01, "tax_amount": 100,
+                "issued_date": date.today().isoformat(), "note": ""})
+            self.assertEqual(r.status_code, 200)
+            j = c.get("/api/invoices/summary").json()
+            self.assertTrue(j.get("by_kind"), "by_kind 应恒含 out/in 两行")
+            for k in ("kind", "total", "cnt"):
+                self.assertIn(k, j["by_kind"][0], f"by_kind 缺字段 {k}")
+            self.assertIsInstance(j.get("invoices"), list)
+            for k in ("id", "kind", "party", "amount", "rate", "status"):
+                self.assertIn(k, j["invoices"][0], f"发票缺字段 {k}")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

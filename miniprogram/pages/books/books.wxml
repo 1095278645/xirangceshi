@@ -170,5 +170,312 @@
     </view>
   </block>
 
+  <!-- ============ 资金健康：现金流预测 / 预算 / 赊账 ============ -->
+  <block wx:if="{{tabIndex === 4}}">
+    <view class="seg">
+      <view wx:for="{{finTabs}}" wx:key="*this"
+            class="seg-item {{finTabIndex === index ? 'active' : ''}}"
+            data-index="{{index}}" bindtap="switchFinTab">{{item}}</view>
+    </view>
+
+    <!-- 现金流滚动预测 -->
+    <block wx:if="{{finTabIndex === 0}}">
+      <view class="card">
+        <view class="card-title">未来几个月钱够不够花</view>
+        <view class="row">
+          <text class="row-label">现有现金</text>
+          <input class="row-input" type="digit" placeholder="如 50000"
+                 value="{{cashOnHand}}" bindinput="onCashInput" />
+        </view>
+        <view class="row">
+          <text class="row-label">预测月数</text>
+          <input class="row-input" type="number" placeholder="6"
+                 value="{{cashMonths}}" bindinput="onCashMonthsInput" />
+        </view>
+        <button class="btn" bindtap="runCashflow" disabled="{{cashLoading}}">
+          {{cashLoading ? '计算中…' : '预测未来收支'}}
+        </button>
+      </view>
+      <block wx:if="{{cashResult}}">
+        <view class="card">
+          <view class="card-title">逐月预测</view>
+          <view class="fin-month" wx:for="{{cashResult.months}}" wx:key="month">
+            <view class="fin-month-head">
+              <text>{{item.month}}</text>
+              <text class="fin-bal {{item.end_balance < 0 ? 'neg' : 'pos'}}">
+                {{item.end_balance}} 元
+              </text>
+            </view>
+            <view class="note">进 {{item.inflow}} / 出 {{item.outflow}} / 净 {{item.net}}</view>
+          </view>
+        </view>
+        <view class="card" wx:if="{{cashResult.flags.length}}">
+          <view class="card-title">提醒</view>
+          <view class="note" wx:for="{{cashResult.flags}}" wx:key="*this">· {{item}}</view>
+        </view>
+      </block>
+    </block>
+
+    <!-- 预算 -->
+    <block wx:if="{{finTabIndex === 1}}">
+      <view class="card">
+        <view class="card-title">设预算（花多少 / 进多少）</view>
+        <view class="row">
+          <text class="row-label">月份</text>
+          <picker mode="date" fields="month" value="{{budMonth}}" bindchange="onBudMonthChange">
+            <view class="picker-val">{{budMonth}}</view>
+          </picker>
+        </view>
+        <view class="seg" style="margin:12rpx 0;">
+          <view class="seg-item {{budScope === 'expense' ? 'active' : ''}}"
+                data-scope="expense" bindtap="setBudScope">支出计划</view>
+          <view class="seg-item {{budScope === 'income' ? 'active' : ''}}"
+                data-scope="income" bindtap="setBudScope">进账目标</view>
+        </view>
+        <view class="row">
+          <text class="row-label">金额</text>
+          <input class="row-input" type="digit" placeholder="如 8000"
+                 value="{{budAmount}}" bindinput="onBudAmountInput" />
+        </view>
+        <view class="row">
+          <text class="row-label">品类（可留空）</text>
+          <input class="row-input" placeholder="如 进货 / 房租"
+                 value="{{budCategory}}" bindinput="onBudCategoryInput" />
+        </view>
+        <button class="btn" bindtap="saveBudget">保存预算</button>
+      </view>
+
+      <view class="card" wx:if="{{budVs}}">
+        <view class="card-title">计划 vs 实际（{{budMonth}}）</view>
+        <view class="dim-row"><text class="dim-name">计划支出</text>
+          <text class="dim-level">{{budVs.plan_total.expense}} 元</text></view>
+        <view class="dim-row"><text class="dim-name">实际支出</text>
+          <text class="dim-level">{{budVs.actual.expense}} 元</text></view>
+        <view class="dim-row" wx:if="{{budVs.plan_total.income}}">
+          <text class="dim-name">计划进账</text>
+          <text class="dim-level">{{budVs.plan_total.income}} 元</text></view>
+        <view class="dim-row"><text class="dim-name">实际进账</text>
+          <text class="dim-level">{{budVs.actual.income}} 元</text></view>
+      </view>
+
+      <view class="card">
+        <view class="card-title">已设预算（{{budgets.length}}）</view>
+        <view class="empty" wx:if="{{!budgets.length}}">还没设过预算</view>
+        <view class="txn" wx:for="{{budgets}}" wx:key="id">
+          <view class="txn-main">
+            <view class="txn-item">{{item.scope === 'income' ? '进账目标' : '支出计划'}}
+              <text wx:if="{{item.category}}"> · {{item.category}}</text></view>
+          </view>
+          <view class="txn-amount">{{item.amount}} 元</view>
+          <view class="row-del" data-id="{{item.id}}" bindtap="deleteBudget">删</view>
+        </view>
+      </view>
+    </block>
+
+    <!-- 赊账（应收应付） -->
+    <block wx:if="{{finTabIndex === 2}}">
+      <view class="card">
+        <view class="card-title">记一笔赊账</view>
+        <view class="seg" style="margin:12rpx 0;">
+          <view class="seg-item {{debtKind === 'receivable' ? 'active' : ''}}"
+                data-kind="receivable" bindtap="setDebtKind">别人欠我</view>
+          <view class="seg-item {{debtKind === 'payable' ? 'active' : ''}}"
+                data-kind="payable" bindtap="setDebtKind">我欠别人</view>
+        </view>
+        <view class="row">
+          <text class="row-label">对方</text>
+          <input class="row-input" placeholder="如 隔壁王老板"
+                 value="{{debtParty}}" bindinput="onDebtPartyInput" />
+        </view>
+        <view class="row">
+          <text class="row-label">金额</text>
+          <input class="row-input" type="digit" placeholder="0"
+                 value="{{debtAmount}}" bindinput="onDebtAmountInput" />
+        </view>
+        <view class="row">
+          <text class="row-label">约定还款日</text>
+          <picker mode="date" value="{{debtDue}}" bindchange="onDebtDueChange">
+            <view class="picker-val">{{debtDue || '可不填'}}</view>
+          </picker>
+        </view>
+        <button class="btn" bindtap="addDebt">记下这笔账</button>
+      </view>
+
+      <view class="card" wx:if="{{aging && aging.flags.length}}">
+        <view class="card-title">账龄提醒</view>
+        <view class="note" wx:for="{{aging.flags}}" wx:key="*this">· {{item}}</view>
+      </view>
+
+      <view class="card">
+        <view class="card-title">未结清（{{debts.length}}）</view>
+        <view class="empty" wx:if="{{!debts.length}}">没有未结清的账</view>
+        <view class="txn" wx:for="{{debts}}" wx:key="id">
+          <view class="txn-main">
+            <view class="txn-item">{{item.party || '未记名'}}</view>
+            <view class="txn-sub">{{item.kind === 'receivable' ? '别人欠我' : '我欠别人'}}
+              <text wx:if="{{item.due_date}}"> · 约定 {{item.due_date}}</text></view>
+          </view>
+          <view class="txn-amount">{{item.balance}} 元</view>
+          <view class="row-del" data-id="{{item.id}}" bindtap="settleDebt">结清</view>
+        </view>
+      </view>
+    </block>
+  </block>
+
+  <!-- ============ 库存 ============ -->
+  <block wx:if="{{tabIndex === 5}}">
+    <view class="card" wx:if="{{stockSummary}}">
+      <view class="card-title">库存总览</view>
+      <view class="summary-row">
+        <view class="summary-item">
+          <view class="summary-num">{{stockSummary.total_value}}</view>
+          <view class="summary-label">货值（元）</view>
+        </view>
+        <view class="summary-item">
+          <view class="summary-num">{{stockSummary.total_items || 0}}</view>
+          <view class="summary-label">在库种类</view>
+        </view>
+        <view class="summary-item">
+          <view class="summary-num">{{stockSummary.low_stock.length || 0}}</view>
+          <view class="summary-label">该补货</view>
+        </view>
+        <view class="summary-item">
+          <view class="summary-num">{{stockSummary.expiring.length || 0}}</view>
+          <view class="summary-label">快过期</view>
+        </view>
+      </view>
+      <view class="note">{{stockSummary.summary}}</view>
+    </view>
+
+    <view class="card" wx:if="{{stockSummary && stockSummary.flags.length}}">
+      <view class="card-title">预警</view>
+      <view class="note" wx:for="{{stockSummary.flags}}" wx:key="*this">· {{item}}</view>
+    </view>
+
+    <view class="card">
+      <view class="card-title">登记商品 / 材料</view>
+      <view class="row">
+        <text class="row-label">名称</text>
+        <input class="row-input" placeholder="如 面粉"
+               value="{{prodName}}" data-key="prodName" bindinput="onProdInput" />
+      </view>
+      <view class="row">
+        <text class="row-label">单位</text>
+        <input class="row-input" placeholder="如 袋"
+               value="{{prodUnit}}" data-key="prodUnit" bindinput="onProdInput" />
+      </view>
+      <view class="row">
+        <text class="row-label">进货数量</text>
+        <input class="row-input" type="digit" placeholder="0"
+               value="{{prodQty}}" data-key="prodQty" bindinput="onProdInput" />
+      </view>
+      <view class="row">
+        <text class="row-label">安全库存</text>
+        <input class="row-input" type="digit" placeholder="低于它提醒补货"
+               value="{{prodSafety}}" data-key="prodSafety" bindinput="onProdInput" />
+      </view>
+      <view class="row">
+        <text class="row-label">单价</text>
+        <input class="row-input" type="digit" placeholder="0"
+               value="{{prodCost}}" data-key="prodCost" bindinput="onProdInput" />
+      </view>
+      <view class="row">
+        <text class="row-label">保质期到</text>
+        <picker mode="date" value="{{prodExpiry}}" bindchange="onProdExpiryChange">
+          <view class="picker-val">{{prodExpiry || '可不填'}}</view>
+        </picker>
+      </view>
+      <button class="btn" bindtap="saveProduct">登记入库</button>
+    </view>
+
+    <view class="card">
+      <view class="card-title">商品清单（{{stockSummary.products.length || 0}}）</view>
+      <view class="empty" wx:if="{{!stockSummary || !stockSummary.products.length}}">
+        还没有商品，在上面登记
+      </view>
+      <view class="txn" wx:for="{{stockSummary.products}}" wx:key="id">
+        <view class="txn-main">
+          <view class="txn-item">{{item.name}}</view>
+          <view class="txn-sub">库存 {{item.stock_qty}}{{item.unit || ''}}
+            <text wx:if="{{item.safety_stock}}"> · 安全线 {{item.safety_stock}}</text>
+            <text wx:if="{{item.expiry_date}}"> · 保质期 {{item.expiry_date}}</text></view>
+        </view>
+        <view class="stock-acts">
+          <text class="act" data-id="{{item.id}}" data-name="{{item.name}}" data-act="in" bindtap="promptMove">进</text>
+          <text class="act" data-id="{{item.id}}" data-name="{{item.name}}" data-act="out" bindtap="promptMove">出</text>
+          <text class="act" data-id="{{item.id}}" data-name="{{item.name}}" data-act="adj" bindtap="promptMove">盘</text>
+          <text class="act del" data-id="{{item.id}}" bindtap="deleteProduct">删</text>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <!-- ============ 发票台账 ============ -->
+  <block wx:if="{{tabIndex === 6}}">
+    <view class="card" wx:if="{{invoiceSummary}}">
+      <view class="card-title">发票概览</view>
+      <view class="dim-row" wx:for="{{invoiceSummary.by_kind}}" wx:key="kind">
+        <text class="dim-name">{{item.kind === 'out' ? '销项（开出去）' : '进项（收进来）'}}</text>
+        <text class="dim-level">{{item.total}} 元 / {{item.cnt}} 张</text>
+      </view>
+      <view class="note" wx:if="{{invoiceSummary.summary}}">{{invoiceSummary.summary}}</view>
+    </view>
+
+    <view class="card">
+      <view class="card-title">登记发票</view>
+      <view class="seg" style="margin:12rpx 0;">
+        <view class="seg-item {{invKind === 'out' ? 'active' : ''}}"
+              data-kind="out" bindtap="setInvKind">销项（我开出去）</view>
+        <view class="seg-item {{invKind === 'in' ? 'active' : ''}}"
+              data-kind="in" bindtap="setInvKind">进项（我收进来）</view>
+      </view>
+      <view class="row">
+        <text class="row-label">对方</text>
+        <input class="row-input" placeholder="如 某某公司"
+               value="{{invParty}}" data-key="invParty" bindinput="onInvInput" />
+      </view>
+      <view class="row">
+        <text class="row-label">发票号</text>
+        <input class="row-input" placeholder="可留空"
+               value="{{invNo}}" data-key="invNo" bindinput="onInvInput" />
+      </view>
+      <view class="row">
+        <text class="row-label">金额</text>
+        <input class="row-input" type="digit" placeholder="0"
+               value="{{invAmount}}" data-key="invAmount" bindinput="onInvInput" />
+      </view>
+      <view class="row">
+        <text class="row-label">税率（%）</text>
+        <input class="row-input" type="digit" placeholder="1"
+               value="{{invRate}}" data-key="invRate" bindinput="onInvInput" />
+      </view>
+      <view class="row">
+        <text class="row-label">开票日期</text>
+        <picker mode="date" value="{{invDate}}" bindchange="onInvDateChange">
+          <view class="picker-val">{{invDate || '默认今天'}}</view>
+        </picker>
+      </view>
+      <button class="btn" bindtap="saveInvoice">记入台账</button>
+    </view>
+
+    <view class="card">
+      <view class="card-title">发票列表（{{invoiceSummary.invoices.length || 0}}）</view>
+      <view class="empty" wx:if="{{!invoiceSummary || !invoiceSummary.invoices.length}}">
+        还没有发票记录
+      </view>
+      <view class="txn" wx:for="{{invoiceSummary.invoices}}" wx:key="id">
+        <view class="txn-main">
+          <view class="txn-item">{{item.kind === 'out' ? '📤 开给' : '📥 收到'}} {{item.party || '未记名'}}
+            <text class="void-badge" wx:if="{{item.status === 'void'}}">作废</text></view>
+          <view class="txn-sub">{{item.issued_date}} · 税率 {{item.rate}}
+            <text wx:if="{{item.invoice_no}}"> · {{item.invoice_no}}</text></view>
+        </view>
+        <view class="txn-amount income">{{item.amount}} 元</view>
+        <view class="row-del" wx:if="{{item.status !== 'void'}}"
+              data-id="{{item.id}}" bindtap="voidInvoice">作废</view>
+      </view>
+    </view>
+  </block>
+
   <tabbar current="{{3}}" />
 </view>

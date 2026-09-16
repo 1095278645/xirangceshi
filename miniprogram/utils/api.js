@@ -178,5 +178,31 @@ module.exports = {
   delStoreProfile: (id) => request('/api/profile/' + id, 'DELETE'),
 
   // 掌柜今日复盘（心跳）
-  heartbeat: () => request('/api/heartbeat')
+  heartbeat: () => request('/api/heartbeat'),
+
+  // ---- 资金健康：现金流预测 / 预算 / 应收应付 ----
+  cashflow: (data) => request('/api/cashflow', 'POST', data),
+  budgets: (month) => request('/api/budgets?month=' + month),
+  saveBudget: (data) => request('/api/budgets', 'POST', data),
+  deleteBudget: (id) => request('/api/budgets/' + id, 'DELETE'),
+  budgetActual: (month) => request('/api/budgets/actual?month=' + month),
+  debts: () => request('/api/debts'),
+  addDebt: (data) => request('/api/debts', 'POST', data),
+  settleDebt: (id) => request('/api/debts/' + id + '/settle', 'POST', {}),
+  deleteDebt: (id) => request('/api/debts/' + id, 'DELETE'),
+  debtsAging: () => request('/api/debts/aging'),
+
+  // ---- 库存进销存 ----
+  stock: () => request('/api/stock'),
+  products: () => request('/api/products'),
+  saveProduct: (data) => request('/api/products', 'POST', data),
+  deleteProduct: (id) => request('/api/products/' + id, 'DELETE'),
+  moveStock: (id, movement, qty, note) =>
+    request('/api/products/' + id + '/move', 'POST', { movement, qty, note: note || '' }),
+
+  // ---- 发票台账 ----
+  invoices: () => request('/api/invoices'),
+  invoiceSummary: () => request('/api/invoices/summary'),
+  saveInvoice: (data) => request('/api/invoices', 'POST', data),
+  voidInvoice: (id) => request('/api/invoices/' + id + '/void', 'POST', {})
 }
