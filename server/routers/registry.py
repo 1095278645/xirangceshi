@@ -40,6 +40,7 @@ BUSINESS_DOMAINS = [
     {"name": "stock",     "module": "stock",     "desc": "库存进销存 / 补货过期预警",                    "enabled": True},
     {"name": "invoice",   "module": "invoice",   "desc": "发票台账（销项/进项）",                        "enabled": True},
     {"name": "evolution", "module": "evolution", "desc": "自适应进化层",                                 "enabled": True},
+    {"name": "backup",    "module": "backup",    "desc": "数据备份 / 导出 / 恢复",                       "enabled": True},
 ]
 
 

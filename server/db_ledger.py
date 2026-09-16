@@ -24,6 +24,10 @@ def _conn():
 
 
 # ---------------- 交易 + 凭证（复式记账） ----------------
+# 更正状态过滤：voided（已作废）与 refunded（已退货）不应计入任何合计；
+# refund（退货冲销记录）**要**计入，且其金额为负，天然把原收入抵消掉。
+# 老库刚加列时 status 可能是 NULL，用 COALESCE 兜成 active，避免漏统计。
+_ACTIVE_FILTER = "COALESCE(status,'active') IN ('active','refund')"
 def add_transaction(customer_id, item, amount, trans_type="income", category="主营业务收入",
                     counterparty="", note=""):
     """记一笔：写交易流水；有金额时自动生成借贷凭证（省账通映射），无金额仅记流水"""
@@ -119,7 +123,8 @@ def today_summary():
         row = conn.execute(
             "SELECT COALESCE(SUM(CASE WHEN trans_type='income' THEN amount ELSE 0 END),0) AS income, "
             "COALESCE(SUM(CASE WHEN trans_type='expense' THEN amount ELSE 0 END),0) AS expense, "
-            "COUNT(*) AS cnt FROM transactions WHERE date(created_at)=date('now','localtime')").fetchone()
+            "COUNT(*) AS cnt FROM transactions "
+            f"WHERE date(created_at)=date('now','localtime') AND {_ACTIVE_FILTER}").fetchone()
         d = dict(row)
         d["balance"] = round(d["income"] - d["expense"], 2)
         return d
@@ -135,7 +140,8 @@ def monthly_summary(year=None, month=None):
     with _conn() as conn:
         rows = conn.execute(
             "SELECT trans_type, SUM(amount) AS total, COUNT(*) AS cnt FROM transactions "
-            "WHERE substr(created_at,1,7)=? GROUP BY trans_type", (period,)).fetchall()
+            f"WHERE substr(created_at,1,7)=? AND {_ACTIVE_FILTER} GROUP BY trans_type",
+            (period,)).fetchall()
         income = expense = 0
         income_cnt = expense_cnt = 0
         for r in rows:
@@ -146,7 +152,8 @@ def monthly_summary(year=None, month=None):
 
         cats = conn.execute(
             "SELECT category, trans_type, SUM(amount) AS total, COUNT(*) AS cnt FROM transactions "
-            "WHERE substr(created_at,1,7)=? GROUP BY category, trans_type ORDER BY total DESC",
+            f"WHERE substr(created_at,1,7)=? AND {_ACTIVE_FILTER} "
+            "GROUP BY category, trans_type ORDER BY total DESC",
             (period,)).fetchall()
         categories = [{
             "category": r["category"],
@@ -173,9 +180,10 @@ def list_transactions(year=None, month=None, limit=100):
     period = f"{year}-{month:02d}"
     with _conn() as conn:
         rows = conn.execute(
-            "SELECT t.*, c.name AS customer_name "
+            f"SELECT t.*, c.name AS customer_name "
             "FROM transactions t LEFT JOIN customers c ON c.id=t.customer_id "
-            "WHERE substr(t.created_at,1,7)=? ORDER BY t.id DESC LIMIT ?",
+            f"WHERE substr(t.created_at,1,7)=? AND {_ACTIVE_FILTER} "
+            "ORDER BY t.id DESC LIMIT ?",
             (period, limit)).fetchall()
         out = []
         for r in rows:
@@ -221,14 +229,15 @@ def store_ledger_stats(year=None, month=None):
         inc = conn.execute(
             "SELECT COALESCE(SUM(amount),0) AS total, "
             "COUNT(DISTINCT substr(created_at,1,10)) AS days "
-            "FROM transactions WHERE substr(created_at,1,7)=? "
+            f"FROM transactions WHERE substr(created_at,1,7)=? AND {_ACTIVE_FILTER} "
             "AND trans_type='income' AND amount>0", (period,)).fetchone()
         income_total = inc["total"] or 0
         active_days = inc["days"] or 0
 
         cost = conn.execute(
             "SELECT COALESCE(SUM(amount),0) AS total FROM transactions "
-            "WHERE substr(created_at,1,7)=? AND trans_type='expense' AND category IN (%s)"
+            f"WHERE substr(created_at,1,7)=? AND {_ACTIVE_FILTER} "
+            "AND trans_type='expense' AND category IN (%s)"
             % ",".join("?" * len(_COST_CATEGORIES)),
             (period, *_COST_CATEGORIES)).fetchone()
         cost_total = cost["total"] or 0

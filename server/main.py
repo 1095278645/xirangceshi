@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 import auth
+import backup
 import config
 import db
 import heartbeat
@@ -26,6 +27,27 @@ from routers import registry
 log = logging.getLogger("main")
 SYNC_INTERVAL_SECONDS = 6 * 3600   # 每 6 小时自动同步一次昨日账单
 HEARTBEAT_INTERVAL_SECONDS = 24 * 3600  # 每天生成一次经营复盘
+BACKUP_INTERVAL_SECONDS = 6 * 3600      # 每 6 小时检查一次是否需要自动备份（实际按天节流）
+
+
+async def _backup_loop():
+    """后台定时任务：定期为数据库做一致性快照。
+
+    账本是财务数据，原先只存在单个 SQLite 文件里、没有任何备份手段。
+    这里按天节流（auto_backup_if_needed 内部判断间隔），并在启动时立即备份一次，
+    避免"服务刚起来就崩"这种窗口期没有可用备份。
+    """
+    first = True
+    while True:
+        try:
+            info = await asyncio.to_thread(backup.auto_backup_if_needed)
+            if info:
+                log.info("自动备份完成：%s（%.1f KB）", info["name"], info["size"] / 1024)
+        except Exception as e:  # noqa: BLE001
+            log.error("自动备份失败：%s", e)
+        # 首次启动后等一小会儿再循环，避免与建库/迁移抢 IO
+        await asyncio.sleep(30 if first else BACKUP_INTERVAL_SECONDS)
+        first = False
 
 
 async def _daily_sync_loop():
@@ -62,9 +84,11 @@ async def lifespan(_: FastAPI):
     db.init_db()
     sync_task = asyncio.create_task(_daily_sync_loop())
     hb_task = asyncio.create_task(_heartbeat_loop())
+    backup_task = asyncio.create_task(_backup_loop())
     yield
     sync_task.cancel()
     hb_task.cancel()
+    backup_task.cancel()
 
 
 app = FastAPI(title="巷子里的AI掌柜", version="0.2.0", lifespan=lifespan)

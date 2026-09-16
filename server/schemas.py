@@ -105,6 +105,29 @@ class InsightIn(BaseModel):
     refresh: bool = False     # True=强制重新生成；默认命中缓存直接返回
 
 
+class TransactionEditIn(BaseModel):
+    """交易更正（只传需要改的字段）"""
+    item: str | None = None
+    amount: float | None = Field(default=None, ge=0)
+    category: str | None = None
+    counterparty: str | None = None
+    note: str | None = None
+    trans_type: str | None = None
+    customer_id: int | None = None
+    reason: str = ""          # 更正原因，写入审计
+
+
+class VoidIn(BaseModel):
+    """作废交易"""
+    reason: str = ""
+
+
+class RefundIn(BaseModel):
+    """退货冲销：amount 省略表示全额退"""
+    amount: float | None = Field(default=None, gt=0)
+    reason: str = ""
+
+
 class CopyContextIn(BaseModel):
     """文案生成上下文（从 domain_context 读取的经营记忆）"""
     shop_name: str = "我的小店"

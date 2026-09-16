@@ -57,10 +57,14 @@ def delete_budget(bid: int) -> bool:
 
 
 def _month_expense(conn, month: str) -> float:
-    """某月实际支出（transactions, trans_type=expense）"""
+    """某月实际支出（transactions, trans_type=expense）。
+
+    必须排除已作废/已退货的记录，否则预算对比会把废掉的账算进去。
+    """
     row = conn.execute(
         "SELECT COALESCE(SUM(amount),0) AS s FROM transactions "
-        "WHERE trans_type='expense' AND substr(created_at,1,7)=?",
+        "WHERE trans_type='expense' AND substr(created_at,1,7)=? "
+        "AND COALESCE(status,'active') IN ('active','refund')",
         (month,)).fetchone()
     return float(row["s"] or 0)
 
@@ -68,7 +72,8 @@ def _month_expense(conn, month: str) -> float:
 def _month_income(conn, month: str) -> float:
     row = conn.execute(
         "SELECT COALESCE(SUM(amount),0) AS s FROM transactions "
-        "WHERE trans_type='income' AND substr(created_at,1,7)=?",
+        "WHERE trans_type='income' AND substr(created_at,1,7)=? "
+        "AND COALESCE(status,'active') IN ('active','refund')",
         (month,)).fetchone()
     return float(row["s"] or 0)
 

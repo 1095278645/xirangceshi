@@ -34,8 +34,11 @@ def get_customer(cid):
         c = dict(c)
         c["memories"] = [dict(r) for r in conn.execute(
             "SELECT * FROM memories WHERE customer_id=? ORDER BY created_at DESC", (cid,))]
+        # 熟客详情里的消费记录：排除已作废的，但保留退货冲销（负数）让店主看到
         c["transactions"] = [dict(r) for r in conn.execute(
-            "SELECT * FROM transactions WHERE customer_id=? ORDER BY created_at DESC LIMIT 20", (cid,))]
+            "SELECT * FROM transactions WHERE customer_id=? "
+            "AND COALESCE(status,'active') != 'voided' "
+            "ORDER BY created_at DESC LIMIT 20", (cid,))]
         return c
 
 

@@ -18,6 +18,7 @@ import sqlite3
 # 按业务域聚合查询能力（保持 db.* 命名空间向后兼容）
 from db_customers import *  # noqa: F401,F403
 from db_ledger import *     # noqa: F401,F403
+from db_corrections import *  # noqa: F401,F403  交易更正（编辑/作废/退货冲销）
 from db_payment import *    # noqa: F401,F403
 from db_arch import *       # noqa: F401,F403  领域上下文/任务队列/单店档案
 from db_finance import *    # noqa: F401,F403  预算/应收应付/现金流预测
@@ -238,6 +239,38 @@ def init_db():
             conn.execute("ALTER TABLE transactions ADD COLUMN wx_trade_id TEXT DEFAULT ''")
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_wx_trade_id "
                      "ON transactions(wx_trade_id) WHERE wx_trade_id != ''")
+
+        # ===== 交易更正相关列（记错了要能改、能作废、能红冲）=====
+        # 原先一旦入账就永远改不了：AI 分类错、金额录错只能忍着；
+        # 退货/退款更是无法表达。这里加状态与关联字段：
+        #   status   : active（正常）/ voided（已作废，不计入合计）
+        #              / refunded（已被退货，不计入合计）/
+        #              refund（退货冲销记录，金额为负）
+        #   parent_id: 退货记录指向原交易
+        if "status" not in cols:
+            conn.execute("ALTER TABLE transactions "
+                         "ADD COLUMN status TEXT DEFAULT 'active'")
+        if "voided_reason" not in cols:
+            conn.execute("ALTER TABLE transactions "
+                         "ADD COLUMN voided_reason TEXT DEFAULT ''")
+        if "parent_id" not in cols:
+            conn.execute("ALTER TABLE transactions ADD COLUMN parent_id INTEGER")
+
+        # ===== 更正审计（谁在什么时候把什么改成了什么）=====
+        # 财务数据必须留痕：作废/编辑不能是"悄悄消失"，否则对不上账时无从追查。
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS transaction_audits (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_id INTEGER NOT NULL,
+            action      TEXT NOT NULL,          -- edit / void / refund
+            before_json TEXT DEFAULT '',
+            after_json  TEXT DEFAULT '',
+            reason      TEXT DEFAULT '',
+            created_at  TEXT DEFAULT (datetime('now','localtime'))
+        );
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_txn_audit_tid "
+                     "ON transaction_audits(transaction_id)")
 
         # ===== 自适应进化层建表（拆到 db_evolution_audit.init_evolution_tables）=====
         init_evolution_tables(conn)

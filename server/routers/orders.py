@@ -1,13 +1,13 @@
-"""记账 / 流水 / 凭证 / 月度汇总（查账）"""
+"""记账 / 流水 / 凭证 / 交易更正 / 月度汇总（查账）"""
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Query
 
 import ai
 import db
 import tax as taxcalc
 from categories import is_known_category
-from schemas import OrderIn, InsightIn
+from schemas import (InsightIn, OrderIn, RefundIn, TransactionEditIn, VoidIn)
 
 log = logging.getLogger("orders")
 router = APIRouter(prefix="/api", tags=["orders"])
@@ -62,6 +62,59 @@ def vouchers(limit: int = 50):
 @router.get("/transactions")
 def transactions(year: int | None = None, month: int | None = None, limit: int = 100):
     return db.list_transactions(year, month, limit)
+
+
+# ---------------- 交易更正（编辑 / 作废 / 退货冲销） ----------------
+# 财务数据必须可更正且留痕：AI 会分类错误、店主会录错金额、顾客会退货。
+# 这三个接口原先完全缺失 —— 一旦入账就永远改不了。
+
+@router.get("/transactions/{tid}")
+def transaction_detail(tid: int):
+    """单笔交易详情（含更正历史），供前端点击某笔查看/更正。"""
+    txn = db.get_transaction(tid)
+    if not txn:
+        raise HTTPException(404, "交易不存在")
+    return {"transaction": txn, "audits": db.list_transaction_audits(tid)}
+
+
+@router.post("/transactions/{tid}")
+def transaction_edit(tid: int, data: TransactionEditIn):
+    """更正一笔交易（旧凭证作废并生成新凭证，全程留痕）。"""
+    fields = {k: v for k, v in data.model_dump().items()
+              if k != "reason" and v is not None}
+    if not fields:
+        raise HTTPException(400, "没有要修改的内容")
+    try:
+        return db.edit_transaction(tid, reason=data.reason, **fields)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@router.post("/transactions/{tid}/void")
+def transaction_void(tid: int, data: VoidIn | None = None):
+    """作废一笔交易（冲销凭证；记录保留可查，不计入合计）。"""
+    reason = (data.reason if data else "") or ""
+    try:
+        return db.void_transaction(tid, reason=reason)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@router.post("/transactions/{tid}/refund")
+def transaction_refund(tid: int, data: RefundIn | None = None):
+    """退货冲销：生成金额为负的关联记录，与原记录相加抵消。"""
+    amount = data.amount if data else None
+    reason = (data.reason if data else "") or ""
+    try:
+        return db.refund_transaction(tid, amount=amount, reason=reason)
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@router.get("/audits")
+def audits(limit: int = Query(default=100, ge=1, le=500)):
+    """最近的更正历史（谁在什么时候改了什么）。"""
+    return {"audits": db.list_transaction_audits(limit=limit)}
 
 def _insight_cache_key(period: str) -> str:
     """按月份分键缓存。原实现用固定的 monthly_insights 键，
