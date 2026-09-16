@@ -20,7 +20,31 @@ function setToken(t) {
 // 令牌统一由请求头携带（不用 ?token= 以免出现在日志/历史里）
 function authHeaders() {
   const t = getToken();
-  return t ? { 'X-Shop-Token': t } : {};
+  const h = t ? { 'X-Shop-Token': t } : {};
+  // 多店：带当前店铺 id，后端据此切换账本。没设置时后端落到默认店，
+  // 单店行为完全不变。
+  const sid = getShopId();
+  if (sid !== null) h['X-Shop-Id'] = String(sid);
+  return h;
+}
+
+// ---------- 当前店铺（多店） ----------
+const SHOP_KEY = 'shop_current_id';
+
+function getShopId() {
+  try {
+    const v = localStorage.getItem(SHOP_KEY);
+    if (v === null || v === '') return null;
+    const n = Number(v);
+    return isNaN(n) ? null : n;
+  } catch (_) { return null; }
+}
+
+function setShopId(id) {
+  try {
+    if (id === null || id === undefined || id === '') localStorage.removeItem(SHOP_KEY);
+    else localStorage.setItem(SHOP_KEY, String(Number(id)));
+  } catch (_) {}
 }
 
 // ---------- API 封装（同源，直接 fetch） ----------
