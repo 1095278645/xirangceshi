@@ -2,15 +2,41 @@
 // 加载顺序：core.js 必须先于所有页面文件，最后加载 init.js 完成初始化。
 'use strict';
 
+// ---------- 访问令牌（后端启用鉴权时必需） ----------
+// 后端设置了 SHOP_ACCESS_TOKEN 才校验；未设置时留空即可，行为与以前一致。
+const TOKEN_KEY = 'shop_access_token';
+
+function getToken() {
+  try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (_) { return ''; }
+}
+
+function setToken(t) {
+  try {
+    if (t) localStorage.setItem(TOKEN_KEY, t);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch (_) {}
+}
+
+// 令牌统一由请求头携带（不用 ?token= 以免出现在日志/历史里）
+function authHeaders() {
+  const t = getToken();
+  return t ? { 'X-Shop-Token': t } : {};
+}
+
 // ---------- API 封装（同源，直接 fetch） ----------
 async function api(path, method = 'GET', data = null) {
-  const opt = { method, headers: { 'Content-Type': 'application/json' } };
+  const opt = { method, headers: { 'Content-Type': 'application/json', ...authHeaders() } };
   if (data) opt.body = JSON.stringify(data);
   let res;
   try {
     res = await fetch(path, opt);
   } catch (e) {
     throw new Error('无法连接小店服务，请确认后端已启动');
+  }
+  if (res.status === 401) {
+    // 引导用户去设置页填令牌，而不是只报「请求失败 401」
+    state.needToken = true;
+    throw new Error('需要访问令牌：请到「设置」页填写访问令牌');
   }
   if (!res.ok) {
     let msg = '请求失败 ' + res.status;
@@ -20,9 +46,37 @@ async function api(path, method = 'GET', data = null) {
   return res.json();
 }
 
+// 带令牌下载文件（报表导出）：<a href> 无法自定义请求头，故用 fetch + blob
+async function downloadFile(path, filename) {
+  let res;
+  try {
+    res = await fetch(path, { headers: authHeaders() });
+  } catch (_) {
+    toast('无法连接小店服务'); return;
+  }
+  if (res.status === 401) {
+    state.needToken = true;
+    toast('需要访问令牌：请到「设置」页填写');
+    render();
+    return;
+  }
+  if (!res.ok) { toast('下载失败 ' + res.status); return; }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // ---------- 全局状态 ----------
 const state = {
   route: 'home',
+  needToken: false,          // 后端返回 401 时置位，设置页据此提示
+  tokenInput: '',
   summary: { income: 0, expense: 0, balance: 0, cnt: 0 },
   month: { period: '', income: 0, expense: 0, balance: 0 },
   recognizing: false,
@@ -68,8 +122,8 @@ const state = {
     pitSalary: '', pitSocial: '', pitSpecial: '', pitResult: null,
     citIncome: '', citSmall: true, citResult: null,
     calendar: null, accountCats: [], downloading: false,
-    insight: null, insightLoading: false, insightAiUsed: false,
-    taxAdvice: null, taxAdviceLoading: false, taxAdviceAiUsed: false },
+    insight: null, insightLoading: false, insightAiUsed: false, insightCached: false,
+    taxAdvice: null, taxAdviceLoading: false, taxAdviceAiUsed: false, taxAdviceCached: false },
   // 单店模型（勇哥方法论泛化）
   store: { presets: [], bizType: '餐饮', form: { daily_revenue: '', gross_margin: '',
     rent: '', salary: '', utilities: '', total_investment: '', cash_on_hand: '',

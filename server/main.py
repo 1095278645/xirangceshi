@@ -7,6 +7,7 @@
 """
 import asyncio
 import logging
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+import auth
 import config
 import db
 import heartbeat
@@ -72,12 +74,30 @@ _STATIC_DIR = config.BASE_DIR / "static"
 # CORS：仅放行本机与内网来源（手机浏览器访问 http://电脑IP:8000 时 Origin 为局域网 IP）。
 # 小程序 wx.request 不受浏览器 CORS 限制，无需放行。避免公网恶意网页调用本地 API。
 _ORIGIN_RE = r"^https?://(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$"
+
+
+def _is_allowed_origin(origin: str) -> bool:
+    """该 Origin 是否属于放行范围（本机 / 局域网网段）。
+
+    与 CORSMiddleware 的 _ORIGIN_RE 共用同一套规则。单独抽成函数是为了让
+    鉴权中间件在返回 401 时也能补上 CORS 头 —— 否则白名单内的手机浏览器读不到
+    401 详情，前端只能显示笼统的「请求失败」，无法提示用户去填访问令牌。
+    """
+    return bool(origin) and re.match(_ORIGIN_RE, origin) is not None
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=_ORIGIN_RE,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 访问令牌鉴权：只守 /api/**，页面与静态资源放行。
+# 未设置 SHOP_ACCESS_TOKEN 时整体放行（行为与改造前一致，不破坏既有部署）。
+# 注意中间件顺序：Starlette 后添加者先执行 → 本行在 CORS 之后添加，
+# 因此 CORS 先处理（含 OPTIONS 预检），再由鉴权拦截实际 API 调用。
+app.add_middleware(auth.AccessTokenMiddleware, origin_checker=_is_allowed_origin)
 
 # 业务路由：按域拆分，由 registry 声明式注册表统一挂载。
 # 新增/停用/删除业务域只改 routers/registry.py 的 BUSINESS_DOMAINS 声明，

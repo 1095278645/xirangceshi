@@ -1,6 +1,34 @@
 <!-- pages/settings/settings.wxml 设置 -->
 <view class="page">
 
+  <!-- 后端地址（真机演示必配） -->
+  <view class="card">
+    <view class="card-title">后端地址（真机必配）</view>
+    <view class="form-item">
+      <text class="form-label">电脑的局域网地址</text>
+      <input class="form-input" placeholder="如 http://192.168.1.5:8000"
+             value="{{baseUrlInput}}" bindinput="onServerUrlInput" />
+    </view>
+    <view class="btn-primary manual-btn" bindtap="saveServerUrl">保存地址</view>
+    <view class="btn-ghost" bindtap="testConn">测试连接</view>
+    <view class="status-detail">当前：{{currentBaseUrl || '未设置'}}</view>
+    <view class="status-detail" wx:if="{{connState}}">{{connState}}</view>
+    <view class="status-detail">手机上 127.0.0.1 指的是手机自己，真机预览必须填电脑的局域网 IP（电脑与手机连同一 WiFi）。</view>
+  </view>
+
+  <!-- 访问令牌（后端开启鉴权时必填） -->
+  <view class="card">
+    <view class="card-title">访问令牌{{hasToken ? '（已配置）' : ''}}</view>
+    <view class="form-item">
+      <text class="form-label">访问令牌</text>
+      <input class="form-input" password="{{true}}" placeholder="后端未开启鉴权则留空"
+             value="{{tokenInput}}" bindinput="onTokenInput" />
+    </view>
+    <view class="btn-primary manual-btn" bindtap="saveToken">保存令牌</view>
+    <view class="btn-ghost" wx:if="{{hasToken}}" bindtap="clearToken">清除令牌</view>
+    <view class="status-detail">只在后端设置了 SHOP_ACCESS_TOKEN 时需要填写；令牌仅存在本机。</view>
+  </view>
+
   <!-- AI 状态 -->
   <view class="card">
     <view class="card-title">AI 服务状态</view>

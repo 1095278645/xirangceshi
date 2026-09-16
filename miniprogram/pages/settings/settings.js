@@ -25,15 +25,91 @@ Page({
     payPrivKeyPath: '',
     payV3Key: '',
     payEnabled: true,
-    paySyncing: false
+    paySyncing: false,
+    // 访问令牌（后端开启鉴权时必填）
+    tokenInput: '',
+    hasToken: false,
+    // 后端地址（真机演示必配：真机上 127.0.0.1 指向手机自己）
+    baseUrlInput: '',
+    currentBaseUrl: '',
+    connState: ''
   },
 
   onLoad() {
+    this.setData({ hasToken: !!api.getToken() })
+    this.syncConn()
     this.load()
   },
 
   onShow() {
+    this.setData({ hasToken: !!api.getToken() })
+    this.syncConn()
     this.load()
+  },
+
+  // 回显当前后端地址（存本地 storage，优先于 app.js 默认值）
+  syncConn() {
+    const cur = api.getBaseUrl()
+    this.setData({ currentBaseUrl: cur, baseUrlInput: this.data.baseUrlInput || cur })
+  },
+
+  onServerUrlInput(e) {
+    this.setData({ baseUrlInput: e.detail.value })
+  },
+
+  saveServerUrl() {
+    const v = (this.data.baseUrlInput || '').trim()
+    if (!v) {
+      wx.showToast({ title: '请填写后端地址', icon: 'none' })
+      return
+    }
+    if (!/^https?:\/\//i.test(v)) {
+      wx.showToast({ title: '地址要以 http:// 或 https:// 开头', icon: 'none' })
+      return
+    }
+    api.setBaseUrl(v)
+    api.resetFailFlag()
+    this.syncConn()
+    wx.showToast({ title: '地址已保存', icon: 'success' })
+    this.load()
+  },
+
+  // 一键自检：确认手机能连上这个地址
+  testConn() {
+    const cur = api.getBaseUrl()
+    if (!cur) { wx.showToast({ title: '请先填写后端地址', icon: 'none' }); return }
+    this.setData({ connState: '测试中…' })
+    wx.request({
+      url: cur + '/api/health',
+      timeout: 8000,
+      success: (res) => {
+        const ok = res.statusCode === 200
+        this.setData({ connState: ok ? '✅ 连接正常' : ('❌ 返回 ' + res.statusCode) })
+        wx.showToast({ title: ok ? '连接正常' : '后端返回异常', icon: 'none' })
+      },
+      fail: () => {
+        this.setData({ connState: '❌ 连不上，检查地址/同一网络/防火墙' })
+        wx.showToast({ title: '连不上，请检查地址与网络', icon: 'none' })
+      }
+    })
+  },
+
+  onTokenInput(e) {
+    this.setData({ tokenInput: e.detail.value })
+  },
+
+  saveToken() {
+    const t = (this.data.tokenInput || '').trim()
+    api.setToken(t)
+    this.setData({ tokenInput: '', hasToken: !!t })
+    wx.showToast({ title: t ? '令牌已保存' : '令牌已清除', icon: 'success' })
+    this.load()
+  },
+
+  clearToken() {
+    api.setToken('')
+    this.setData({ tokenInput: '', hasToken: false })
+    wx.showToast({ title: '令牌已清除', icon: 'none' })
   },
 
   load() {
@@ -57,7 +133,7 @@ Page({
           payLogs: pl.logs || []
         })
       })
-      .catch(() => {})
+      .catch(err => api.reportError(err))
   },
 
   onProviderChange(e) {

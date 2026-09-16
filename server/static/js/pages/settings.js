@@ -133,6 +133,24 @@ async function clearDemoPay() {
   } catch (e) { toast(e.message); }
 }
 
+// ---------- 访问令牌 ----------
+function saveToken() {
+  const t = (state.tokenInput || '').trim();
+  setToken(t);
+  state.needToken = !t;
+  toast(t ? '访问令牌已保存' : '访问令牌已清除');
+  state.tokenInput = '';
+  loadSettings();
+}
+
+function clearToken() {
+  setToken('');
+  state.needToken = true;
+  state.tokenInput = '';
+  toast('访问令牌已清除');
+  render();
+}
+
 // ---------- 渲染 ----------
 function renderSettings() {
   const provs = state.providers;
@@ -141,6 +159,22 @@ function renderSettings() {
   const keyUrl = curProv.key_url || '';
   return `
   <div class="hero"><div class="hero-title">设置</div><div class="hero-sub">AI 模型 · 收款账户 · 数据管理</div></div>
+  ${state.needToken ? `
+  <div class="card">
+    <div class="card-title">🔒 需要访问令牌</div>
+    <div class="howto-text">后端已开启鉴权，当前请求被拒绝（401）。请填入店主设置的访问令牌后重试。</div>
+  </div>` : ''}
+  <div class="card">
+    <div class="card-title">访问令牌${getToken() ? '（已配置）' : ''}</div>
+    <div class="form-item">
+      <label class="form-label">访问令牌</label>
+      <input class="form-input" type="password" placeholder="后端未开启鉴权则留空"
+        value="${esc(state.tokenInput)}" oninput="state.tokenInput=this.value" />
+    </div>
+    <button class="btn-primary" onclick="saveToken()">保存令牌</button>
+    ${getToken() ? '<button class="btn-ghost" onclick="clearToken()">清除令牌</button>' : ''}
+    <div class="howto-text">只在后端设置了 SHOP_ACCESS_TOKEN 时需要填写；令牌仅存在本机浏览器里。</div>
+  </div>
   <div class="card">
     <div class="card-title">AI 服务状态</div>
     <div class="status-row">

@@ -31,25 +31,35 @@ async function loadTxnList() {
 let _insightReq = 0;
 let _taxAdviceReq = 0;
 
-async function loadInsights() {
+async function loadInsights(refresh) {
   const { year, month } = state.books;
   if (!year || !month) return;
   const myId = ++_insightReq;
   state.books.insightLoading = true;
-  state.books.insight = null;
+  // 刷新时清空旧内容；读缓存时保留，避免闪一下空白
+  if (refresh) state.books.insight = null;
   render();
   try {
-    const r = await api('/api/orders/insights', 'POST', { year, month });
+    // 默认命中后端按月缓存（秒回）；refresh=true 才真正调 AI
+    const r = await api('/api/orders/insights', 'POST',
+      { year, month, refresh: !!refresh });
     if (myId !== _insightReq) return;  // 过期响应，丢弃
     state.books.insight = r.insights;
     state.books.insightAiUsed = r.ai_used;
+    state.books.insightCached = !!r.cached;
   } catch (_) {
     if (myId !== _insightReq) return;
-    state.books.insight = null;
+    if (refresh) state.books.insight = null;
   }
   if (myId !== _insightReq) return;
   state.books.insightLoading = false;
   render();
+}
+
+// 手动重新分析（会调 AI，约 5~30 秒）
+function refreshInsights() {
+  if (state.books.insightLoading) return;
+  loadInsights(true);
 }
 
 function switchBookTab(i) {
@@ -85,25 +95,34 @@ async function calcVat() {
   loadTaxAdvice();
 }
 
-async function loadTaxAdvice() {
+async function loadTaxAdvice(refresh) {
   const v = parseFloat(state.books.vatRevenue);
   if (!v || v <= 0) return;
   const myId = ++_taxAdviceReq;
   state.books.taxAdviceLoading = true;
-  state.books.taxAdvice = null;
+  if (refresh) state.books.taxAdvice = null;
   render();
   try {
-    const r = await api('/api/tax/advice', 'POST', { quarterly_revenue: v });
+    // 默认命中后端按销售额分桶的缓存（秒回）；refresh=true 才真正调 AI
+    const r = await api('/api/tax/advice', 'POST',
+      { quarterly_revenue: v, refresh: !!refresh });
     if (myId !== _taxAdviceReq) return;  // 过期响应，丢弃
     state.books.taxAdvice = r.advice;
     state.books.taxAdviceAiUsed = r.ai_used;
+    state.books.taxAdviceCached = !!r.cached;
   } catch (_) {
     if (myId !== _taxAdviceReq) return;
-    state.books.taxAdvice = null;
+    if (refresh) state.books.taxAdvice = null;
   }
   if (myId !== _taxAdviceReq) return;
   state.books.taxAdviceLoading = false;
   render();
+}
+
+// 手动重新生成报税建议（会调 AI，约 30~65 秒）
+function refreshTaxAdvice() {
+  if (state.books.taxAdviceLoading) return;
+  loadTaxAdvice(true);
 }
 
 async function calcPit() {
@@ -126,6 +145,12 @@ async function calcCit() {
     state.books.citResult = await api('/api/tax/cit', 'POST', { annual_income: income, is_small: state.books.citSmall });
   } catch (e) { toast(e.message); }
   render();
+}
+
+// 报表下载：走带令牌的 fetch（<a href> 无法自定义请求头，启用鉴权后会 401）
+function downloadReport(year, month) {
+  downloadFile(`/api/report/monthly?year=${year}&month=${month}`,
+    `收支报表_${year}年${month}月.xlsx`);
 }
 
 // ---------- 渲染 ----------
@@ -158,8 +183,11 @@ function renderBooks() {
         <div class="txn-amount ${t.trans_type === 'income' ? 'income' : 'expense'}">${t.trans_type === 'income' ? '+' : '-'}${t.amount}</div>
       </div>`).join('')}
     </div>
-    ${b.insightLoading ? '<div class="card"><div class="card-title">📊 经营洞察</div><div class="empty">分析中…</div></div>' : ''}
-    ${b.insight ? `<div class="card"><div class="card-title">📊 经营洞察 ${b.insightAiUsed ? '✨' : '📝'}</div><div class="review-box">${esc(b.insight)}</div></div>` : ''}`;
+    ${b.insightLoading && !b.insight ? '<div class="card"><div class="card-title">📊 经营洞察</div><div class="empty">分析中…（首次分析约 5~30 秒）</div></div>' : ''}
+    ${b.insight ? `<div class="card"><div class="card-title">📊 经营洞察 ${b.insightAiUsed ? '✨' : '📝'}
+      <span class="link-btn" onclick="refreshInsights()">${b.insightLoading ? '分析中…' : '重新分析'}</span></div>
+      <div class="review-box">${esc(b.insight)}</div>
+      ${b.insightCached ? '<div class="note">已缓存本月分析结果，点「重新分析」可按最新流水重新生成。</div>' : ''}</div>` : ''}`;
   } else if (b.tab === 1) {
     body = `
     <div class="card">
@@ -181,8 +209,12 @@ function renderBooks() {
     </div>
     ${b.taxAdviceLoading || b.taxAdvice ? `
     <div class="card">
-      <div class="card-title">${b.taxAdviceAiUsed ? '✨ AI' : '📝 基础'}报税建议</div>
-      ${b.taxAdviceLoading ? '<div class="empty">生成中…</div>' : `<div class="review-box">${esc(b.taxAdvice)}</div>`}
+      <div class="card-title">${b.taxAdviceAiUsed ? '✨ AI' : '📝 基础'}报税建议
+        <span class="link-btn" onclick="refreshTaxAdvice()">${b.taxAdviceLoading ? '生成中…' : '重新生成'}</span></div>
+      ${b.taxAdviceLoading && !b.taxAdvice
+        ? '<div class="empty">生成中…（首次约 30~65 秒）</div>'
+        : `<div class="review-box">${esc(b.taxAdvice)}</div>
+           ${b.taxAdviceCached ? '<div class="note">已缓存同档销售额的建议，点「重新生成」可重新分析。</div>' : ''}`}
     </div>` : ''}
     <div class="card">
       <div class="card-title">个人所得税（工资薪金）</div>
@@ -238,7 +270,7 @@ function renderBooks() {
       <div class="card-title">导出 Excel 报表</div>
       <div class="form-item"><label class="form-label">报表月份</label>
         <input type="month" value="${monthVal}" class="form-input" onchange="setBooksMonth(this.value)" /></div>
-      <a class="btn-primary btn-link" href="/api/report/monthly?year=${y}&month=${m}" download>📥 下载 ${y}年${m}月报表（xlsx）</a>
+      <button class="btn-primary" onclick="downloadReport(${y}, ${m})">📥 下载 ${y}年${m}月报表（xlsx）</button>
       <div class="note">报表含：收支汇总、分类明细、交易流水 三个工作表</div>
     </div>`;
   }
