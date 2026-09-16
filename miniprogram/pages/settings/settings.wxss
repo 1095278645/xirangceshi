@@ -121,3 +121,12 @@
 .log-status.empty { color: #a08d7b; }
 .log-text { color: #3d2c1e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200rpx; }
 .log-err { color: #d64545; }
+
+/* 能力入口行（管理台 / 收款 / 多店） */
+.nav-row { display: flex; align-items: center; justify-content: space-between;
+  padding: 20rpx 0; border-bottom: 1rpx solid #f5ede4; }
+.nav-row:last-child { border-bottom: none; }
+.nav-main { flex: 1; }
+.nav-t { font-size: 29rpx; font-weight: 600; color: #3d2c1e; }
+.nav-s { font-size: 23rpx; color: #a08d7b; margin-top: 6rpx; line-height: 1.6; }
+.nav-arrow { font-size: 40rpx; color: #c8b8a8; padding-left: 16rpx; }

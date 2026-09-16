@@ -41,13 +41,26 @@ log = logging.getLogger("backup")
 
 
 def _db_path() -> Path:
-    """当前数据库路径（每次实时读取，便于测试与运行期重定向）。"""
-    return Path(config.DB_PATH)
+    """当前数据库路径（每次实时读取，便于测试与运行期重定向）。
+
+    多店模式下跟随店上下文：备份的必须是"当前这家店"的库，
+    否则 A 店点备份会把 B 店的数据存下来（只有单店时才等价于 config.DB_PATH）。
+    """
+    import shops                      # 延迟导入，避免与 db.py 形成导入环
+    return Path(shops.resolve_db_path() or config.DB_PATH)
 
 
 def _backup_dir() -> Path:
-    """备份目录（每次实时读取 config.DATA_DIR）。"""
-    return Path(config.DATA_DIR) / "backups"
+    """备份目录（每次实时读取 config.DATA_DIR）。
+
+    多店模式按店分目录，避免两家的备份混在一起、互相触发保留策略清理。
+    """
+    import shops
+    base = Path(config.DATA_DIR) / "backups"
+    sid = shops.current_shop_id()
+    if sid is None or sid == shops.DEFAULT_SHOP_ID:
+        return base
+    return base / f"shop-{sid}"
 
 
 EXPORT_PREFIX = "ai_shopkeeper_export_"

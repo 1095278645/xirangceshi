@@ -19,9 +19,17 @@
     </view>
 
     <view class="card txn-list" wx:else>
-      <view class="txn" wx:for="{{transactions}}" wx:key="id">
+      <!-- 点任意一笔可更正：改错账/作废/退货冲销（都会留下审计记录） -->
+      <view class="txn" wx:for="{{transactions}}" wx:key="id"
+            data-id="{{item.id}}" data-item="{{item.item}}"
+            data-amount="{{item.amount}}" data-type="{{item.trans_type}}"
+            bindtap="onTxnTap">
         <view class="txn-main">
-          <view class="txn-item">{{item.item}}</view>
+          <view class="txn-item">
+            {{item.item}}
+            <text class="txn-flag" wx:if="{{item.status === 'refund'}}">退货冲销</text>
+            <text class="txn-flag void" wx:elif="{{item.status !== 'active'}}">已作废</text>
+          </view>
           <view class="txn-sub">
             {{item.customer_name || '散客'}} · {{item.friendly}}
             <text wx:if="{{item.counterparty}}"> · {{item.counterparty}}</text>
@@ -32,6 +40,7 @@
           {{item.trans_type === 'income' ? '+' : '-'}}{{item.amount}}
         </view>
       </view>
+      <view class="note">点任意一笔可以「改金额/作废/退货冲销」，改动都会留痕可查。</view>
     </view>
 
     <!-- AI 经营洞察（按月缓存：打开页面秒回，点「重新分析」才调 AI） -->

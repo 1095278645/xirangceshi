@@ -1,0 +1,56 @@
+/* pages/collect/collect.wxss 收款即入账 */
+.page { padding: 16rpx 24rpx 60rpx; background: #faf5f1; min-height: 100vh; }
+
+.hero { background: linear-gradient(135deg, #b4532a, #e07b39); color: #fff;
+  border-radius: 20rpx; padding: 30rpx; margin-bottom: 20rpx; }
+.hero-t { font-size: 40rpx; font-weight: 700; }
+.hero-s { font-size: 24rpx; opacity: .9; margin-top: 10rpx; line-height: 1.6; }
+
+.card { background: #fff; border-radius: 20rpx; padding: 24rpx 26rpx;
+  margin-bottom: 20rpx; }
+.card-head { display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14rpx; }
+.card-title { font-size: 30rpx; font-weight: 700; color: #333; }
+
+.field { margin-bottom: 18rpx; }
+.label { font-size: 24rpx; color: #888; display: block; margin-bottom: 8rpx; }
+.input { border: 1rpx solid #e5ded7; border-radius: 12rpx; padding: 18rpx;
+  font-size: 30rpx; background: #fff; }
+
+.btn { background: #b4532a; color: #fff; text-align: center; font-size: 30rpx;
+  font-weight: 600; padding: 24rpx 0; border-radius: 14rpx; }
+
+/* 收款码弹层 */
+.mask { position: fixed; left: 0; top: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.5); display: flex; align-items: center;
+  justify-content: center; z-index: 50; }
+.qr-box { background: #fff; border-radius: 24rpx; padding: 36rpx 32rpx;
+  width: 560rpx; text-align: center; }
+.qr-amount { font-size: 52rpx; font-weight: 700; color: #b4532a; }
+.qr-item { font-size: 26rpx; color: #888; margin-top: 6rpx; }
+.qr-img-wrap { margin: 24rpx 0; background: #fff; }
+.qr-img { width: 380rpx; height: 380rpx; }
+.qr-hint { font-size: 24rpx; color: #999; }
+.qr-ops { display: flex; justify-content: space-between; margin-top: 14rpx; }
+.btn-ghost { flex: 1; border: 1rpx solid #b4532a; color: #b4532a; font-size: 26rpx;
+  padding: 18rpx 0; border-radius: 12rpx; margin: 0 8rpx; }
+.qr-close { font-size: 26rpx; color: #999; margin-top: 22rpx; }
+
+/* 记录 */
+.badge { background: #fdf0e8; color: #b4532a; font-size: 23rpx;
+  padding: 6rpx 16rpx; border-radius: 20rpx; }
+.empty { font-size: 25rpx; color: #aaa; text-align: center; padding: 30rpx 0; }
+.rec { display: flex; justify-content: space-between; align-items: center;
+  padding: 18rpx 0; border-bottom: 1rpx solid #f3ece6; }
+.rec:last-child { border-bottom: none; }
+.rec-amt { font-size: 32rpx; font-weight: 700; color: #333; }
+.rec-meta { font-size: 22rpx; color: #999; margin-top: 6rpx; }
+.rec-right { text-align: right; }
+.st { font-size: 22rpx; padding: 4rpx 12rpx; border-radius: 8rpx;
+  background: #f3ece6; color: #888; display: inline-block; }
+.st.paid { background: #fdf0e8; color: #b4532a; }
+.st.confirmed { background: #eef7ee; color: #3a7d3a; }
+.rec-ops { margin-top: 10rpx; }
+.op { font-size: 24rpx; color: #b4532a; margin-left: 20rpx; }
+.op.danger { color: #b53a2a; }
+.tip { font-size: 23rpx; color: #999; line-height: 1.8; padding: 8rpx 6rpx; }

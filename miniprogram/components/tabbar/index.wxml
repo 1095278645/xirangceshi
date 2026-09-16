@@ -21,6 +21,6 @@
   </view>
   <view class="tab-item {{current === 5 ? 'active' : ''}}" data-index="5" bindtap="go">
     <text class="tab-icon">⚙️</text>
-    <text class="tab-label">设置</text>
+    <text class="tab-label">更多</text>
   </view>
 </view>

@@ -1,0 +1,40 @@
+/* pages/shops/shops.wxss 多店 / 多用户 */
+.page { padding: 16rpx 24rpx 60rpx; background: #faf5f1; min-height: 100vh; }
+
+.hero { background: linear-gradient(135deg, #b4532a, #e07b39); color: #fff;
+  border-radius: 20rpx; padding: 30rpx; margin-bottom: 20rpx; }
+.hero-t { font-size: 40rpx; font-weight: 700; }
+.hero-s { font-size: 24rpx; opacity: .9; margin-top: 10rpx; line-height: 1.6; }
+
+.card { background: #fff; border-radius: 20rpx; padding: 24rpx 26rpx;
+  margin-bottom: 20rpx; }
+.card-head { display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12rpx; }
+.card-title { font-size: 30rpx; font-weight: 700; color: #333; }
+.dim { font-size: 23rpx; color: #aaa; font-weight: 400; }
+.btn-mini { background: #b4532a; color: #fff; font-size: 24rpx;
+  padding: 10rpx 22rpx; border-radius: 10rpx; }
+
+/* 店铺行 */
+.shop-item { border: 1rpx solid #eee; border-radius: 14rpx; padding: 18rpx;
+  margin-bottom: 14rpx; }
+.shop-item.on { border-color: #b4532a; background: #fdf6f1; }
+.shop-n { font-size: 29rpx; font-weight: 600; color: #333; }
+.cur { font-size: 20rpx; color: #fff; background: #b4532a; border-radius: 8rpx;
+  padding: 2rpx 10rpx; margin-left: 10rpx; }
+.shop-m { font-size: 23rpx; color: #999; margin-top: 6rpx; }
+.shop-ops { display: flex; margin-top: 12rpx; }
+.op { font-size: 24rpx; color: #b4532a; margin-right: 26rpx; }
+.op.danger { color: #b53a2a; }
+
+/* 成员行 */
+.mem-item { display: flex; justify-content: space-between; align-items: center;
+  padding: 16rpx 0; border-bottom: 1rpx solid #f3ece6; }
+.mem-item:last-child { border-bottom: none; }
+.mem-n { font-size: 27rpx; color: #333; }
+.mem-r { font-size: 22rpx; color: #999; margin-top: 4rpx; }
+.mem-ops { display: flex; }
+
+.empty { font-size: 25rpx; color: #aaa; text-align: center; padding: 26rpx 0; }
+.hint { font-size: 23rpx; color: #999; line-height: 1.7; margin: 8rpx 0 12rpx; }
+.tip { font-size: 23rpx; color: #999; line-height: 1.8; padding: 8rpx 6rpx; }

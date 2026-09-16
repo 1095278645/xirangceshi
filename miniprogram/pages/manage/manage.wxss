@@ -1,0 +1,77 @@
+/* pages/manage/manage.wxss 管理台 */
+.page { padding: 16rpx 24rpx 40rpx; background: #faf5f1; min-height: 100vh; }
+
+/* 店铺抬头 */
+.shop-bar { background: linear-gradient(135deg, #b4532a, #e07b39); color: #fff;
+  border-radius: 20rpx; padding: 28rpx 30rpx; margin-bottom: 20rpx; }
+.shop-name { font-size: 38rpx; font-weight: 700; }
+.shop-sub { font-size: 24rpx; opacity: .9; margin-top: 8rpx; }
+
+/* 快捷入口 */
+.quick { display: flex; background: #fff; border-radius: 20rpx; padding: 20rpx 0;
+  margin-bottom: 20rpx; }
+.quick-item { flex: 1; text-align: center; }
+.qi-icon { font-size: 44rpx; }
+.qi-text { font-size: 24rpx; color: #555; margin-top: 6rpx; }
+
+/* 标签 */
+.tabs { display: flex; background: #fff; border-radius: 20rpx; padding: 8rpx;
+  margin-bottom: 20rpx; }
+.tab { flex: 1; text-align: center; font-size: 27rpx; color: #666;
+  padding: 16rpx 0; border-radius: 14rpx; }
+.tab.on { background: #b4532a; color: #fff; font-weight: 600; }
+
+/* 卡片 */
+.card { background: #fff; border-radius: 20rpx; padding: 24rpx 26rpx;
+  margin-bottom: 20rpx; box-shadow: 0 2rpx 10rpx rgba(0,0,0,.04); }
+.card-title { font-size: 30rpx; font-weight: 700; color: #333; margin-bottom: 14rpx; }
+.sub-title { font-size: 26rpx; color: #b4532a; font-weight: 600;
+  margin: 16rpx 0 8rpx; }
+.row-between { display: flex; justify-content: space-between; align-items: center; }
+.period { font-size: 30rpx; font-weight: 600; color: #b4532a; }
+
+/* 键值行 */
+.kv { display: flex; justify-content: space-between; align-items: center;
+  padding: 12rpx 0; border-bottom: 1rpx solid #f3ece6; font-size: 27rpx; color: #555; }
+.kv:last-child { border-bottom: none; }
+.kv .num { color: #333; font-weight: 600; }
+.kv.total { font-weight: 700; color: #333; }
+.kv.net { font-size: 32rpx; font-weight: 700; color: #b4532a; }
+
+/* 提示与徽标 */
+.hint { font-size: 23rpx; color: #999; line-height: 1.7; margin-top: 12rpx; }
+.empty { font-size: 25rpx; color: #aaa; text-align: center; padding: 30rpx 0; }
+.badge { margin-top: 16rpx; font-size: 25rpx; padding: 12rpx 16rpx;
+  border-radius: 12rpx; }
+.badge.ok { background: #eef7ee; color: #3a7d3a; }
+.badge.bad { background: #fdeeee; color: #b53a2a; }
+.tag { font-size: 23rpx; color: #999; }
+.tag.ok { color: #3a7d3a; }
+.tag.bad { color: #b53a2a; }
+
+/* 按钮 */
+.btns { margin-top: 20rpx; }
+.btn { background: #b4532a; color: #fff; text-align: center; font-size: 29rpx;
+  font-weight: 600; padding: 22rpx 0; border-radius: 14rpx; }
+.btn-ghost { border: 1rpx solid #b4532a; color: #b4532a; text-align: center;
+  font-size: 28rpx; padding: 20rpx 0; border-radius: 14rpx; margin-top: 16rpx; }
+.btn-mini { background: #b4532a; color: #fff; font-size: 24rpx;
+  padding: 10rpx 22rpx; border-radius: 10rpx; }
+
+/* 备份列表 */
+.bk-item { display: flex; justify-content: space-between; align-items: center;
+  padding: 16rpx 0; border-bottom: 1rpx solid #f3ece6; }
+.bk-main { flex: 1; }
+.bk-name { font-size: 26rpx; color: #333; }
+.bk-meta { font-size: 22rpx; color: #999; margin-top: 4rpx; }
+.bk-ops { display: flex; }
+.op { font-size: 25rpx; color: #b4532a; padding: 8rpx 14rpx; }
+.op.danger { color: #b53a2a; }
+
+/* 推送消息 */
+.msg { background: #faf5f1; border-radius: 12rpx; padding: 16rpx;
+  margin-bottom: 12rpx; }
+.msg-t { font-size: 26rpx; font-weight: 600; color: #333; }
+.msg-c { font-size: 24rpx; color: #666; margin-top: 6rpx; line-height: 1.6; }
+
+.footer-gap { height: 40rpx; }

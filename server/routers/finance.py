@@ -45,8 +45,14 @@ def debt_aging():
     return db.aging_summary()
 
 @router.post("/debts/{did}/settle")
-def settle_debt(did: int, data: SettleDebtIn):
-    r = db.settle_debt(did, data.settle_amount)
+def settle_debt(did: int, data: SettleDebtIn | None = None):
+    """结清应收应付；不带金额表示全额结清。
+
+    data 必须可省：小程序点「结清」发的是空 body（{}），早期实现要求必填对象，
+    导致点一下就是 422（"Field required"）。
+    """
+    amount = data.settle_amount if data else None
+    r = db.settle_debt(did, amount)
     return r or {"error": "not found"}
 
 @router.delete("/debts/{did}")

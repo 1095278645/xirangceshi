@@ -7,11 +7,12 @@
 """
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, Response
 
 import db
 import notifications
+import qr
 from schemas import CollectionConfirmIn, CollectionIn
 
 log = logging.getLogger("routers.collect")
@@ -68,7 +69,7 @@ async function load() {
   const card = document.getElementById('card');
   let data;
   try {
-    const res = await fetch('/api/pay/' + encodeURIComponent(TOKEN));
+    const res = await fetch('/api/pay/' + encodeURIComponent(TOKEN) + '/info');
     if (!res.ok) throw new Error((await res.json()).detail || '链接已失效');
     data = await res.json();
   } catch (e) {
@@ -174,7 +175,32 @@ def collect_create(data: CollectionIn):
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return {"ok": True, "collection": c, "pay_url": f"/pay/{c['token']}",
-            "pay_path": f"/pay/{c['token']}"}
+            "pay_path": f"/pay/{c['token']}",
+            "qr_svg_path": f"/api/collect/{c['token']}/qr.svg"}
+
+
+@router.get("/collect/{token}/qr.svg")
+def collect_qr_svg(token: str, request: Request, origin: str | None = None):
+    """收款码（SVG，店主侧接口：需访问令牌）。
+
+    为什么要 origin 参数：二维码里必须放**顾客能访问到的绝对地址**。
+    店主可能通过 localhost 访问，而顾客手机要用局域网 IP —— 直接把请求的
+    base_url 编进二维码会生成 localhost（顾客扫了打不开）。所以允许前端显式
+    传入 origin（用后端里配置的用户真实地址），没传时才回退到请求地址。
+    """
+    c = db.get_collection_by_token(token)
+    if not c:
+        raise HTTPException(404, "收款请求不存在或链接已失效")
+    base = (origin or "").strip().rstrip("/")
+    if not base:
+        base = str(request.base_url).rstrip("/")
+    payload = f"{base}/pay/{token}"
+    try:
+        svg = qr.to_svg(payload, level="M", module=6, border=4)
+    except ValueError as e:                     # 内容过长等
+        raise HTTPException(400, f"收款码生成失败：{e}") from e
+    return Response(content=svg, media_type="image/svg+xml",
+                    headers={"Cache-Control": "no-store"})
 
 
 @router.get("/collect/list")

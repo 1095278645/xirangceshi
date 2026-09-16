@@ -70,30 +70,104 @@ def check_contract() -> None:
         return args
 
     def path_of(expr: str) -> str:
-        """从路径表达式还原可比较的路径。
+        """从路径表达式还原可比较的路径（单趟扫描，不靠正则堆叠）。
 
-        拼接式必须按**出现顺序**重建，且中间的变量要变成 {p} 占位：
-          '/api/reminders/' + id + '/done'  → /api/reminders/{p}/done
-          '/api/customers/' + cid + '/insight' → /api/customers/{p}/insight
-        若只是把所有字符串字面量直接拼起来，会丢掉 /done 之类的后缀，
-        正是之前几次误报的根因。
+        规则：
+          - 字符串字面量里的文本保留；模板串里的 ${...} 记作变量
+          - 字符串之间/之后的 `+` 变量记作 {p}
+          - **括号里的内容整体忽略**：那里几乎都是查询参数的条件拼接
+            （如 `(status ? '?status=' + status : '')`）。早期版本把括号里的
+            标识符也当路径段，于是 `/api/collect/list` 被还原成
+            `/api/collect/list{p}`，误报"接口缺失"。
+          - `?` 之后全部丢弃（查询参数不参与路径匹配）
         """
-        token_re = re.compile(r"`([^`]*)`|'([^']*)'|([A-Za-z_$][\w$.]*)")
-        parts: list[str] = []
-        for m in token_re.finditer(expr):
-            if m.group(1) is not None or m.group(2) is not None:
-                parts.append(m.group(1) if m.group(1) is not None else m.group(2))
-            else:
-                name = m.group(3)
-                # 只把 id 类标识符当作路径参数；api.xxx 是取函数，不是路径段
-                if "." not in name and name not in ("api", "request"):
-                    parts.append("{p}")
-        joined = "".join(parts)
+        out: list[str] = []
+        i = 0
+        prev_str = False
+        while i < len(expr):
+            ch = expr[i]
+            if ch in "'\"`":
+                q = ch
+                j = i + 1
+                buf: list[str] = []
+                while j < len(expr) and expr[j] != q:
+                    if expr[j] == "\\" and j + 1 < len(expr):
+                        buf.append(expr[j + 1])
+                        j += 2
+                        continue
+                    if q == "`" and expr[j] == "$" and j + 1 < len(expr) \
+                            and expr[j + 1] == "{":
+                        buf.append("{p}")
+                        j += 2
+                        depth = 1
+                        while j < len(expr) and depth:
+                            if expr[j] == "{":
+                                depth += 1
+                            elif expr[j] == "}":
+                                depth -= 1
+                            j += 1
+                        continue
+                    buf.append(expr[j])
+                    j += 1
+                out.append("".join(buf))
+                prev_str = True
+                i = j + 1
+                continue
+            if ch == "(":
+                depth = 1
+                j = i + 1
+                while j < len(expr) and depth:
+                    if expr[j] == "(":
+                        depth += 1
+                    elif expr[j] == ")":
+                        depth -= 1
+                    j += 1
+                # 括号整体丢弃，**不补占位符**：
+                #   '/api/collect/list' + (status ? '?status=' + status : '')
+                # 里括号装的是查询参数逻辑；补了 {p} 就变成 /api/collect/list{p}，
+                # 会被误判成"接口缺失"（实测）。真正的路径变量都在括号外。
+                prev_str = False
+                i = j
+                continue
+            if ch == "+":
+                prev_str = False
+                i += 1
+                continue
+            if ch == "{":                       # 对象字面量，不是路径
+                depth = 1
+                j = i + 1
+                while j < len(expr) and depth:
+                    if expr[j] == "{":
+                        depth += 1
+                    elif expr[j] == "}":
+                        depth -= 1
+                    j += 1
+                prev_str = False
+                i = j
+                continue
+            if not ch.isspace() and ch != "," and ch not in "[]":
+                # 裸标识符/数字：可能是查询串的一部分，也可能是路径变量
+                m = re.match(r"[A-Za-z_$][\w$.]*|\d+", expr[i:])
+                if m:
+                    name = m.group(0)
+                    if "." not in name and name not in ("api", "request"):
+                        if not prev_str:
+                            out.append("{p}")
+                    prev_str = False
+                    i += len(name)
+                    continue
+                prev_str = False
+            i += 1
+
+        joined = "".join(out)
         if "/api/" not in joined:
             return ""
-        joined = joined.split("?")[0].rstrip("/")
-        # 折叠连续占位（如 '/api/x/' + id 尾随空串）
-        joined = re.sub(r"(\{p\})+", "{p}", joined)
+        joined = joined.split("?")[0]
+        joined = re.sub(r"\{p\}(?=[?&=])", "", joined)
+        joined = re.sub(r"(?<=[?&=])\{p\}", "", joined)
+        joined = joined.strip("?&=")
+        joined = re.sub(r"\{p\}(\{p\})+", "{p}", joined)
+        joined = re.sub(r"/+", "/", joined).rstrip("/")
         return joined
 
     for line in src.splitlines():

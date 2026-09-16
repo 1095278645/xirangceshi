@@ -1,0 +1,88 @@
+<!-- pages/shops/shops.wxml 多店 / 多用户 -->
+<view class="page">
+
+  <view class="hero">
+    <view class="hero-t">多店管理</view>
+    <view class="hero-s">一个店一个独立账本，数据互不串；成员按角色分工</view>
+  </view>
+
+  <!-- 店铺列表 -->
+  <view class="card">
+    <view class="card-head">
+      <view class="card-title">我的店铺（{{shops.length}}）</view>
+      <view class="btn-mini" wx:if="{{canManage}}" bindtap="createShop">+ 新建</view>
+    </view>
+
+    <view class="shop-item {{item.id === currentId ? 'on' : ''}}"
+          wx:for="{{shops}}" wx:key="id"
+          data-id="{{item.id}}" bindtap="onSelectShop">
+      <view class="shop-left">
+        <view class="shop-n">
+          {{item.name}}
+          <text class="cur" wx:if="{{item.id === currentId}}">当前</text>
+        </view>
+        <view class="shop-m">
+          {{item.status === 'active' ? '营业中' : '已归档'}} · {{item.member_count}} 位成员
+          <text wx:if="{{item.my_role}}"> · 我的角色：{{item.my_role}}</text>
+        </view>
+      </view>
+      <view class="shop-ops">
+        <text class="op" wx:if="{{item.id !== currentId}}"
+              data-id="{{item.id}}" catchtap="switchShop">切到此店</text>
+        <text class="op" wx:if="{{canManage}}"
+              data-id="{{item.id}}" data-name="{{item.name}}" catchtap="renameShop">改名</text>
+        <text class="op danger" wx:if="{{canManage && item.id !== 1}}"
+              data-id="{{item.id}}" catchtap="archiveShop">删除</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 成员 -->
+  <view class="card">
+    <view class="card-head">
+      <view class="card-title">
+        成员（{{members.length}}）<text class="dim"> · 店铺 #{{memberShopId}}</text>
+      </view>
+      <view class="btn-mini" wx:if="{{canManage}}" bindtap="addUser">+ 加成员</view>
+    </view>
+
+    <view class="empty" wx:if="{{!members.length}}">这家店还没有其他成员</view>
+    <view class="mem-item" wx:for="{{members}}" wx:key="id">
+      <view class="mem-left">
+        <view class="mem-n">{{item.name}}</view>
+        <view class="mem-r">{{item.role === 'owner' ? '店主' : (item.role === 'admin' ? '店长' : '店员')}}</view>
+      </view>
+      <view class="mem-ops" wx:if="{{canManage}}">
+        <text class="op" data-id="{{item.id}}" data-name="{{item.name}}"
+              catchtap="changeRole">改角色</text>
+        <text class="op danger" data-id="{{item.id}}" data-name="{{item.name}}"
+              catchtap="removeUser">移除</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 全部账号（可把未加入的号拉进当前店） -->
+  <view class="card" wx:if="{{canManage && users.length}}">
+    <view class="card-title">全部账号（{{users.length}}）</view>
+    <view class="hint">同一账号可以同时属于多家店，角色按店单独设置。</view>
+    <view class="mem-item" wx:for="{{users}}" wx:key="id">
+      <view class="mem-left">
+        <view class="mem-n">{{item.name}}</view>
+        <view class="mem-r">
+          {{item.role === 'owner' ? '店主' : (item.role === 'admin' ? '店长' : '店员')}}
+          · 令牌 {{item.token_prefix}}…
+          <text wx:if="{{item.shop_ids.length}}"> · 已在店 {{item.shop_ids}}</text>
+        </view>
+      </view>
+      <view class="mem-ops">
+        <text class="op" data-id="{{item.id}}" catchtap="grantMember">加入本店</text>
+        <text class="op danger" data-id="{{item.id}}" catchtap="revokeMember">移出本店</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="tip">
+    演示提示：切到二号店后随手记一笔，再切回来 —— 两个店的流水完全独立。
+    令牌在「设置」页填写，不同令牌看到的数据范围不同。
+  </view>
+</view>

@@ -34,6 +34,21 @@ from db_evolution import *  # noqa: F401,F403  进化：经验日志/基因/胶�
 # 已确认 schema 最新的库路径（避免每次连接都重复检查）
 _schema_ready: set[str] = set()
 
+# 库路径强制覆盖（仅内部使用：多店初始化新库时临时指定，避免影响调用方上下文）
+DB_PATH_OVERRIDE: "Path | None" = None
+
+
+def current_db_path():
+    """本次连接该用哪个库文件。
+
+    优先级：内部强制覆盖 > 店上下文 > 默认 DB_PATH。
+    没设置店上下文时结果恒等于 DB_PATH —— 单店模式与全部既有测试行为不变。
+    """
+    if DB_PATH_OVERRIDE is not None:
+        return DB_PATH_OVERRIDE
+    import shops                      # 延迟导入：shops 只在函数内 import db，无循环依赖
+    return shops.resolve_db_path() or DB_PATH
+
 # schema 版本号：每次新增表/列时 +1。init_db 完成后把库写到这个版本，
 # _ensure_schema 用它判断是否需要迁移。
 # （早期只检查 transactions.status 这一列，导致**新增的表不会被创建** ——
@@ -49,7 +64,7 @@ def _ensure_schema(conn) -> None:
     撞上 `no such column` / `no such table` —— 实测老库升级时踩到过两次。
     放在 get_conn 里兜底，保证"能用数据就先保证表结构对"。
     """
-    key = str(DB_PATH)
+    key = str(current_db_path())
     if key in _schema_ready:
         return
     # 先登记再迁移：init_db() 内部会再走 get_conn()，若不先标记就会无限递归
@@ -69,7 +84,7 @@ def _ensure_schema(conn) -> None:
 
 def _raw_conn():
     """底层连接（不做 schema 自检）。仅供迁移流程内部使用，避免递归。"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(current_db_path()))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout = 5000")
     return _closing_conn(conn)
@@ -87,7 +102,7 @@ def _closing_conn(conn):
 @contextmanager
 def get_conn():
     """返回连接并在退出时提交+关闭，避免 Windows 下文件句柄泄漏"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(current_db_path()))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")      # 并发读写（后台线程 + API 线程）不互相锁库

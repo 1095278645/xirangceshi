@@ -53,6 +53,13 @@ Page({
     this.setData({ currentBaseUrl: cur, baseUrlInput: this.data.baseUrlInput || cur })
   },
 
+  // ---- 能力入口 ----
+  // 说明：底部 tabbar 用的是自定义组件 + wx.reLaunch（没有返回栈），
+  // 所以新增页面一律用 navigateTo 从设置页进去，这样左上角有返回按钮。
+  goManage() { wx.navigateTo({ url: '/pages/manage/manage' }) },
+  goCollect() { wx.navigateTo({ url: '/pages/collect/collect' }) },
+  goShops() { wx.navigateTo({ url: '/pages/shops/shops' }) },
+
   onServerUrlInput(e) {
     this.setData({ baseUrlInput: e.detail.value })
   },

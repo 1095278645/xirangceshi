@@ -1,0 +1,81 @@
+<!-- pages/collect/collect.wxml 收款即入账 -->
+<view class="page">
+
+  <view class="hero">
+    <view class="hero-t">收款</view>
+    <view class="hero-s">生成收款码 → 顾客扫码付款 → 一键入账（自动生成凭证）</view>
+  </view>
+
+  <!-- 生成收款码 -->
+  <view class="card">
+    <view class="field">
+      <text class="label">金额（元）</text>
+      <input class="input" type="digit" placeholder="如 25.50"
+             value="{{amount}}" bindinput="onAmount" />
+    </view>
+    <view class="field">
+      <text class="label">事由（可留空）</text>
+      <input class="input" placeholder="如 早点" value="{{item}}" bindinput="onItem" />
+    </view>
+    <view class="btn" bindtap="create">{{busy ? '生成中…' : '生成收款码'}}</view>
+  </view>
+
+  <!-- 收款码弹层 -->
+  <view class="mask" wx:if="{{qr}}" bindtap="closeQr">
+    <view class="qr-box" catchtap="noop">
+      <view class="qr-amount">¥ {{qr.amount}}</view>
+      <view class="qr-item">{{qr.item}}</view>
+      <view class="qr-img-wrap">
+        <image class="qr-img" src="{{qr.img}}" mode="aspectFit" />
+      </view>
+      <view class="qr-hint">请顾客用微信扫码付款</view>
+      <view class="qr-ops">
+        <view class="btn-ghost" bindtap="copyLink">复制链接</view>
+        <view class="btn-ghost" bindtap="openLink">模拟顾客付款</view>
+      </view>
+      <view class="qr-close" bindtap="closeQr">关闭</view>
+    </view>
+  </view>
+
+  <!-- 收款记录 -->
+  <view class="card">
+    <view class="card-head">
+      <view class="card-title">收款记录</view>
+      <view class="badge" wx:if="{{pending}}">待处理 {{pending}}</view>
+    </view>
+
+    <view class="empty" wx:if="{{!list.length}}">
+      还没有收款请求，填写金额后点「生成收款码」
+    </view>
+
+    <view class="rec" wx:for="{{list}}" wx:key="id">
+      <view class="rec-left">
+        <view class="rec-amt">¥ {{item.amount}}</view>
+        <view class="rec-meta">
+          {{item.item || '收款'}} · {{item.created_at}}
+          <text wx:if="{{item.payer_name}}"> · 顾客：{{item.payer_name}}</text>
+        </view>
+      </view>
+      <view class="rec-right">
+        <view class="st {{item.status}}">
+          {{item.status === 'pending' ? '待付款'
+            : (item.status === 'paid' ? '已付款待确认'
+            : (item.status === 'confirmed' ? '已入账' : '已取消'))}}
+        </view>
+        <view class="rec-ops">
+          <text class="op" wx:if="{{item.status === 'pending' || item.status === 'paid'}}"
+                data-id="{{item.id}}" catchtap="confirm">入账</text>
+          <text class="op" wx:if="{{item.status === 'pending' || item.status === 'paid'}}"
+                data-token="{{item.token}}" catchtap="copyToken">链接</text>
+          <text class="op danger" wx:if="{{item.status === 'pending' || item.status === 'paid'}}"
+                data-id="{{item.id}}" catchtap="cancel">取消</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="tip">
+    到账播报：顾客点「我已付款」后，若已配置企业微信群机器人，
+    店主会立刻收到一条到账提醒（管理台 → 主动触达 里配置）。
+  </view>
+</view>

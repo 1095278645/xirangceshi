@@ -135,9 +135,26 @@ def _maybe_warn_revenue() -> None:
         log.warning("流水预警检查失败：%s", e)
 
 
+def _init_multi_shop() -> None:
+    """初始化多店注册表（幂等）。
+
+    单独 try/except：多店是附加能力，注册表出问题不应让整个服务起不来
+    （单店路径完全不依赖它）。
+    """
+    try:
+        import shops
+        shops.init_registry()
+        n = len(shops.list_shops())
+        if n > 1:
+            log.info("多店模式：已登记 %s 家店铺", n)
+    except Exception as e:  # noqa: BLE001
+        log.warning("多店注册表初始化失败（不影响单店使用）：%s", e)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     db.init_db()
+    _init_multi_shop()
     sync_task = asyncio.create_task(_daily_sync_loop())
     hb_task = asyncio.create_task(_heartbeat_loop())
     backup_task = asyncio.create_task(_backup_loop())

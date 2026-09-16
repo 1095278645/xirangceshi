@@ -29,6 +29,10 @@
 .txn-amount { font-size: 32rpx; font-weight: 700; margin-left: 16rpx; }
 .txn-amount.income { color: #16a34a; }
 .txn-amount.expense { color: #dc2626; }
+/* 更正状态标记：退货冲销 / 已作废 */
+.txn-flag { font-size: 20rpx; color: #b4532a; background: #fdf0e8;
+  border-radius: 6rpx; padding: 2rpx 10rpx; margin-left: 10rpx; }
+.txn-flag.void { color: #999; background: #f2f2f2; }
 
 /* 算税表单 */
 .row { display: flex; align-items: center; margin-bottom: 16rpx; }

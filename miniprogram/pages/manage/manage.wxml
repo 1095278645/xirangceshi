@@ -1,0 +1,186 @@
+<!-- pages/manage/manage.wxml 管理台 -->
+<view class="page">
+
+  <!-- 店铺抬头：多店时可直接切店 -->
+  <view class="shop-bar" bindtap="goShops">
+    <view class="shop-name">{{shop.name || '默认店'}}</view>
+    <view class="shop-sub">
+      <text wx:if="{{shopCount > 1}}">共 {{shopCount}} 家店 · 点此切换/管理</text>
+      <text wx:else>单店模式 · 点此管理店铺与成员</text>
+    </view>
+  </view>
+
+  <!-- 快捷入口 -->
+  <view class="quick">
+    <view class="quick-item" bindtap="goCollect">
+      <view class="qi-icon">💴</view><view class="qi-text">收款码</view>
+    </view>
+    <view class="quick-item" bindtap="goShops">
+      <view class="qi-icon">🏪</view><view class="qi-text">多店</view>
+    </view>
+    <view class="quick-item" data-tab="backup" bindtap="switchTab">
+      <view class="qi-icon">💾</view><view class="qi-text">备份</view>
+    </view>
+    <view class="quick-item" data-tab="notify" bindtap="switchTab">
+      <view class="qi-icon">🔔</view><view class="qi-text">推送</view>
+    </view>
+  </view>
+
+  <!-- 标签 -->
+  <view class="tabs">
+    <view class="tab {{tab === 'account' ? 'on' : ''}}" data-tab="account" bindtap="switchTab">会计报表</view>
+    <view class="tab {{tab === 'backup' ? 'on' : ''}}" data-tab="backup" bindtap="switchTab">数据备份</view>
+    <view class="tab {{tab === 'notify' ? 'on' : ''}}" data-tab="notify" bindtap="switchTab">主动触达</view>
+  </view>
+
+  <!-- ============ 会计报表 ============ -->
+  <block wx:if="{{tab === 'account'}}">
+    <view class="card">
+      <view class="row-between">
+        <picker mode="date" fields="month" value="{{period}}" bindchange="onPeriod">
+          <view class="period">期间 {{period}} ▾</view>
+        </picker>
+        <view class="btn-mini" bindtap="closePeriod">期末结转</view>
+      </view>
+      <view class="hint">结转后损益类科目归零；结转错了可以「反结转」再重做。</view>
+    </view>
+
+    <view class="card" wx:if="{{income}}">
+      <view class="card-title">利润表</view>
+      <view class="kv" wx:for="{{income.revenue}}" wx:key="*this">
+        <text>{{index}}</text><text class="num">{{item}}</text>
+      </view>
+      <view class="kv total" wx:if="{{income.total_revenue}}">
+        <text>收入合计</text><text class="num">{{income.total_revenue}}</text>
+      </view>
+      <view class="kv" wx:for="{{income.expense}}" wx:key="*this">
+        <text>{{index}}</text><text class="num">{{item}}</text>
+      </view>
+      <view class="kv total">
+        <text>成本费用合计</text><text class="num">{{income.total_expense}}</text>
+      </view>
+      <view class="kv net">
+        <text>净利润</text><text class="num">{{income.net_profit}}</text>
+      </view>
+      <view class="hint">{{income.note}}</view>
+    </view>
+
+    <view class="card" wx:if="{{balance}}">
+      <view class="card-title">资产负债表</view>
+      <view class="sub-title">资产</view>
+      <view class="kv" wx:for="{{balance.assets}}" wx:key="account_code">
+        <text>{{item.account_name}}</text><text class="num">{{item.amount}}</text>
+      </view>
+      <view class="kv total"><text>资产合计</text><text class="num">{{balance.total_assets}}</text></view>
+
+      <view class="sub-title">负债</view>
+      <view class="kv" wx:for="{{balance.liabilities}}" wx:key="account_code">
+        <text>{{item.account_name}}</text><text class="num">{{item.amount}}</text>
+      </view>
+      <view class="kv total"><text>负债合计</text><text class="num">{{balance.total_liabilities}}</text></view>
+
+      <view class="sub-title">所有者权益</view>
+      <view class="kv" wx:for="{{balance.equity}}" wx:key="account_code">
+        <text>{{item.account_name}}</text><text class="num">{{item.amount}}</text>
+      </view>
+      <view class="kv total">
+        <text>负债+权益</text><text class="num">{{balance.liabilities_and_equity}}</text>
+      </view>
+      <view class="badge {{balance.balanced ? 'ok' : 'bad'}}">
+        {{balance.balanced ? '✅ 资产 = 负债 + 权益，已平衡' : '⚠️ 没有平衡，请检查凭证'}}
+      </view>
+    </view>
+
+    <view class="card" wx:if="{{trial}}">
+      <view class="card-title">科目余额表（本期发生额）</view>
+      <view class="badge {{trial.balanced ? 'ok' : 'bad'}}">
+        借方合计 {{trial.total_debit}} / 贷方合计 {{trial.total_credit}}
+      </view>
+      <view class="kv" wx:for="{{trial.lines}}" wx:key="account_code">
+        <text>{{item.account_name}}</text>
+        <text class="num">借 {{item.debit}} / 贷 {{item.credit}}</text>
+      </view>
+    </view>
+
+    <view class="card" wx:if="{{closings.length}}">
+      <view class="card-title">已结转期间</view>
+      <view class="kv" wx:for="{{closings}}" wx:key="period">
+        <text>{{item.period}}</text>
+        <text class="num">净利 {{item.net_profit}}</text>
+      </view>
+      <view class="btn-ghost" bindtap="reopenPeriod">反结转 {{period}}</view>
+    </view>
+  </block>
+
+  <!-- ============ 数据备份 ============ -->
+  <block wx:if="{{tab === 'backup'}}">
+    <view class="card">
+      <view class="card-title">数据安全</view>
+      <view class="hint">系统每天自动备份（保留最近 14 份）；这里可以立刻手动备份、导出全量数据包、导入备份包恢复，或从任意备份一键恢复。</view>
+      <view class="btns">
+        <view class="btn" bindtap="createBackup">{{backupBusy ? '备份中…' : '立即备份'}}</view>
+        <view class="btn-ghost" bindtap="exportBundle">导出全量数据包</view>
+        <view class="btn-ghost" bindtap="importBundle">导入备份包恢复</view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="card-title">备份列表（{{backups.length}}）</view>
+      <view class="empty" wx:if="{{!backups.length}}">还没有备份，点上面「立即备份」创建一份</view>
+      <view class="bk-item" wx:for="{{backups}}" wx:key="name">
+        <view class="bk-main">
+          <view class="bk-name">{{item.name}}</view>
+          <view class="bk-meta">{{item.kind}} · {{item.size_text || item.size}} · {{item.created_at}}</view>
+        </view>
+        <view class="bk-ops">
+          <text class="op" data-name="{{item.name}}" bindtap="restoreBackup">恢复</text>
+          <text class="op danger" data-name="{{item.name}}" bindtap="deleteBackup">删除</text>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <!-- ============ 主动触达 ============ -->
+  <block wx:if="{{tab === 'notify'}}">
+    <view class="card">
+      <view class="card-title">推送通道</view>
+      <view class="kv" wx:for="{{providers}}" wx:key="id">
+        <text>{{item.name}}</text>
+        <text class="tag {{item.ready ? 'ok' : ''}}">{{item.ready ? '可用' : '待配置'}}</text>
+      </view>
+      <view class="btns">
+        <view class="btn" bindtap="testPush">发一条测试推送</view>
+        <view class="btn-ghost" bindtap="setupWecomBot">配置企业微信机器人</view>
+      </view>
+      <view class="hint">演示最省事的真实通道是企业微信群机器人：贴一个 Webhook 就能收到每日复盘。</view>
+    </view>
+
+    <view class="card">
+      <view class="card-title">已订阅（{{subs.length}}）</view>
+      <view class="empty" wx:if="{{!subs.length}}">还没有订阅，配置机器人后会自动创建</view>
+      <view class="kv" wx:for="{{subs}}" wx:key="id">
+        <text>{{item.channel}} · {{item.target || '默认'}}</text>
+        <text class="num">{{item.events}}</text>
+      </view>
+    </view>
+
+    <view class="card" wx:if="{{inbox.length}}">
+      <view class="card-title">本地收件箱（演示用）</view>
+      <view class="msg" wx:for="{{inbox}}" wx:key="id">
+        <view class="msg-t">{{item.title}}</view>
+        <view class="msg-c">{{item.content}}</view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="card-title">投递记录</view>
+      <view class="empty" wx:if="{{!logs.length}}">暂无记录</view>
+      <view class="kv" wx:for="{{logs}}" wx:key="id">
+        <text>{{item.event}}</text>
+        <text class="tag {{item.ok ? 'ok' : 'bad'}}">{{item.ok ? '成功' : '失败'}}</text>
+      </view>
+    </view>
+  </block>
+
+  <view class="footer-gap"></view>
+</view>

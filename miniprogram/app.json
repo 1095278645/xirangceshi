@@ -5,7 +5,10 @@
     "pages/copy/copy",
     "pages/books/books",
     "pages/store/store",
-    "pages/settings/settings"
+    "pages/settings/settings",
+    "pages/manage/manage",
+    "pages/shops/shops",
+    "pages/collect/collect"
   ],
   "window": {
     "backgroundTextStyle": "light",

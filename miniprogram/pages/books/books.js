@@ -324,7 +324,96 @@ Page({
     })
   },
 
-  // ================= 流水 =================
+  // ================= 流水更正（改错账 / 作废 / 退货冲销） =================
+  //
+  // 为什么要有这套：小店里记错金额、记错类型、卖出去又退回来都很常见。
+  // 早期只能删库改数据，会计上完全说不通。现在三种操作都会写审计记录，
+  // 作废/退货也不会物理删除原凭证（红冲），账目可追溯。
+  onTxnTap(e) {
+    const { id, item, amount, type } = e.currentTarget.dataset
+    wx.showActionSheet({
+      itemList: ['修改金额/品名', '作废这笔', '退货冲销'],
+      success: res => {
+        if (res.tapIndex === 0) this.editTxn(id, item, amount, type)
+        else if (res.tapIndex === 1) this.voidTxn(id, item)
+        else if (res.tapIndex === 2) this.refundTxn(id, item, amount)
+      }
+    })
+  },
+  editTxn(id, item, amount) {
+    wx.showModal({
+      title: '修改金额',
+      editable: true,
+      placeholderText: '新的金额',
+      content: String(amount),
+      success: res => {
+        if (!res.confirm) return
+        const val = parseFloat(res.content)
+        if (isNaN(val) || val < 0) {
+          wx.showToast({ title: '请填写正确的金额', icon: 'none' })
+          return
+        }
+        wx.showModal({
+          title: '修改原因',
+          editable: true,
+          placeholderText: '如：当时记错了（可留空）',
+          success: r2 => {
+            if (!r2.confirm) return
+            // 只提交要改的字段：品名/分类/方向都不动，
+            // 避免"改金额"顺手把分类改掉导致报表串科目。
+            api.editTransaction(Number(id), {
+              amount: val, reason: r2.content || ''
+            }).then(() => {
+              wx.showToast({ title: '已更正，留痕可查', icon: 'none' })
+              this.loadTransactions()
+            }).catch(api.reportError)
+          }
+        })
+      }
+    })
+  },
+
+  voidTxn(id, item) {
+    wx.showModal({
+      title: '作废这笔账',
+      content: `「${item}」将不被计入统计（原凭证保留，可追溯）。确认作废？`,
+      confirmColor: '#b4532a',
+      editable: true,
+      placeholderText: '作废原因（可留空）',
+      success: res => {
+        if (!res.confirm) return
+        api.voidTransaction(Number(id), res.content || '')
+          .then(() => {
+            wx.showToast({ title: '已作废', icon: 'none' })
+            this.loadTransactions()
+          }).catch(api.reportError)
+      }
+    })
+  },
+
+  refundTxn(id, item, amount) {
+    wx.showModal({
+      title: '退货冲销',
+      editable: true,
+      placeholderText: '退款金额（默认全额 ' + amount + '）',
+      content: String(amount),
+      success: res => {
+        if (!res.confirm) return
+        const val = parseFloat(res.content)
+        if (!val || val <= 0) {
+          wx.showToast({ title: '退款金额要大于 0', icon: 'none' })
+          return
+        }
+        api.refundTransaction(Number(id), {
+          amount: val, reason: '顾客退货'
+        }).then(() => {
+          wx.showToast({ title: '已冲销 ' + val + ' 元', icon: 'none' })
+          this.loadTransactions()
+        }).catch(api.reportError)
+      }
+    })
+  },
+
   onMonthChange(e) {
     const v = e.detail.value // 'YYYY-MM'
     const [y, m] = v.split('-').map(Number)
