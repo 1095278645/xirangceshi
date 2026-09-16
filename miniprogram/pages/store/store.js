@@ -56,7 +56,7 @@ Page({
   loadProfiles() {
     api.storeProfiles().then(r => {
       this.setData({ profiles: (r && r.items) || [] })
-    }).catch(() => {})
+    }).catch(err => api.reportError(err))
   },
 
   loadPresets() {

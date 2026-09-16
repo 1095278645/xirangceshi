@@ -34,14 +34,19 @@
       </view>
     </view>
 
-    <!-- AI 经营洞察 -->
-    <view class="card" wx:if="{{insightLoading}}">
+    <!-- AI 经营洞察（按月缓存：打开页面秒回，点「重新分析」才调 AI） -->
+    <view class="card" wx:if="{{insightLoading && !insight}}">
       <view class="card-title">📊 经营洞察</view>
-      <view class="empty">分析中…</view>
+      <view class="empty">分析中…（首次分析约 5~30 秒）</view>
     </view>
     <view class="card" wx:if="{{insight}}">
-      <view class="card-title">📊 经营洞察 {{insightAiUsed ? '✨' : '📝'}}</view>
+      <view class="card-title">
+        📊 经营洞察 {{insightAiUsed ? '✨' : '📝'}}
+        <text class="insight-refresh {{insightLoading ? 'disabled' : ''}}"
+              bindtap="refreshInsights">{{insightLoading ? '分析中…' : '重新分析'}}</text>
+      </view>
       <view class="review-box">{{insight}}</view>
+      <view class="note" wx:if="{{insightCached}}">已缓存本月分析结果，点「重新分析」可按最新流水重新生成。</view>
     </view>
   </block>
   <block wx:if="{{tabIndex === 1}}">
@@ -66,14 +71,19 @@
       </view>
     </view>
 
-    <!-- AI 报税建议 -->
-    <view class="card" wx:if="{{taxAdviceLoading}}">
+    <!-- AI 报税建议（按销售额分桶缓存：同档秒回，点「重新生成」才调 AI） -->
+    <view class="card" wx:if="{{taxAdviceLoading && !taxAdvice}}">
       <view class="card-title">📊 报税建议</view>
-      <view class="empty">生成中…</view>
+      <view class="empty">生成中…（首次约 30~65 秒）</view>
     </view>
     <view class="card" wx:if="{{taxAdvice}}">
-      <view class="card-title">{{taxAdviceAiUsed ? '✨ AI' : '📝 基础'}}报税建议</view>
+      <view class="card-title">
+        {{taxAdviceAiUsed ? '✨ AI' : '📝 基础'}}报税建议
+        <text class="insight-refresh {{taxAdviceLoading ? 'disabled' : ''}}"
+              bindtap="refreshTaxAdvice">{{taxAdviceLoading ? '生成中…' : '重新生成'}}</text>
+      </view>
       <view class="review-box">{{taxAdvice}}</view>
+      <view class="note" wx:if="{{taxAdviceCached}}">已缓存同档销售额的建议，点「重新生成」可重新分析。</view>
     </view>
 
     <!-- 个税 -->

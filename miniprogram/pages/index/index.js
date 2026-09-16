@@ -24,12 +24,15 @@ Page({
     voucher: null,      // 凭证信息
     friendlyCategory: '',
     manualText: '',
-    review: ''          // 掌柜今日复盘
+    review: '',          // 掌柜今日复盘
+    connBroken: false,   // 后端连不上时显示常驻提示条
+    serverAddr: ''
   },
 
   onLoad() {
     this.shopName = app.globalData.shopName
-    this.setData({ shopName: this.shopName })
+    this.setData({ shopName: this.shopName, serverAddr: api.getBaseUrl() })
+    api.resetFailFlag()          // 进入页面重置连接错误提示标志，避免一直不提示
     this.initRecognizer()
     this.loadSummary()
     this.loadMonth()
@@ -41,18 +44,34 @@ Page({
     this.loadMonth()
   },
 
+  // 加载类接口失败时给出提示（原先静默失败，演示时看不出是地址配错了）
   loadSummary() {
-    api.todaySummary().then(s => this.setData({ summary: s })).catch(() => {})
+    api.todaySummary()
+      .then(s => this.setData({ summary: s, connBroken: false }))
+      .catch(err => this.markConnError(err))
   },
 
   loadMonth() {
-    api.monthlySummary().then(m => this.setData({ month: m })).catch(() => {})
+    api.monthlySummary()
+      .then(m => this.setData({ month: m, connBroken: false }))
+      .catch(err => this.markConnError(err))
   },
 
   loadReview() {
     api.heartbeat().then(h => {
       this.setData({ review: (h && h.ok && h.review) ? h.review : '' })
-    }).catch(() => {})
+    }).catch(err => this.markConnError(err))
+  },
+
+  // 失败时既弹一次提示，也把首页顶部提示条点亮（持续可见，便于当场排查）
+  markConnError(err) {
+    api.reportError(err)
+    this.setData({ connBroken: !!api.connectionBroken() })
+  },
+
+  // 点提示条 → 直接去设置页配地址
+  goSettings() {
+    wx.reLaunch({ url: '/pages/settings/settings' })
   },
 
   // 初始化语音识别（微信同声传译插件，可选）

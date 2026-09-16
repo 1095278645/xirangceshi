@@ -65,10 +65,16 @@ AIGC:
 │   ├── pages/copy/     # 朋友圈文案
 │   ├── pages/books/    # 账本（流水/算税/科目/报表）
 │   ├── pages/store/    # 单店模型（保本线/现金流/三维诊断）
-│   ├── pages/settings/ # 设置（AI 模型 + 收款账户）
+│   ├── pages/settings/ # 设置（后端地址/访问令牌/AI 模型/收款账户）
+│   ├── utils/api.js    # 请求封装（注入后端地址与访问令牌 + 失败提示）
 │   └── components/     # 底部导航
+├── scripts/
+│   ├── mp_demo_check.py # 小程序演示前自检（接口契约/模板绑定/演示配置）
+│   └── seed_demo_data.py# 生成演示用经营流水（单店模型反推依赖它）
 └── server/             # Python FastAPI 后端
     ├── main.py         # 应用入口（组装路由/生命周期/静态挂载，约 80 行）
+    ├── auth.py         # 访问令牌鉴权（可选启用，只守 /api/**）
+    ├── safe_io.py      # 受保护路径白名单 + 原子写入
     ├── schemas.py      # API 请求模型（Pydantic）
     ├── routers/        # 业务路由（按域拆分，registry 注册表统一挂载）
     │   ├── registry.py  # 业务域注册表（增删能力唯一入口，main.py 遍历挂载，仿 TEAM_DOMAINS）
@@ -120,6 +126,38 @@ pip install -r requirements.txt
 python -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
+### 1.1 开启访问令牌鉴权（局域网/公网部署建议开启）
+
+服务默认监听 `0.0.0.0`，若不设令牌，同一 WiFi 下任何设备都能读写全部数据。
+设置环境变量 `SHOP_ACCESS_TOKEN` 即启用鉴权（**不设置则完全放行**，行为与以前一致）：
+
+```bash
+cd server
+python -c "import auth; print(auth.generate_token())"   # 生成高强度令牌
+```
+
+```powershell
+# Windows PowerShell
+$env:SHOP_ACCESS_TOKEN='把生成的令牌粘到这里'
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+```bash
+# Linux / macOS
+export SHOP_ACCESS_TOKEN='把生成的令牌粘到这里'
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+启用后在网页版 / 小程序的「设置」页填写同一令牌即可（令牌只存本机，不会上传）。
+
+鉴权规则：
+
+- 只保护 `/api/**`；首页 `/` 与 `/static/**` 放行，否则浏览器加载不出填令牌的界面。
+- `/api/health` 免鉴权，供探活与反代健康检查。
+- 令牌通过请求头 `X-Shop-Token` 或 `Authorization: Bearer <token>` 提交；
+  报表下载这类无法自定义头部的场景可用 `?token=<token>` 兜底。
+- 鉴权失败返回 `401`，前端会引导到「设置」页填写令牌。
+
 ### 2. 配置 AI Key（可选）
 
 在 `server/config.local.json` 中写入（该文件已被 .gitignore 排除，不会上传）：
@@ -140,9 +178,40 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8000
 
 1. 微信开发者工具导入 `miniprogram/` 目录
 2. 本地设置勾选「不校验合法域名」
-3. 真机预览时把 `app.js` 里的 `baseUrl` 改成电脑局域网 IP，并保持手机与电脑同一网络
+3. **真机预览必须在「设置」页把「后端地址」改成电脑的局域网 IP**（如 `http://192.168.1.5:8000`），
+   并点「测试连接」自检；保持手机与电脑同一网络。
+   真机上 `127.0.0.1` 指向手机自己，用默认值会连不上后端（页面顶部会出现红色提示条）。
 
-> 语音识别依赖微信官方「同声传译」插件（appid：wx069ba97219f66d99）。如提示插件未授权，需在小程序管理后台「设置-第三方设置-插件管理」中添加。
+> 语音识别依赖微信官方「同声传译」插件（appid：wx069ba97219f66d99）。`app.json` 目前**未声明该插件**，
+> 因此语音按钮会降级为手动输入并给出提示；如需语音演示，请在 `app.json` 添加 `plugins` 声明，
+> 并使用正式 AppID（游客 appid `touristappid` 无法使用插件）。
+
+### 5. 演示前自检
+
+演示前跑一遍自检脚本，可在打开开发者工具之前发现接口不匹配、模板绑定错误、配置缺失等问题：
+
+```bash
+cd server
+python ../scripts/mp_demo_check.py
+```
+
+检查内容：小程序调用的接口是否都存在于后端（以 OpenAPI schema 为契约）、WXML 绑定的事件方法与
+自定义组件是否都有定义、演示配置（插件声明 / appid / urlCheck / 默认后端地址）是否就绪。
+存在「必须修」的问题时以非 0 退出，便于接入 CI。
+
+### 6. 生成演示数据（演示单店模型前必做）
+
+「单店模型 → 从账本流水带入」需要账本里有像样的流水，否则反推出的日销过低、
+毛利率可能为负，演示效果差。先清空再灌入（脚本是追加写入，重复跑会让数据翻倍）：
+
+```bash
+cd server
+rm -f data/ai_shopkeeper.db
+python ../scripts/seed_demo_data.py
+```
+
+脚本写入最近 14 天的真实感流水（每天数笔收入 + 周期性进货 + 房租水电），
+跑完会打印核验结果（预期：日销约 1,338、毛利率约 58.8%、保本日销约 907）。
 
 ## API 一览
 
@@ -179,5 +248,11 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8000
 | `POST /api/payment/sync-all` | 手动触发全部启用账户同步 |
 
 > 收款流水同步说明：后端启动后每 6 小时自动拉取所有启用账户的昨日账单（wx_trade_id 唯一索引幂等去重）；演示模式（mchid=DEMO）无需任何商户资料即可体验全流程，数据带 `[演示]` 标记可一键清空。正式对接微信支付商户号需配置 API 证书与 APIv3 密钥（`pip install wechatpayv3`）。
+
+> 鉴权说明：以上接口除 `/api/health` 外，在后端设置 `SHOP_ACCESS_TOKEN` 后均需携带访问令牌（见「1.1 开启访问令牌鉴权」）。
+
+> 安全审计记录见 [`docs/security-audit-2026-09.md`](docs/security-audit-2026-09.md)。
+
+> 演示/讲解脚本与现场排障见 [`docs/demo-guide.md`](docs/demo-guide.md)。
 
 > AI生成

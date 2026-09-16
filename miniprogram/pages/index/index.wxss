@@ -1,4 +1,10 @@
 /* pages/index/index.wxss */
+/* 连不上后端时的常驻提示条：要显眼，让演示时一眼看出是配置问题 */
+.conn-warn {
+  border-left: 8rpx solid #d9534f;
+  background: #fff6f5;
+}
+
 .hero {
   background: linear-gradient(135deg, #b4532a, #e07b39);
   padding: 40rpx 30rpx 100rpx;

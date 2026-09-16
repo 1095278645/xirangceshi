@@ -36,7 +36,7 @@ Page({
   loadReminders() {
     api.reminders().then(list => {
       this.setData({ memories: list.filter(r => !r.done) })
-    }).catch(() => {})
+    }).catch(err => api.reportError(err))
   },
 
   openDetail(e) {

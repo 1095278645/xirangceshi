@@ -32,17 +32,22 @@ Page({
     insight: '',
     insightLoading: false,
     insightAiUsed: false,
+    insightCached: false,
     // ---- AI 报税建议 ----
     taxAdvice: '',
     taxAdviceLoading: false,
-    taxAdviceAiUsed: false
+    taxAdviceAiUsed: false,
+    taxAdviceCached: false
   },
 
   onLoad() {
     const now = new Date()
     this.setData({ year: now.getFullYear(), month: now.getMonth() + 1 })
+    api.resetFailFlag()
     this.loadTransactions()
-    api.accountTitles().then(r => this.setData({ categories: r.categories || [] })).catch(() => {})
+    api.accountTitles()
+      .then(r => this.setData({ categories: r.categories || [] }))
+      .catch(err => api.reportError(err))
   },
 
   onShow() {
@@ -70,6 +75,8 @@ Page({
     Promise.all([api.transactions(year, month), api.monthlySummary()])
       .then(([txns]) => {
         this.setData({ transactions: txns, summaryLoading: false })
+        // 洞察按月缓存：命中缓存时后端秒回，只有首次或手动刷新才调 AI
+        // （原实现每次进页面/切标签都会触发 20~30 秒的 AI 调用）
         this.loadInsights()
       })
       .catch(() => {
@@ -78,23 +85,39 @@ Page({
       })
   },
 
-  loadInsights() {
+  loadInsights(refresh) {
     const { year, month } = this.data
-    this.setData({ insightLoading: true, insight: '' })
-    api.orderInsights(year, month)
+    this.setData({
+      insightLoading: true,
+      insight: refresh ? '' : this.data.insight,
+      insightCached: !refresh,
+    })
+    api.orderInsights(year, month, !!refresh)
       .then(r => {
-        this.setData({ insight: r.insights, insightAiUsed: r.ai_used, insightLoading: false })
+        this.setData({
+          insight: r.insights,
+          insightAiUsed: r.ai_used,
+          insightCached: !!r.cached,
+          insightLoading: false,
+        })
       })
-      .catch(() => {
+      .catch(err => {
         this.setData({ insightLoading: false })
+        api.reportError(err)
       })
+  },
+
+  // 手动重新分析（会调用 AI，约 5~30 秒）
+  refreshInsights() {
+    if (this.data.insightLoading) return
+    this.loadInsights(true)
   },
 
   // ================= 算税 =================
   loadCalendar() {
     api.taxCalendar(this.data.year, this.data.month)
       .then(cal => this.setData({ calendar: cal }))
-      .catch(() => {})
+      .catch(err => api.reportError(err))
   },
 
   onVatInput(e) { this.setData({ vatRevenue: e.detail.value }) },
@@ -105,25 +128,42 @@ Page({
       const surtax = r.vat > 0 ? r.vat : null
       this.setData({ vatResult: r })
       if (surtax) {
-        api.taxSurtax(surtax).then(s => this.setData({ surtaxResult: s })).catch(() => {})
+        api.taxSurtax(surtax)
+          .then(s => this.setData({ surtaxResult: s }))
+          .catch(err => api.reportError(err))
       } else {
         this.setData({ surtaxResult: null })
       }
       this.loadTaxAdvice()
-    }).catch(() => wx.showToast({ title: '算税失败', icon: 'none' }))
+    }).catch(err => api.reportError(err))
   },
 
-  loadTaxAdvice() {
+  loadTaxAdvice(refresh) {
     const v = parseFloat(this.data.vatRevenue)
     if (!v || v <= 0) return
-    this.setData({ taxAdviceLoading: true, taxAdvice: '' })
-    api.taxAdvice(v)
+    this.setData({
+      taxAdviceLoading: true,
+      taxAdvice: refresh ? '' : this.data.taxAdvice,
+    })
+    api.taxAdvice(v, !!refresh)
       .then(r => {
-        this.setData({ taxAdvice: r.advice, taxAdviceAiUsed: r.ai_used, taxAdviceLoading: false })
+        this.setData({
+          taxAdvice: r.advice,
+          taxAdviceAiUsed: r.ai_used,
+          taxAdviceCached: !!r.cached,
+          taxAdviceLoading: false,
+        })
       })
-      .catch(() => {
+      .catch(err => {
         this.setData({ taxAdviceLoading: false })
+        api.reportError(err)
       })
+  },
+
+  // 手动重新生成报税建议（会调 AI，约 30~65 秒）
+  refreshTaxAdvice() {
+    if (this.data.taxAdviceLoading) return
+    this.loadTaxAdvice(true)
   },
 
   onPitInput(e) {
@@ -164,8 +204,14 @@ Page({
     wx.downloadFile({
       url,
       timeout: 60000,
+      // 报表接口同样受鉴权保护：带上令牌头（后端也支持 ?token= 兜底）
+      header: api.authHeader(),
       success: (res) => {
         wx.hideLoading()
+        if (res.statusCode === 401) {
+          wx.showToast({ title: '需要访问令牌，请到「设置」填写', icon: 'none' })
+          return
+        }
         if (res.statusCode !== 200) {
           wx.showToast({ title: '报表生成失败', icon: 'none' })
           return
