@@ -107,6 +107,32 @@ class TestSchemaMigration(unittest.TestCase):
         rows = db.list_transactions()
         self.assertEqual(len(rows), 1, "status 为 NULL 的老数据必须仍计入")
 
+    def test_schema_version_recorded(self):
+        """迁移完成后写入版本号。
+
+        早期只检查 transactions.status 这一列，导致**新增的表不会被创建** ——
+        实测老库访问 opening_balances 时崩在 "no such table"。
+        """
+        db.init_db()
+        with db.get_conn() as conn:
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
+        self.assertEqual(version, db.SCHEMA_VERSION)
+
+    def test_new_tables_created_on_legacy_db(self):
+        """老库自动补齐后来新增的表。"""
+        self._make_legacy_db()
+        db.list_transactions()          # 触发迁移
+        conn = sqlite3.connect(str(self.db_file))
+        try:
+            names = {r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'")}
+        finally:
+            conn.close()
+        for table in ("opening_balances", "period_closings", "notification_logs",
+                      "notification_subscriptions", "payment_collections",
+                      "transaction_audits"):
+            self.assertIn(table, names, f"迁移后应创建表 {table}")
+
     def test_fresh_db_works(self):
         db.init_db()
         db.add_transaction(None, "新库", 10, "income", "主营业务收入")

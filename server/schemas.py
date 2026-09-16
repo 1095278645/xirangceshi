@@ -170,6 +170,19 @@ class WecomBotIn(BaseModel):
     sid: int | None = None
 
 
+class ClosePeriodIn(BaseModel):
+    """期末结转 / 反结转"""
+    period: str          # YYYY-MM
+    note: str = ""
+
+
+class OpeningBalanceIn(BaseModel):
+    """设置科目期初余额（把历史账套接进来时用）"""
+    account_code: str
+    amount: float = 0
+    note: str = ""
+
+
 class CopyContextIn(BaseModel):
     """文案生成上下文（从 domain_context 读取的经营记忆）"""
     shop_name: str = "我的小店"

@@ -34,13 +34,19 @@ from db_evolution import *  # noqa: F401,F403  进化：经验日志/基因/胶�
 # 已确认 schema 最新的库路径（避免每次连接都重复检查）
 _schema_ready: set[str] = set()
 
+# schema 版本号：每次新增表/列时 +1。init_db 完成后把库写到这个版本，
+# _ensure_schema 用它判断是否需要迁移。
+# （早期只检查 transactions.status 这一列，导致**新增的表不会被创建** ——
+#   实测老库访问 opening_balances 时崩在 "no such table"。）
+SCHEMA_VERSION = 2
+
 
 def _ensure_schema(conn) -> None:
     """确保当前库的 schema 是最新的（自动跑迁移），每个库只做一次。
 
     为什么需要：迁移原先只在 FastAPI 的 lifespan 里调用 `init_db()`。
     任何**在迁移之前**访问数据层的路径（直接调函数、脚本、后台线程）都会
-    撞上 `no such column: status` 这类错误 —— 实测老库升级时踩到过。
+    撞上 `no such column` / `no such table` —— 实测老库升级时踩到过两次。
     放在 get_conn 里兜底，保证"能用数据就先保证表结构对"。
     """
     key = str(DB_PATH)
@@ -50,18 +56,32 @@ def _ensure_schema(conn) -> None:
     # （实测 RecursionError: maximum recursion depth exceeded）。
     _schema_ready.add(key)
     try:
-        has_txn = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='transactions'"
-        ).fetchone()
-        cols = set()
-        if has_txn:
-            cols = {r["name"] for r in conn.execute(
-                "PRAGMA table_info(transactions)").fetchall()}
-        if not has_txn or "status" not in cols:
+        current = conn.execute("PRAGMA user_version").fetchone()[0]
+        if current < SCHEMA_VERSION:
             conn.commit()          # 先提交，避免 init_db 的 DDL 与外层事务冲突
             init_db()
+            # 用底层连接写版本号：走 get_conn() 会再触发自检（递归风险）
+            with _raw_conn() as c2:
+                c2.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     except sqlite3.Error as e:  # noqa: BLE001
         log.warning("schema 自检失败（将由调用方按需处理）：%s", e)
+
+
+def _raw_conn():
+    """底层连接（不做 schema 自检）。仅供迁移流程内部使用，避免递归。"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 5000")
+    return _closing_conn(conn)
+
+
+@contextmanager
+def _closing_conn(conn):
+    try:
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
 
 
 @contextmanager
@@ -367,6 +387,31 @@ def init_db():
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_notif_log_event "
                      "ON notification_logs(event, created_at)")
+
+        # ===== 会计闭环：期初余额 与 期末结转记录 =====
+        # 期初余额：用于把历史账套接进来（没有更早数据时留空，"期初"即期间前的凭证累计）
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS opening_balances (
+            account_code TEXT PRIMARY KEY,
+            amount       REAL DEFAULT 0,
+            note         TEXT DEFAULT '',
+            updated_at   TEXT DEFAULT (datetime('now','localtime'))
+        );
+        """)
+        # 期末结转：记录每个期间是否已结转（幂等与重算的依据）
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS period_closings (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            period     TEXT UNIQUE NOT NULL,
+            voucher_id INTEGER,
+            voucher_no TEXT DEFAULT '',
+            net_profit REAL DEFAULT 0,
+            status     TEXT NOT NULL DEFAULT 'closed'
+                       CHECK(status IN ('closed','reopened')),
+            note       TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        );
+        """)
 
         # ===== 自适应进化层建表（拆到 db_evolution_audit.init_evolution_tables）=====
         init_evolution_tables(conn)

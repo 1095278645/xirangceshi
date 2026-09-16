@@ -32,6 +32,7 @@ AIGC:
 | 资金健康 | 现金流滚动预测（未来几个月钱够不够花）、月度预算 vs 实际、赊账（应收应付）与账龄提醒 |
 | 库存进销存 | 商品/材料档案、入库/出库/盘点、货值与补货/过期预警 |
 | 发票台账 | 销项/进项发票登记、税率与税额、作废留痕、按类型汇总 |
+| 会计闭环 | **科目余额表**（含借贷平衡自检）、**利润表**、**资产负债表**（资产 = 负债 + 权益）、**期末结转**（损益 → 本年利润，支持反结转与更正后重算）、科目期初余额录入 |
 
 > **移动端覆盖**：微信小程序的「账本」页有 7 个标签页 ——
 > 流水 / 算税 / 科目 / 报表 / **现金（资金健康）** / **库存** / **发票**，
@@ -108,6 +109,7 @@ AIGC:
     ├── db_collections.py# 收款请求（收款即入账）
     ├── backup.py       # 备份：VACUUM INTO 一致性快照 / 导出包 / 恢复校验
     ├── notifications.py# 主动触达：多通道推送（企业微信机器人 / 本地记录 / 订阅消息）
+    ├── accounting.py   # 会计闭环：科目余额表 / 利润表 / 资产负债表 / 期末结转
     ├── categories.py   # 66 科目表（资产/负债/权益/收入/费用）
     ├── tax.py          # 税法计算（增值税/附加税/个税/企税/报税日历/边界护栏）
     ├── report.py       # Excel 报表导出（openpyxl，三工作表）
@@ -396,6 +398,13 @@ curl -X POST "http://127.0.0.1:8000/api/notify/wecom-bot" \
 | `POST /api/notify/subscriptions` | 新增/更新订阅 |
 | `GET /api/notify/logs` | 投递记录（成功/失败/重试次数） |
 | `GET /api/notify/mock-inbox` | 本地记录通道收到的消息 |
+| `GET /api/accounting/trial-balance` | 科目余额表（含借贷平衡自检） |
+| `GET /api/accounting/income-statement` | 利润表 |
+| `GET /api/accounting/balance-sheet` | 资产负债表 |
+| `POST /api/accounting/close` | 期末结转（损益 → 本年利润；可重复执行，会先红冲再重算） |
+| `POST /api/accounting/reopen` | 反结转（解除期间锁定） |
+| `GET /api/accounting/opening-balances` | 科目期初余额列表 |
+| `POST /api/accounting/opening-balances` | 设置科目期初余额（把历史账套接进来） |
 | `GET /api/store/presets` | 单店模型业态预设（六业态参考毛利率区间与经营提示） |
 | `POST /api/store/model` | 单店模型计算（保本线/目标日销/回本周期/现金流/三维诊断与建议） |
 | `GET /api/store/from-ledger` | 从账本流水反推实际日销/毛利率（自动定位最近有收入的月份） |
