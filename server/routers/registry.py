@@ -42,6 +42,7 @@ BUSINESS_DOMAINS = [
     {"name": "evolution", "module": "evolution", "desc": "自适应进化层",                                 "enabled": True},
     {"name": "backup",    "module": "backup",    "desc": "数据备份 / 导出 / 恢复",                       "enabled": True},
     {"name": "collect",   "module": "collect",   "desc": "收款即入账（收款请求 / 公开收款页 / 确认入账）", "enabled": True},
+    {"name": "notify",    "module": "notify",    "desc": "主动触达（消息订阅 / 推送测试 / 投递记录）",     "enabled": True},
 ]
 
 

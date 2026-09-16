@@ -21,6 +21,7 @@ import backup
 import config
 import db
 import heartbeat
+import notifications
 import payment
 from routers import registry
 
@@ -64,10 +65,21 @@ async def _daily_sync_loop():
 
 async def _heartbeat_loop():
     """后台定时任务：每天生成经营复盘 + 跑进化检查（经验晋升/基因抑制/技能蒸馏），
-    落盘领域上下文供前端/推送取用。"""
+    落盘领域上下文供前端/推送取用。
+
+    生成后主动推送给订阅者 —— 这是"主动触达"的定时触发点：原先复盘只躺在
+    数据库里，店主不看就等于不存在。
+    """
+    first = True
     while True:
         try:
-            await asyncio.to_thread(heartbeat.generate_daily_review)
+            text = await asyncio.to_thread(heartbeat.generate_daily_review)
+            # 幂等：同一业务日期内只推一次，避免重启/重复触发刷屏
+            await asyncio.to_thread(
+                notifications.dispatch_event, "daily_review",
+                "今日经营复盘", text or "",
+                business_key=_today_key(), dedup_days=1)
+            await asyncio.to_thread(_maybe_warn_revenue)
         except Exception as e:  # noqa: BLE001
             log.error("heartbeat loop error: %s", e)
         try:
@@ -76,7 +88,51 @@ async def _heartbeat_loop():
                 log.info("evolution daily check: %s", evo)
         except Exception as e:  # noqa: BLE001
             log.error("evolution daily check error: %s", e)
-        await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
+        await asyncio.sleep(60 if first else HEARTBEAT_INTERVAL_SECONDS)
+        first = False
+
+
+def _today_key() -> str:
+    from datetime import date
+    return date.today().isoformat()
+
+
+def _maybe_warn_revenue() -> None:
+    """流水异常预警：日流水低于保本线时主动提醒。
+
+    这是"主动触达"里最有价值的一条 —— 店主不会天天去看保本线，
+    但一旦掉到线下就是"开门一天亏一天"。
+    """
+    try:
+        profile = heartbeat._latest_profile()
+        if not profile:
+            return
+        storelib = __import__("store")
+        res = storelib.calc_store_model(
+            gross_margin=profile.get("gross_margin"),
+            rent=profile.get("rent") or 0,
+            salary=profile.get("salary") or 0,
+            utilities=profile.get("utilities") or 0,
+            total_investment=profile.get("total_investment") or 0,
+            cash_on_hand=profile.get("cash_on_hand") or 0,
+            biz_type=profile.get("biz_type") or "餐饮")
+        break_even = (res.get("model") or {}).get("break_even_day")
+        if not break_even:
+            return
+        today = db.today_summary()
+        # 只提醒有明显营业的情况，避免一早还没开门就误报
+        if today["cnt"] < 3:
+            return
+        if today["income"] < break_even:
+            gap = break_even - today["income"]
+            notifications.dispatch_event(
+                "revenue_warning",
+                f"今日流水低于保本线（{_today_key()}）",
+                f"今天收了 {today['income']:,.0f} 元，保本线 {break_even:,.0f} 元，"
+                f"差 {gap:,.0f} 元。今天开门是亏的，看看能不能多做几单。",
+                business_key=_today_key(), dedup_days=1)
+    except Exception as e:  # noqa: BLE001
+        log.warning("流水预警检查失败：%s", e)
 
 
 @asynccontextmanager

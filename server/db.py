@@ -337,6 +337,37 @@ def init_db():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_collection_token "
                      "ON payment_collections(token)")
 
+        # ===== 主动触达：订阅与投递日志 =====
+        # 原先所有能力都是被动的（店主必须自己想起来打开小程序），heartbeat 生成的
+        # 每日复盘、reminders 生成的熟客提醒都只躺在库里。这里支撑"推出去"。
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS notification_subscriptions (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            channel  TEXT NOT NULL,          -- mock / wecom_bot / wecom_app / wechat_subscribe
+            target   TEXT DEFAULT '',        -- webhook key / corpid:secret:... / openid 等
+            events   TEXT DEFAULT '',        -- 逗号分隔；空=订阅全部
+            enabled  INTEGER DEFAULT 1,
+            name     TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        );
+        """)
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS notification_logs (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            event    TEXT NOT NULL,
+            channel  TEXT NOT NULL,
+            target   TEXT DEFAULT '',
+            title    TEXT DEFAULT '',
+            content  TEXT DEFAULT '',
+            ok       INTEGER DEFAULT 0,
+            attempts INTEGER DEFAULT 1,
+            error    TEXT DEFAULT '',
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        );
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_notif_log_event "
+                     "ON notification_logs(event, created_at)")
+
         # ===== 自适应进化层建表（拆到 db_evolution_audit.init_evolution_tables）=====
         init_evolution_tables(conn)
         # 对话轨迹表（借鉴 SkillClaw Client Capture，任务时循环采集）

@@ -144,6 +144,32 @@ class CollectionConfirmIn(BaseModel):
     category: str | None = None
 
 
+class NotifySubscriptionIn(BaseModel):
+    """新增/更新推送订阅"""
+    channel: str
+    target: str = ""
+    events: list[str] = []
+    enabled: bool = True
+    name: str = ""
+    sid: int | None = None
+
+
+class NotifyTestIn(BaseModel):
+    """直接试发一条消息（不建订阅）"""
+    channel: str
+    target: str = ""
+    title: str = ""
+    content: str = ""
+
+
+class WecomBotIn(BaseModel):
+    """一步配置企业微信群机器人"""
+    key: str
+    events: list[str] = []
+    name: str = ""
+    sid: int | None = None
+
+
 class CopyContextIn(BaseModel):
     """文案生成上下文（从 domain_context 读取的经营记忆）"""
     shop_name: str = "我的小店"

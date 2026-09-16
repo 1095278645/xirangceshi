@@ -25,6 +25,10 @@ AIGC:
 | 账本（省账通） | 查流水、算税费（增值税/个税/企税/报税日历）、66 科目表、一键导出 Excel 报表；大额记账自动预警 |
 | 单店模型 | 保本线先行：填日销/成本/投资，算出保本日销、目标日销、回本周期、现金流可扛月数，三维交叉验证（经营现金流/投资回本/商圈客流）给出健康/临界/危险结论与整改建议；覆盖餐饮/饮品/零售/生鲜/服务/摆摊六业态；支持「从账本流水带入」一键反推实际日销与毛利率 |
 | 收款流水自动入账 | 二维码收付款流水自动同步进账本：微信支付商户号（有执照）+ 聚合支付（无执照，接入中）双通道；无商户资料可填 DEMO 体验演示模式 |
+| 收款即入账 | 店主点「收款」生成收款链接 → 顾客扫码确认 → 店主确认到账**自动入账并生成凭证**，同时给出到账播报文本；顾客填的称呼自动建熟客档案（资金仍走店主自己的收款码，不做资金通道） |
+| 交易更正 | 记错了能改：**编辑**（旧凭证作废+生成新凭证）、**作废**（冲销凭证、不计入合计但保留可查）、**退货冲销**（生成负数关联记录自动抵消，解锁退货场景）；全部留痕可追溯 |
+| 数据备份/恢复 | 启动与每 6 小时自动做**一致性快照**（`VACUUM INTO`），滚动保留；一键导出 zip（默认不含 API Key）、一键恢复（恢复前自动留存当前数据，恢复错了能退回） |
+| 主动触达 | 每日复盘 / 熟客提醒 / 收款到账 / 流水低于保本线预警，主动推送到店主手机。**企业微信群机器人无需正式 AppID 即可真实收到消息**；另有本地记录通道供演示 |
 
 ## 多 agent 团队编排
 
@@ -80,16 +84,23 @@ AIGC:
     │   ├── registry.py  # 业务域注册表（增删能力唯一入口，main.py 遍历挂载，仿 TEAM_DOMAINS）
     │   ├── arch.py     # 领域上下文 / 任务队列 / 单店档案 / 心跳复盘
     │   ├── basic.py    # 健康检查 / AI 设置 / 文案生成
-    │   ├── orders.py   # 记账 / 流水 / 凭证
+    │   ├── orders.py   # 记账 / 流水 / 凭证 / 交易更正（编辑·作废·退货）
     │   ├── customers.py# 熟客 / 记忆 / 提醒
     │   ├── tax.py      # 税法计算 / 科目表
     │   ├── store.py    # 单店经营模型
     │   ├── report.py   # Excel 报表导出
-    │   └── payment.py  # 收款账户 / 账单同步
+    │   ├── payment.py  # 收款账户 / 账单同步
+    │   ├── backup.py   # 数据备份 / 导出 / 恢复
+    │   ├── collect.py  # 收款即入账（收款请求 / 公开收款页 / 确认入账）
+    │   └── notify.py   # 主动触达（消息订阅 / 推送测试 / 投递记录）
     ├── ai.py           # AI 单 agent 能力（记账解析 / 洞察 / 画像 / 报税，无 Key 兜底）
     ├── team.py         # 多 agent 引擎原语（并行竞争扇出 / 采纳归因成长）
     ├── team_domains.py # 多 agent 业务编排（朋友圈文案 / 单店诊断）+ 域注册表 TEAM_DOMAINS
-    ├── db.py           # SQLite（熟客/记忆/交易/提醒/收款账户）
+    ├── db.py           # SQLite（连接/建表/迁移；按域 re-export 查询能力）
+    ├── db_corrections.py# 交易更正：编辑 / 作废 / 退货冲销（含审计留痕）
+    ├── db_collections.py# 收款请求（收款即入账）
+    ├── backup.py       # 备份：VACUUM INTO 一致性快照 / 导出包 / 恢复校验
+    ├── notifications.py# 主动触达：多通道推送（企业微信机器人 / 本地记录 / 订阅消息）
     ├── categories.py   # 66 科目表（资产/负债/权益/收入/费用）
     ├── tax.py          # 税法计算（增值税/附加税/个税/企税/报税日历/边界护栏）
     ├── report.py       # Excel 报表导出（openpyxl，三工作表）
@@ -294,6 +305,46 @@ python ../scripts/mp_demo_check.py     # 接口契约 + 模板绑定 + 演示数
 python ../scripts/prewarm_cache.py     # 预热 AI 缓存（需先起后端）
 ```
 
+## 主动触达（把复盘与提醒推到店主手机上）
+
+原先所有能力都是**被动**的：店主必须自己想起来打开小程序，才能看到每日复盘与
+熟客提醒 —— 不看就等于不存在。开启推送后，这些内容会主动发到店主手机。
+
+### 推荐：企业微信群机器人（不需要正式 AppID）
+
+1. 手机企业微信建一个只有自己的群（或与家人/合伙人的群）
+2. 群设置 → 群机器人 → 添加 → 复制 Webhook 地址里的 **key**
+3. 配置并立即测试：
+
+```bash
+curl -X POST "http://127.0.0.1:8000/api/notify/wecom-bot" \
+  -H "Content-Type: application/json" \
+  -d '{"key":"粘贴你的webhook-key"}'
+```
+
+返回 `"message":"已接通"` 就说明通道通了，之后每天会自动推送到群里。
+
+### 可推送的四类消息
+
+| 事件 | 触发时机 |
+|---|---|
+| 每日经营复盘 | 每天定时（当天收支 + 本月累计 + 单店一句话） |
+| 熟客提醒 | 每天定时，或生成提醒后 |
+| 收款到账 | 确认收款入账时即时播报 |
+| 流水异常预警 | 每天定时：日流水低于保本线时提醒（"今天开门是亏的"） |
+
+### 其它通道与资质要求
+
+| 通道 | 能否直接落地 |
+|---|---|
+| 本地记录（`mock`） | ✅ 免配置，内容写到 `server/data/notifications.jsonl`，演示时用它展示"推送了什么" |
+| 企业微信群机器人（`wecom_bot`） | ✅ 填个 key 就能收到真消息 |
+| 企业微信应用消息（`wecom_app`） | ⚠️ 需企业微信管理员建应用（corpid/secret/agentid） |
+| 微信小程序订阅消息（`wechat_subscribe`） | ⚠️ 需正式 AppID、用户逐次授权订阅、并在公众平台申请模板；**游客模式不可用** |
+
+> 投递结果全部入库可查：`GET /api/notify/logs`（含失败原因与重试次数）。
+> 同一事件按业务键做了**幂等去重**，服务重启或重复触发不会刷屏。
+
 ## API 一览
 
 | 接口 | 说明 |
@@ -317,6 +368,27 @@ python ../scripts/prewarm_cache.py     # 预热 AI 缓存（需先起后端）
 | `POST /api/tax/cit` | 企业所得税计算（小微/一般） |
 | `GET /api/tax/calendar` | 报税日历（月度申报提醒） |
 | `GET /api/report/monthly` | 月度 Excel 报表（收支汇总/分类明细/交易流水） |
+| `GET /api/transactions/{id}` | 单笔交易详情（含更正历史） |
+| `POST /api/transactions/{id}` | 更正交易（编辑金额/分类/事由等，留痕） |
+| `POST /api/transactions/{id}/void` | 作废交易（冲销凭证，不计入合计） |
+| `POST /api/transactions/{id}/refund` | 退货冲销（支持全额/部分退） |
+| `GET /api/audits` | 最近的更正历史 |
+| `GET /api/backup/list` | 备份列表 |
+| `POST /api/backup/create` | 手动创建备份 |
+| `POST /api/backup/export` | 导出备份包（zip，默认不含 API Key） |
+| `POST /api/backup/import` | 上传备份包恢复（裸 body 传 zip/.db，需 `confirm=true`） |
+| `POST /api/backup/restore/{name}` | 用已有备份恢复（需 `confirm=true`） |
+| `POST /api/collect/create` | 创建收款请求（返回收款链接/二维码） |
+| `GET /api/collect/list` | 收款请求列表（看"待确认"） |
+| `POST /api/collect/{id}/confirm` | 确认到账 → 自动入账 + 生成凭证 |
+| `GET /pay/{token}` | **公开**收款页（顾客扫码打开，免鉴权） |
+| `POST /api/pay/{token}/paid` | **公开**：顾客点「我已付款」 |
+| `GET /api/notify/events` | 可订阅的事件类型 |
+| `GET /api/notify/providers` | 可用推送通道及配置要求 |
+| `POST /api/notify/wecom-bot` | 一步接通企业微信群机器人（并立即发测试消息） |
+| `POST /api/notify/subscriptions` | 新增/更新订阅 |
+| `GET /api/notify/logs` | 投递记录（成功/失败/重试次数） |
+| `GET /api/notify/mock-inbox` | 本地记录通道收到的消息 |
 | `GET /api/store/presets` | 单店模型业态预设（六业态参考毛利率区间与经营提示） |
 | `POST /api/store/model` | 单店模型计算（保本线/目标日销/回本周期/现金流/三维诊断与建议） |
 | `GET /api/store/from-ledger` | 从账本流水反推实际日销/毛利率（自动定位最近有收入的月份） |

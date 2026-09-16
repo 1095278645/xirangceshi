@@ -1,8 +1,9 @@
 """熟客 / 记忆 / 提醒"""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 import ai
 import db
+import notifications
 from schemas import CustomerIn, MemoryIn
 
 router = APIRouter(prefix="/api", tags=["customers"])
@@ -34,8 +35,12 @@ def add_memory(data: MemoryIn):
 
 
 @router.post("/reminders/generate")
-def reminders_generate():
-    """用 AI 生成今日提醒并入库"""
+def reminders_generate(background: BackgroundTasks):
+    """用 AI 生成今日提醒并入库，随后推送给订阅者。
+
+    推送放在 BackgroundTasks：提醒本身已落库，推送失败不该让接口报错，
+    也不该在写事务里做网络请求。
+    """
     customers = db.list_customers()
     if not customers:
         return {"reminders": []}
@@ -50,6 +55,12 @@ def reminders_generate():
         cid, _ = db.find_or_create_customer(it.get("customer", ""))
         rid = db.add_reminder(cid, it.get("content", ""))
         saved.append({"id": rid, "customer": it.get("customer"), "content": it.get("content")})
+
+    if saved:
+        lines = "\n".join(f"· {s['customer']}：{s['content']}" for s in saved)
+        background.add_task(
+            notifications.dispatch_event, "customer_reminder",
+            f"今日熟客提醒（{len(saved)} 条）", lines)
     return {"reminders": saved}
 
 

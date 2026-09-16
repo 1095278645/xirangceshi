@@ -7,10 +7,11 @@
 """
 import logging
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
 import db
+import notifications
 from schemas import CollectionConfirmIn, CollectionIn
 
 log = logging.getLogger("routers.collect")
@@ -196,14 +197,27 @@ def collect_detail(cid: int):
 
 
 @router.post("/collect/{cid}/confirm")
-def collect_confirm(cid: int, data: CollectionConfirmIn | None = None):
-    """确认到账 → 自动入账（写收入 + 生成借贷凭证）+ 返回播报文本。"""
+def collect_confirm(cid: int, background: BackgroundTasks,
+                    data: CollectionConfirmIn | None = None):
+    """确认到账 → 自动入账（写收入 + 生成借贷凭证）+ 返回播报文本。
+
+    推送放在 BackgroundTasks 里：在数据库写事务内做网络请求会占着写锁，
+    拖慢其它写入；先落库、响应后再推送才是对的顺序。
+    """
     item = data.item if data else None
     category = (data.category if data else None) or "主营业务收入"
     try:
-        return db.confirm_collection(cid, item=item, category=category)
+        result = db.confirm_collection(cid, item=item, category=category)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
+
+    amount = (result.get("collection") or {}).get("amount")
+    payer = (result.get("collection") or {}).get("payer_name") or "顾客"
+    background.add_task(
+        notifications.dispatch_event, "payment_received",
+        f"收款 {amount:.2f} 元",
+        f"{payer} 已付款 {amount:.2f} 元，已自动入账。")
+    return result
 
 
 @router.post("/collect/{cid}/cancel")
