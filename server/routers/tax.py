@@ -56,12 +56,46 @@ def tax_calendar(year: int | None = None, month: int | None = None):
     return taxcalc.get_filing_calendar(year, month)
 
 
+def _advice_cache_key(quarterly_revenue: float) -> str:
+    """报税建议按销售额分桶缓存。
+
+    分桶粒度取 1000 元：
+      - 太细（按分/按元）会导致每次改一个数字都未命中，等同没有缓存；
+      - 太粗会把不同销售额的建议混用（增值税额不同，建议内容就不同）。
+    1000 元档对"季度销售额"这个量级足够贴近，且演示常用的整数
+    （300000 / 350000 / 400000）都能命中。
+    """
+    bucket = int(quarterly_revenue // 1000) * 1000
+    return f"quarterly_advice:{bucket}"
+
+
 @router.post("/tax/advice")
 def tax_advice(data: VatIn):
-    """AI 报税建议：算增值税 → 读取上次建议(domain_context) → AI 生成 → 落盘"""
+    """AI 报税建议（按销售额分桶缓存，默认命中缓存秒回）。
+
+    前端在「算增值税」之后会自动请求本接口。原实现每次都真调 AI
+    （实测 30~65 秒），且缓存键不区分销售额，换个数会把上一条覆盖并
+    显示成新输入的结论。现在：命中同档缓存直接返回，refresh=true 才重新生成。
+    """
     vat_result = taxcalc.calc_vat(data.quarterly_revenue)
-    prev = db.get_domain_context("tax", "quarterly_advice")
+    cache_key = _advice_cache_key(data.quarterly_revenue)
+
+    if not data.refresh:
+        hit = db.get_domain_context("tax", cache_key)
+        if hit and (hit.get("value") or "").strip():
+            return {"advice": hit["value"], "vat_result": vat_result,
+                    "ai_used": ai.ai_available(), "cached": True,
+                    "updated_at": hit.get("updated_at", "")}
+
+    if not ai.ai_available():
+        # 无 Key：返回降级建议，不写缓存（避免模板被当成 AI 结果复用）
+        text = ai.generate_tax_advice(data.quarterly_revenue, vat_result, "")
+        return {"advice": text, "vat_result": vat_result, "ai_used": False,
+                "cached": False}
+
+    prev = db.get_domain_context("tax", cache_key)
     prev_text = prev["value"] if prev else ""
     text = ai.generate_tax_advice(data.quarterly_revenue, vat_result, prev_text)
-    db.set_domain_context("tax", "quarterly_advice", text)
-    return {"advice": text, "vat_result": vat_result, "ai_used": ai.ai_available()}
+    db.set_domain_context("tax", cache_key, text)
+    return {"advice": text, "vat_result": vat_result, "ai_used": True,
+            "cached": False}

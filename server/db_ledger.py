@@ -50,14 +50,19 @@ def _auto_voucher(conn, txn_id, amount, trans_type, category, summary, counterpa
     # 序号在事务内基于「当月现有最大序号 +1」生成；并发下若两条同时算出相同 seq，
     # 第二次 INSERT 会触发 UNIQUE 冲突，捕获后递增 seq 重试，避免并发撞号崩溃。
     base = f"记-{period.replace('-', '')}-"
+    # 序号用 REPLACE 去掉前缀后整体转数值，不用 substr 固定偏移：
+    # 早期用 substr(voucher_no, 11) 依赖"前缀正好 10 字符"，前缀一变即失效。
     seq = conn.execute(
-        "SELECT COALESCE(MAX(CAST(substr(voucher_no, 11) AS INTEGER)), 0) "
-        "FROM vouchers WHERE voucher_no LIKE ?", (base + "%",)
+        "SELECT COALESCE(MAX(CAST(REPLACE(voucher_no, ?, '') AS INTEGER)), 0) "
+        "FROM vouchers WHERE voucher_no LIKE ?", (base, base + "%")
     ).fetchone()[0] + 1
     vid = None
     voucher_no = None
-    for attempt in range(100):
-        voucher_no = f"{base}{seq:03d}"
+    # 补零到 4 位：业务量大的店一个月可能记上千笔，早期 3 位宽度在第 1000 笔时
+    # 会退化成 "1000" 破坏固定宽度、并让序号解析出错，最终耗尽重试次数而失败。
+    # 重试上限按当月剩余序号空间给足，避免"确实还有号可用却报错"。
+    for _attempt in range(1000):
+        voucher_no = f"{base}{seq:04d}"
         try:
             cur = conn.execute(
                 "INSERT INTO vouchers(voucher_no, voucher_date, summary, transaction_id) "
@@ -68,7 +73,7 @@ def _auto_voucher(conn, txn_id, amount, trans_type, category, summary, counterpa
             # 撞号（并发或历史遗留）：序号 +1 重试
             seq += 1
     else:
-        raise RuntimeError("生成凭证号失败：100 次尝试均与现有凭证号冲突")
+        raise RuntimeError("生成凭证号失败：重试次数已用尽仍有冲突")
     if vid is None:
         raise RuntimeError("生成凭证号失败")
 

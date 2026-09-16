@@ -39,6 +39,7 @@ class SettingsIn(BaseModel):
 
 class VatIn(BaseModel):
     quarterly_revenue: float = Field(ge=0)   # 季度销售额
+    refresh: bool = False                    # 报税建议：True=强制重新生成
 
 
 class SurtaxIn(BaseModel):
@@ -101,6 +102,7 @@ class InsightIn(BaseModel):
     """月度经营洞察请求（不传年月默认当月）"""
     year: int | None = None
     month: int | None = None
+    refresh: bool = False     # True=强制重新生成；默认命中缓存直接返回
 
 
 class CopyContextIn(BaseModel):

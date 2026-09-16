@@ -266,5 +266,139 @@ class TestEndpointLogic(_NoKeyAI, _TempDB):
         self.assertEqual(stored["value"], text)
 
 
+class TestChatTokenBudget(unittest.TestCase):
+    """思考型模型的 max_tokens 预算问题（回归测试）。
+
+    背景：deepseek-flash / deepseek-v4-pro 这类思考型模型的 reasoning_content 与
+    正文**共享** max_tokens 预算。各业务点的 max_tokens 是按非思考模型定的
+    （260~500），预算被推理吃光后正文返回空串 —— 表现为"AI 功能没反应"。
+
+    ai.chat 必须在这种情况自动放大预算重试，而不是把空串传给业务层。
+    """
+
+    @staticmethod
+    def _resp(content, reasoning=""):
+        msg = mock.Mock()
+        msg.content = content
+        msg.reasoning_content = reasoning
+        choice = mock.Mock()
+        choice.message = msg
+        resp = mock.Mock()
+        resp.choices = [choice]
+        return resp
+
+    def _fake_client(self, responses):
+        """按顺序返回预设响应，并记录每次请求的 max_tokens。"""
+        calls = []
+
+        def create(**kw):
+            calls.append(kw["max_tokens"])
+            return responses[min(len(calls) - 1, len(responses) - 1)]
+
+        client = mock.Mock()
+        client.chat.completions.create.side_effect = create
+        return client, calls
+
+    def _patch(self, client):
+        return [
+            mock.patch.object(ai, "get_client", return_value=client),
+            mock.patch.object(ai, "load_settings",
+                              return_value={"model": "deepseek-flash", "api_key": "k",
+                                            "base_url": "u"}),
+        ]
+
+    def test_empty_content_retries_with_larger_budget(self):
+        """推理吃光预算（正文为空）→ 放大 max_tokens 重试并拿到正文。"""
+        client, calls = self._fake_client([
+            self._resp("", reasoning="想" * 500),      # 预算不足：正文空
+            self._resp("老板，本季度要交 10194 元。"),   # 放大后成功
+        ])
+        patches = self._patch(client)
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+        out = ai.chat([{"role": "user", "content": "算税"}], max_tokens=400)
+        self.assertIn("10194", out)
+        self.assertEqual(len(calls), 2, "应当重试一次")
+        self.assertGreater(calls[1], calls[0], "重试时 max_tokens 必须放大")
+
+    def test_starting_budget_has_floor(self):
+        """起始预算有下限：思考型模型用 400 起步几乎必然空返回，应自动抬高。"""
+        client, calls = self._fake_client([self._resp("正常正文")])
+        patches = self._patch(client)
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+        ai.chat([{"role": "user", "content": "x"}], max_tokens=400)
+        self.assertGreaterEqual(calls[0], ai._CHAT_TOKEN_MIN)
+
+    def test_raises_when_budget_exhausted(self):
+        """放大到上限仍无正文 → 抛清晰异常（由业务层走兜底），不返回空串。"""
+        client, calls = self._fake_client([self._resp("", reasoning="想" * 9000)])
+        patches = self._patch(client)
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+        with self.assertRaises(RuntimeError) as cm:
+            ai.chat([{"role": "user", "content": "x"}], max_tokens=400)
+        self.assertIn("max_tokens", str(cm.exception))
+        # 必须真的递增到上限，而不是固定次数就放弃
+        self.assertEqual(calls[-1], ai._CHAT_TOKEN_CAP)
+        self.assertLessEqual(calls[-1], ai._CHAT_TOKEN_CAP)
+
+    def test_normal_content_no_retry(self):
+        """正文正常时只调一次，不产生额外开销。"""
+        client, calls = self._fake_client([self._resp("正常")])
+        patches = self._patch(client)
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+        self.assertEqual(ai.chat([{"role": "user", "content": "x"}]), "正常")
+        self.assertEqual(len(calls), 1)
+
+
+class TestThinkingParams(unittest.TestCase):
+    """思考模式参数构造（回归测试）。
+
+    背景：deepseek-flash 是思考型模型（DeepSeek-V4.1-Flash），默认 effort=high。
+      - 思考模式下 temperature 被服务端忽略，多 agent 依赖 temperature 区分角色，
+        所以默认应关闭思考；
+      - 但把 DeepSeek 专有的 thinking/reasoning_effort 发给 OpenAI 等其它
+        OpenAI 兼容服务可能 400，本项目支持自定义 base_url，必须按模型精确判断。
+    """
+
+    def test_default_disables_thinking(self):
+        p = ai._thinking_params("deepseek-flash", None)
+        self.assertEqual(p.get("extra_body"), {"thinking": {"type": "disabled"}})
+        self.assertNotIn("reasoning_effort", p)
+
+    def test_explicit_effort_enables_thinking(self):
+        for eff in ("low", "high", "max"):
+            p = ai._thinking_params("deepseek-flash", eff)
+            self.assertEqual(p["reasoning_effort"], eff)
+            self.assertEqual(p["extra_body"], {"thinking": {"type": "enabled"}})
+
+    def test_invalid_effort_falls_back(self):
+        """非法档位必须收敛，否则服务端会拒绝请求。"""
+        p = ai._thinking_params("deepseek-flash", "ultra")
+        self.assertEqual(p["reasoning_effort"], ai._DEFAULT_REASONING_EFFORT)
+
+    def test_legacy_and_new_model_names_supported(self):
+        for m in ("deepseek-flash", "deepseek-v4-flash", "deepseek-v4-pro",
+                  "deepseek-v4-flash-vision-exp"):
+            self.assertTrue(ai._thinking_params(m, "low"), f"{m} 应支持思考参数")
+
+    def test_non_deepseek_models_get_no_thinking_params(self):
+        """关键：绝不能把 DeepSeek 专有参数发给其它服务（可能 400）。"""
+        for m in ("deepseek-chat", "gpt-4o-mini", "qwen-turbo", "glm-4-flash",
+                  "moonshot-v1-8k", "custom-model", ""):
+            self.assertEqual(ai._thinking_params(m, "high"), {},
+                             f"{m} 不该收到思考参数")
+
+    def test_model_name_matching_is_exact(self):
+        """前缀相似但不是官方模型名的不能放行（如自建代理）。"""
+        self.assertEqual(ai._thinking_params("deepseek-flash-proxy", "low"), {})
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

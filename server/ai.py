@@ -10,6 +10,40 @@ from config import load_settings
 from categories import detect_category
 from ai_parsing import extract_amount as _extract_amount, extract_customer as _extract_customer  # noqa: F401
 
+# 递增重试的 max_tokens 上限。思考型模型（deepseek-flash / v4-pro）的推理开销
+# 随提示词长度与任务复杂度增长：实测短提示 600~1700 tokens，多问句任务
+# （如报税建议要答三个问题）推理可达 5000+ tokens。上限留足余量。
+_CHAT_TOKEN_CAP = 16000
+
+# 起始预算下限：思考型模型即使最短提示也要 600+ tokens 推理，低于此量级
+# 几乎必然返回空，直接从这个值起步可省掉无谓的重试往返。
+# 非思考模型（deepseek-chat）不会因为预算变大而多输出，只是允许更长回答。
+_CHAT_TOKEN_MIN = 2000
+
+# 默认推理强度。deepseek-flash 的思考模式默认 effort=high，但本项目多数调用
+# 是信息抽取/短文案这类不需要深度推理的任务。实测同一提示词的差异：
+#   思考 low  : 2.5s，推理 513 字，输出 255 tokens
+#   非思考     : 0.5s，推理   0 字，输出  26 tokens   ← 快 5 倍、便宜 10 倍，质量相当
+# 因此默认关闭思考；需要判断/分析的任务在调用点显式指定 effort。
+_DEFAULT_REASONING_EFFORT = "off"
+
+# effort="off" 映射为非思考模式（thinking.type=disabled）。
+# 另一层原因：思考模式下 temperature 被服务端忽略（官方文档明确说明），
+# 而多 agent 编排依赖 temperature 区分员工角色（创意文案师 0.9 要发散、
+# 合规审核 0.2 要稳定），这些任务必须走非思考模式才能保住角色差异化。
+_THINKING_OFF = "off"
+
+# 支持思考模式开关的模型（精确匹配模型名，小写）。
+# 官方文档 MODELS 页：deepseek-flash → DeepSeek-V4.1-Flash、deepseek-v4-pro → DeepSeek-V4-Pro；
+# 旧名 deepseek-v4-flash 仍被接受但已下线，请求由 V4.1-Flash 承接。
+# 不在此列表（如 deepseek-chat，或任何第三方模型）不发送思考相关参数。
+_THINKING_MODELS = frozenset({
+    "deepseek-flash", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp",
+    "deepseek-v4-pro",
+})
+
+# 官方允许的推理强度档位（非法值会被服务端拒绝，这里先收敛）
+_REASONING_EFFORTS = frozenset({"low", "high", "max"})
 
 def ai_available():
     """是否已配置 API Key（每次实时读取，设置页保存后立即生效）"""
@@ -26,11 +60,70 @@ def get_client():
     return OpenAI(api_key=s["api_key"], base_url=s["base_url"])
 
 
-def chat(messages, temperature=0.7, max_tokens=1024):
-    resp = get_client().chat.completions.create(
-        model=load_settings()["model"], messages=messages, temperature=temperature, max_tokens=max_tokens
+def chat(messages, temperature=0.7, max_tokens=1024, reasoning_effort=None):
+    """调用模型，返回正文文本。
+
+    关于思考型模型（deepseek-flash / deepseek-v4-pro）：
+      - 服务端默认开启思考模式且 effort=high，推理过程会先占用大量输出预算；
+        而各业务点的 max_tokens（260~500）是按非思考模型定的，
+        预算被推理吃光后正文返回空串 —— 表现为"AI 功能没反应"。
+      - 思考模式下 temperature 被服务端忽略（官方文档明确说明：不报错但也不生效），
+        而多 agent 编排依赖 temperature 区分角色。
+    因此：
+      1. 默认**关闭思考**（_DEFAULT_REASONING_EFFORT = "off"）：
+         本项目多数调用是信息抽取/短文案，实测同一提示词下
+         思考 low 用 2.5s/255 tokens，非思考只要 0.5s/26 tokens，质量相当；
+         关闭后 temperature 也恢复生效，多 agent 角色差异化得以保留。
+         确需深度推理的任务（经营洞察 low、报税建议 high）在调用点显式指定。
+      2. 正文为空时递增预算重试，直到 _CHAT_TOKEN_CAP。
+      3. 仍为空则抛清晰异常，由调用方走兜底，而不是把空串一路传下去。
+    """
+    model = load_settings()["model"]
+    client = get_client()
+    budget = max(int(max_tokens or 0), _CHAT_TOKEN_MIN)
+    extra = _thinking_params(model, reasoning_effort)
+    last_reasoning = 0
+    while True:
+        resp = client.chat.completions.create(
+            model=model, messages=messages, temperature=temperature,
+            max_tokens=budget, **extra
+        )
+        msg = resp.choices[0].message
+        text = msg.content
+        if text and text.strip():
+            return text
+        # 记录推理消耗，便于排查是「预算被推理吃光」还是「模型真没输出」
+        rc = getattr(msg, "reasoning_content", None)
+        last_reasoning = len(rc or "")
+        if budget >= _CHAT_TOKEN_CAP:
+            break
+        budget = min(budget * 2, _CHAT_TOKEN_CAP)
+    raise RuntimeError(
+        f"模型返回空内容（{model}）：已把 max_tokens 提升到 {budget} 仍无正文，"
+        f"推理过程约占 {last_reasoning} 字符；请检查模型名是否正确"
     )
-    return resp.choices[0].message.content
+
+
+def _thinking_params(model: str, effort: str | None) -> dict:
+    """为思考型模型构造请求参数；其它模型返回空 dict。
+
+    必须按模型精确判断：本项目支持自定义 base_url，把 DeepSeek 专有的
+    thinking / reasoning_effort 参数发给 OpenAI 等其它服务可能导致 400。
+    未列出的模型一律当作"不支持思考模式"，宁可不优化也不能发错参数。
+
+    effort 取值：off（默认，思考模式关闭）/ low / high / max。
+    """
+    if (model or "").strip().lower() not in _THINKING_MODELS:
+        return {}
+    eff = (effort or _DEFAULT_REASONING_EFFORT).strip().lower()
+    if eff == _THINKING_OFF:
+        return {"extra_body": {"thinking": {"type": "disabled"}}}
+    if eff not in _REASONING_EFFORTS:
+        eff = _DEFAULT_REASONING_EFFORT
+    return {
+        "reasoning_effort": eff,
+        "extra_body": {"thinking": {"type": "enabled"}},
+    }
 
 
 def _extract_json(text):
@@ -107,8 +200,15 @@ def generate_reminders(customer_brief: str) -> list:
 
 
 # ---------------- 4. 月度经营洞察 ----------------
-def generate_insights(monthly_data: dict, prev_context: str = "") -> str:
-    """基于月度收支汇总生成经营洞察（环比、异常品类、可执行建议）"""
+def generate_insights(monthly_data: dict, prev_context: str = "",
+                      business_days: int | None = None) -> str:
+    """基于月度收支汇总生成经营洞察（环比、异常品类、可执行建议）。
+
+    business_days：本月的**实际营业天数**。必须传，否则模型会默认按 30 天
+    折算日均，与单店模型的「实际日销」口径对不上 —— 例如某月只营业 16 天、
+    收入 21120 元，按 30 天算日均 704 元，按营业天数算是 1320 元，
+    两个说法出现在同一场演示里会自相矛盾。
+    """
     if not ai_available():
         # 降级：模板化数据分析
         income = monthly_data.get("income", 0)
@@ -118,6 +218,8 @@ def generate_insights(monthly_data: dict, prev_context: str = "") -> str:
         top_expense = max((c for c in cats if c.get("trans_type") == "expense"),
                           key=lambda c: c.get("total", 0), default=None) if cats else None
         lines = [f"本月收入 {income:.0f} 元，支出 {expense:.0f} 元，净{'收入' if net >= 0 else '支出'} {abs(net):.0f} 元。"]
+        if business_days:
+            lines.append(f"按 {business_days} 天营业计，日均进账 {income / business_days:.0f} 元。")
         if top_expense:
             lines.append(f"支出最高的是{top_expense.get('friendly', top_expense.get('category', ''))}，{top_expense.get('total', 0):.0f} 元。")
         if net < 0:
@@ -129,13 +231,22 @@ def generate_insights(monthly_data: dict, prev_context: str = "") -> str:
     prompt = (
         "你是一家街边小店的AI掌柜，负责帮老板看懂每月经营数据，用大白话给建议。\n"
         f"本月收支数据：{json.dumps(monthly_data, ensure_ascii=False, default=str)}\n"
+        + (f"本月实际营业天数：{business_days} 天\n" if business_days else "")
         + (f"上次分析参考：{prev_context}\n" if prev_context else "")
         + "请输出3-5条经营洞察：① 环比变化趋势 ② 异常品类 ③ 可执行建议。\n"
         "口语化，不要用专业术语，像掌柜跟老板聊天一样。先用现金流/保本线看这个月是赚是亏，"
         "再给具体可执行的动作——不是\"提升营收、加强营销\"这种空话，"
-        "而是\"把进货款压低到多少以内\"\"哪个品类进货砍一半\"这样有颗粒度的建议。直接输出正文。"
+        "而是\"把进货款压低到多少以内\"\"哪个品类进货砍一半\"这样有颗粒度的建议。直接输出正文。\n"
+        "重要：算日均营业额、日均开销时，**用上面给的实际营业天数去除**，"
+        "不要默认按 30 天折算 —— 老板会拿这个数字跟别的页面对照，算错就穿帮了。\n"
+        "另外：**不要推算「日保本线」**。日保本线由「单店模型」页按标准 30 天/月计算，"
+        "你这边只有半个多月的数据，两边算法不同会给出不同数字。"
+        "你只说月保本流水（月固定成本 ÷ 毛利率）即可。"
     )
-    return chat([{"role": "user", "content": prompt}], temperature=0.5, max_tokens=500).strip()
+    # 经营洞察要做环比/异常识别并给有颗粒度的建议，属于需要判断的任务，
+    # 显式开启思考（默认是关闭思考以求速度）。
+    return chat([{"role": "user", "content": prompt}], temperature=0.5,
+                max_tokens=500, reasoning_effort="low").strip()
 
 
 # ---------------- 5. 客户画像 ----------------
@@ -196,7 +307,11 @@ def generate_tax_advice(quarterly_revenue: float, vat_result: dict, prev_advice:
         + "请输出：① 本季度要交多少税 ② 有没有节税空间 ③ 下个季度该注意什么。\n"
         "口语化，不要用税法术语。直接输出正文。"
     )
-    return chat([{"role": "user", "content": prompt}], temperature=0.3, max_tokens=400).strip()
+    # 报税建议要同时回答"交多少/有无节税空间/下季度注意什么"三个问题，
+    # 属于需要推理的任务，显式开启高强度思考（全局默认是 off=关闭思考）。
+    # 代价：实测耗时 30~65 秒，因此不进演示动线（见 docs/demo-guide.md）。
+    return chat([{"role": "user", "content": prompt}], temperature=0.3,
+                max_tokens=400, reasoning_effort="high").strip()
 
 
 # 多 agent 团队编排（朋友圈文案协作流水线 / 单店诊断竞争融合）在 team_domains.py，

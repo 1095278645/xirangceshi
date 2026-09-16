@@ -39,20 +39,42 @@ def get_customer(cid):
         return c
 
 
-def find_or_create_customer(name, phone="", tags="", favorite=""):
+def _merge_tags(old: str, new: str) -> str:
+    """合并标签（去重保序）。"""
+    seen: list[str] = []
+    for raw in (old or "", new or ""):
+        for part in raw.split(","):
+            item = part.strip()
+            if item and item not in seen:
+                seen.append(item)
+    return ",".join(seen)
+
+
+def find_or_create_customer(name, phone="", tags="", favorite="", set_favorite=True):
+    """按姓名/手机号找熟客，没有就建档。
+
+    set_favorite：已存在的客户是否用传入的 favorite 覆盖。
+      - True（默认，供「新建/编辑客户」这类显式操作）：显式设置常点。
+      - False（供**记账流程**）：不动已有常点。
+        记账时传入的 favorite 是"本笔买了什么"（见 routers/orders.py），
+        不是"常点什么"。若覆盖，每记一笔账常点就变一次；若合并，
+        会把"两个肉包一杯豆浆"这种句子混进常点列表、几笔之后全是噪音。
+        常点应由店主显式维护，或仅在新客户首次记账时自动学习一次。
+    """
     with _conn() as conn:
         row = conn.execute(
             "SELECT * FROM customers WHERE name=? OR (phone!='' AND phone=?)",
             (name, phone)).fetchone()
         if row:
             cid = row["id"]
-            # 已存在客户：更新 favorite / last_visit，并把新标签合并进旧标签（避免静默丢失）
-            new_tags = ",".join(dict.fromkeys(
-                (row["tags"] or "").split(",") + (tags or "").split(","))).strip(",")
+            new_tags = _merge_tags(row["tags"] or "", tags)
+            cur_favorite = row["favorite"] or ""
+            # 注意：空串也要照写，这样才能清掉常点（显式操作场景）
+            next_favorite = favorite if set_favorite else cur_favorite
             conn.execute(
-                "UPDATE customers SET favorite=COALESCE(?, favorite), tags=?, "
+                "UPDATE customers SET favorite=?, tags=?, "
                 "last_visit=datetime('now','localtime') WHERE id=?",
-                (favorite or None, new_tags, cid))
+                (next_favorite, new_tags, cid))
             return cid, False
         cur = conn.execute(
             "INSERT INTO customers(name, phone, tags, favorite, last_visit) VALUES(?,?,?,?,datetime('now','localtime'))",
