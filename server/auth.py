@@ -33,6 +33,12 @@ PROTECTED_PREFIXES = ("/api/",)
 # 免鉴权路径（精确匹配）：健康检查用于探活/反代后端探测
 PUBLIC_PATHS = frozenset({"/api/health"})
 
+# 免鉴权前缀：顾客扫码打开的公开收款页。
+# 必须放行 —— 顾客手机上不会有店主设置的访问令牌，若被拦就是"扫码打不开"。
+# 安全性由 token 保证：token 是 22 字符随机串（secrets.token_urlsafe(16)），
+# 猜不到也枚举不了；该接口只暴露单笔金额与状态，不含任何经营数据。
+PUBLIC_PREFIXES = ("/api/pay/", "/pay/")
+
 # 接受令牌的请求头（任一命中即可）
 TOKEN_HEADERS = ("x-shop-token", "x-access-token")
 
@@ -59,6 +65,8 @@ def is_public_path(path: str) -> bool:
     """该路径是否免鉴权。只有 /api/ 前缀受保护，其余（页面/静态资源）放行。"""
     p = path or "/"
     if p in PUBLIC_PATHS:
+        return True
+    if p.startswith(PUBLIC_PREFIXES):     # 顾客扫码的公开收款页
         return True
     return not any(p.startswith(pref) for pref in PROTECTED_PREFIXES)
 

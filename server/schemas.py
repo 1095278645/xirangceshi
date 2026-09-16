@@ -128,6 +128,22 @@ class RefundIn(BaseModel):
     reason: str = ""
 
 
+class CollectionIn(BaseModel):
+    """创建收款请求"""
+    amount: float = Field(gt=0, le=1_000_000)
+    item: str = ""
+    customer_id: int | None = None
+    note: str = ""
+    payer_name: str = ""
+
+
+class CollectionConfirmIn(BaseModel):
+    """顾客侧标记已付款 / 店主侧确认与取消的参数"""
+    payer_name: str = ""      # 顾客填写
+    item: str | None = None   # 店主确认时可改事由
+    category: str | None = None
+
+
 class CopyContextIn(BaseModel):
     """文案生成上下文（从 domain_context 读取的经营记忆）"""
     shop_name: str = "我的小店"

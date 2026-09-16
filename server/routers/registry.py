@@ -41,6 +41,7 @@ BUSINESS_DOMAINS = [
     {"name": "invoice",   "module": "invoice",   "desc": "发票台账（销项/进项）",                        "enabled": True},
     {"name": "evolution", "module": "evolution", "desc": "自适应进化层",                                 "enabled": True},
     {"name": "backup",    "module": "backup",    "desc": "数据备份 / 导出 / 恢复",                       "enabled": True},
+    {"name": "collect",   "module": "collect",   "desc": "收款即入账（收款请求 / 公开收款页 / 确认入账）", "enabled": True},
 ]
 
 

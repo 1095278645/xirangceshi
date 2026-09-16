@@ -136,6 +136,18 @@ if _STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 
+@app.get("/pay/{token}")
+def pay_page_short(token: str):
+    """收款短链：顾客扫码直接打开（与 /api/pay/{token} 同一个页面）。
+
+    放在 /pay/ 而不是 /api/ 下，既更短好扫，也天然不在"只守 /api/"的
+    鉴权范围内（顾客手机上没有店主令牌）。
+    """
+    from routers.collect import _PAY_PAGE
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(_PAY_PAGE)
+
+
 @app.get("/")
 def web_index():
     """手机浏览器打开 http://电脑IP:8000/ 即用"""
