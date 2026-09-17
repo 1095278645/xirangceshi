@@ -13,6 +13,9 @@ server/data/
 server/config.local.json
 *.db
 
+# 本地语音识别模型（~50MB，不入库，部署时下载）
+server/models/
+
 # Office 临时文件
 ~$*.xlsx
 ~$*.docx

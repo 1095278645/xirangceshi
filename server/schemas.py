@@ -38,6 +38,12 @@ class CopyIn(BaseModel):
     customer_name: str = ""
 
 
+class VoiceIn(BaseModel):
+    """语音转写：前端录音（base64，无 data: 前缀）"""
+    audio: str = ""
+    format: str = "wav"           # 音频格式：wav / mp3
+
+
 class SettingsIn(BaseModel):
     api_key: str = ""          # 传空串 = 清除 Key
     base_url: str = ""

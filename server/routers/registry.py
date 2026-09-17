@@ -31,6 +31,7 @@ BUSINESS_DOMAINS = [
     {"name": "arch",      "module": "arch",      "desc": "领域上下文 / 任务队列 / 单店档案 / 心跳复盘", "enabled": True},
     {"name": "basic",     "module": "basic",     "desc": "健康检查 / AI 设置 / 文案生成",                 "enabled": True},
     {"name": "orders",    "module": "orders",    "desc": "记账 / 流水 / 凭证",                           "enabled": True},
+    {"name": "voice",     "module": "voice",     "desc": "录音上传 → 大模型语音转写",                    "enabled": True},
     {"name": "customers", "module": "customers", "desc": "熟客 / 记忆 / 提醒",                           "enabled": True},
     {"name": "tax",       "module": "tax",       "desc": "税法计算 / 科目表",                            "enabled": True},
     {"name": "store",     "module": "store",     "desc": "单店经营模型",                                 "enabled": True},
