@@ -246,6 +246,40 @@ function copyLink(url) {
   });
 }
 
+// ---------- 无障碍：字号缩放 + 语音朗读 ----------
+const A11Y_FONT_KEY = 'shop_font_scale';
+
+function a11yApply(scale) {
+  if (!document.documentElement || !document.documentElement.style) return;   // Node 试跑环境
+  document.documentElement.style.fontSize = (scale * 100) + '%';
+}
+
+function a11yInit() {
+  try { a11yApply(Number(localStorage.getItem(A11Y_FONT_KEY)) || 1); } catch (e) { /* 忽略 */ }
+}
+
+function a11yFont(delta) {
+  let s = 1;
+  try { s = Number(localStorage.getItem(A11Y_FONT_KEY)) || 1; } catch (e) { /* 忽略 */ }
+  s = Math.min(1.5, Math.max(0.85, Math.round((s + delta * 0.1) * 100) / 100));
+  try { localStorage.setItem(A11Y_FONT_KEY, String(s)); } catch (e) { /* 忽略 */ }
+  a11yApply(s);
+  toast('字号 ' + Math.round(s * 100) + '%');
+}
+
+function a11yRead() {
+  const box = document.getElementById('app');
+  const text = (box && (box.innerText || box.textContent)) || '';
+  if (!text.trim()) { toast('当前页面没有可朗读的内容'); return; }
+  if (!('speechSynthesis' in window)) { toast('当前浏览器不支持语音朗读'); return; }
+  window.speechSynthesis.cancel();
+  if (!window.SpeechSynthesisUtterance) { toast('当前浏览器不支持语音朗读'); return; }
+  const u = new window.SpeechSynthesisUtterance(text.slice(0, 300));
+  u.lang = 'zh-CN';
+  window.speechSynthesis.speak(u);
+  toast('开始朗读');
+}
+
 // ---------- 渲染分发（各页面渲染函数见 pages/*.js） ----------
 function render() {
   const r = state.route;
@@ -264,10 +298,11 @@ function render() {
   else if (r === 'notify') html = renderNotify();
   else if (r === 'collect') html = renderCollect();
   else if (r === 'shops') html = renderShops();
+  else if (r === 'metrics') html = renderMetrics();
   else html = renderHome();
   document.getElementById('app').innerHTML = html;
   const MORE_ROUTES = ['finance', 'stock', 'invoice', 'settings',
-    'accounting', 'backup', 'notify', 'collect', 'shops'];
+    'accounting', 'backup', 'notify', 'collect', 'shops', 'metrics'];
   const inMore = MORE_ROUTES.includes(r);
   document.querySelectorAll('.tab-item').forEach(t => {
     const r2 = t.dataset.route;
@@ -306,4 +341,5 @@ function go(route) {
   else if (route === 'notify') loadNotify();
   else if (route === 'collect') loadCollect();
   else if (route === 'shops') loadShops();
+  else if (route === 'metrics') loadMetrics();
 }

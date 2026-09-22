@@ -7,6 +7,8 @@
   <meta name="apple-mobile-web-app-title" content="AI掌柜" />
   <meta name="theme-color" content="#b4532a" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏮</text></svg>" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/static/icon-192.svg" />
   <title>巷子里的AI掌柜</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
@@ -46,7 +48,14 @@
       <div class="more-item" data-route="finance"><span class="more-icon">💰</span><span>财务</span><span class="more-sub">现金流 · 预算 · 赊账</span></div>
       <div class="more-item" data-route="stock"><span class="more-icon">📦</span><span>库存</span><span class="more-sub">进销存 · 补货预警</span></div>
       <div class="more-item" data-route="invoice"><span class="more-icon">🧾</span><span>发票</span><span class="more-sub">销项进项台账</span></div>
+      <div class="more-item" data-route="metrics"><span class="more-icon">📈</span><span>运行指标</span><span class="more-sub">AI 成本 · 延迟看板</span></div>
       <div class="more-item" data-route="settings"><span class="more-icon">⚙️</span><span>设置</span><span class="more-sub">支付账户 · 数据同步</span></div>
+    </div>
+
+    <div class="a11y-bar">
+      <button class="a11y-btn" onclick="a11yFont(-1)" title="缩小字号">A-</button>
+      <button class="a11y-btn" onclick="a11yFont(1)" title="放大字号">A+</button>
+      <button class="a11y-btn" onclick="a11yRead()" title="朗读当前页面要点">🔊</button>
     </div>
   </div>
 
@@ -62,6 +71,7 @@
   <script src="/static/js/pages/finance_render.js?v=8"></script>
   <script src="/static/js/pages/stock.js?v=8"></script>
   <script src="/static/js/pages/invoice.js?v=8"></script>
+  <script src="/static/js/pages/metrics.js?v=8"></script>
   <script src="/static/js/pages/accounting.js?v=8"></script>
   <script src="/static/js/pages/backup.js?v=8"></script>
   <script src="/static/js/pages/notify.js?v=8"></script>
@@ -70,5 +80,13 @@
   <script src="/static/js/pages/settings.js?v=8"></script>
   <script src="/static/js/pages/settings_pay.js?v=8"></script>
   <script src="/static/js/init.js?v=8"></script>
+  <script>
+    // PWA：注册 Service Worker（离线可开，可"添加到主屏幕"）
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js').catch(function () { /* 忽略 */ });
+      });
+    }
+  </script>
 </body>
 </html>

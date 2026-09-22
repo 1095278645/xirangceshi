@@ -16,6 +16,7 @@ async function loadSettings() {
     state.providers = p.providers || [];
     state.baseUrlInput = s.base_url;
     state.modelInput = s.model;
+    state.language = s.language || '普通话';
     state.paySources = ps.sources || [];
     state.payLogs = pl.logs || [];
   } catch (_) {}
@@ -29,7 +30,8 @@ async function saveSettings() {
     const r = await api('/api/settings', 'POST', {
       api_key: key,
       base_url: state.baseUrlInput.trim(),
-      model: state.modelInput.trim()
+      model: state.modelInput.trim(),
+      language: state.language || '普通话'
     });
     state.aiEnabled = r.ai_enabled;
     state.baseUrl = r.base_url;
@@ -205,6 +207,13 @@ function renderSettings() {
     <div class="form-item">
       <label class="form-label">模型${state.provider !== 'custom' ? '（已自动填充，可改）' : ''}</label>
       <input class="form-input" value="${esc(state.modelInput)}" oninput="state.modelInput=this.value" />
+    </div>
+    <div class="form-item">
+      <label class="form-label">口语 / 方言偏好（影响记账理解，非普通话时会提示模型按语义识别）</label>
+      <select class="form-select" onchange="state.language=this.value">
+        ${['普通话', '粤语', '四川话', '英语'].map(l =>
+          `<option value="${l}" ${(state.language || '普通话') === l ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>
     </div>
     <button class="btn-primary" onclick="saveSettings()">保存并启用</button>
     ${state.hasKey ? '<button class="btn-ghost" onclick="clearKey()">清除 API Key</button>' : ''}

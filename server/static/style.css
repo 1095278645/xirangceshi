@@ -456,3 +456,16 @@ input[type=password] { -webkit-text-security: disc; }
   padding: 12px; font-size: 12px; line-height: 1.9; color: #7a6a5c;
   word-break: break-all;
 }
+
+/* ---- 无障碍：右下角字号/朗读悬浮条 ---- */
+.a11y-bar {
+  position: fixed; right: 12px; bottom: 88px; z-index: 60;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.a11y-btn {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: rgba(255, 255, 255, 0.92);
+  color: var(--brown); font-size: 15px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+.a11y-btn:active { background: #f3ece6; }

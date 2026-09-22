@@ -32,6 +32,7 @@ const ORDER = [
   'js/pages/finance_render.js',
   'js/pages/stock.js',
   'js/pages/invoice.js',
+  'js/pages/metrics.js',
   'js/pages/accounting.js',
   'js/pages/backup.js',
   'js/pages/notify.js',
@@ -114,7 +115,7 @@ const RENDERS = [
   'renderHome', 'renderCustomers', 'renderCopy', 'renderBooks',
   'renderStore', 'renderFinance', 'renderStock', 'renderInvoice',
   'renderAccounting', 'renderBackup', 'renderNotify', 'renderCollect',
-  'renderShops', 'renderSettings',
+  'renderShops', 'renderSettings', 'renderMetrics',
 ];
 
 console.log(`已在 Node 里加载 ${ORDER.length} 个脚本，准备试跑 ${RENDERS.length} 个渲染函数`);

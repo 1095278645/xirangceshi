@@ -19,6 +19,7 @@ document.querySelectorAll('.more-item').forEach(it => {
 });
 
 initSpeech();
+a11yInit();
 const initRoute = location.hash.slice(1) || 'home';
 state.route = initRoute;
 // go() 内部已调用 render()，这里不需要再 render() 一次（避免首屏重复渲染+重复请求）
