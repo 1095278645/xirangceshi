@@ -213,6 +213,8 @@ module.exports = {
   // 掌柜今日复盘（心跳）。POST 会让掌柜立刻复盘一次（多 agent，约 5~10 秒）
   heartbeat: () => request('/api/heartbeat'),
   reviewNow: () => request('/api/heartbeat', 'POST', {}),
+  reviewFeedback: (useful, reason) =>
+    request('/api/heartbeat/feedback', 'POST', { useful, reason: reason || '' }),
   shopSnapshot: () => request('/api/heartbeat/snapshot'),
 
   // ---- 资金健康：现金流预测 / 预算 / 应收应付 ----

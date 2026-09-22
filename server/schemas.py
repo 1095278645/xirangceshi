@@ -142,6 +142,12 @@ class RefundIn(BaseModel):
     reason: str = ""
 
 
+class ReviewFeedbackIn(BaseModel):
+    """店主对掌柜复盘的反馈：有用/没用 + 一句话原因"""
+    useful: bool
+    reason: str = ""
+
+
 class CollectionIn(BaseModel):
     """创建收款请求"""
     amount: float = Field(gt=0, le=1_000_000)

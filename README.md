@@ -583,6 +583,7 @@ get_conn() → shops.resolve_db_path() or db.DB_PATH
 | `GET /api/store/benchmark` | 同业基准（**示例/仿真值**）：本店指标 vs 同业态参考区间 |
 | `GET /api/orders/{id}/explain` | 结论可解释：这笔账凭什么这么记（含复式分录） |
 | `GET /api/metrics/ai` | 运行指标：AI 调用量/成功率、token、延迟 P50/P95、**估算成本与每单成本** |
+| `GET /api/metrics/ai/capability` | AI 能力基线：感知/记忆/决策/行动/反馈闭环、质量门禁、用户反馈率 |
 | `GET /api/metrics/ai/calls` | 最近的原始 AI 调用记录（排查慢调用/失败调用） |
 | `GET /api/payment/sources` | 收款账户列表（微信商户/聚合支付） |
 | `POST /api/payment/sources` | 新增/更新收款账户（mchid 填 DEMO 即演示模式） |

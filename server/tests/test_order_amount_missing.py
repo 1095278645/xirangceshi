@@ -77,6 +77,23 @@ class OrderAmountMissingTest(unittest.TestCase):
         self.assertEqual(n, 0, "金额没听懂就不该有流水记录")
         self.assertEqual(zero, 0, "不能留下 0 元记录")
 
+    def test_low_confidence_does_not_write_wrong_direction(self):
+        """AI 自报低把握时，先让店主核对，不能把可能错的方向直接落账。"""
+        with mock.patch("ai.parse_transaction", return_value=self._parse_stub(
+                amount=20, trans_type="expense", item="买菜",
+                confidence=0.4, ambiguity="可能是代买", needs_check=True,
+                question="可能是代买")):
+            with self._client() as c:
+                j = c.post("/api/orders", json={"text": "王姐买菜20块"}).json()
+
+        self.assertTrue(j["needs_check"])
+        self.assertEqual(j["check_question"], "可能是代买")
+        self.assertEqual(j["draft"]["amount"], 20)
+        self.assertIsNone(j["order_id"])
+        with db.get_conn() as conn:
+            n = conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
+        self.assertEqual(n, 0)
+
     def test_missing_amount_reports_draft_fields_for_followup(self):
         """要返回"草稿"信息，界面才能追问"这笔多少钱"并把其它字段续上。"""
         with mock.patch("ai.parse_transaction",

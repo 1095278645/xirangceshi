@@ -13,6 +13,21 @@ async function submitOrder(text, extra) {
     state.voucher = res.voucher;
     state.friendlyCategory = res.friendly_category;
     state.summary = res.summary;
+    if (res.needs_check) {
+      state.checkQuestion = res.check_question || '这笔账我先核对一下';
+      state.checkDraft = res.draft || null;
+      state.recorded = null;
+      state.recordedList = [];
+      state.voucher = null;
+      if (res.amount_missing) {
+        state.amountDraft = res.draft || null;
+        state.amountMissing = res.missing || [];
+        state.amountInput = '';
+      }
+      return;
+    }
+    state.checkQuestion = '';
+    state.checkDraft = null;
     // 金额没听懂：**没有落库**，进入"补金额"状态（旧版会留一条 0 元幽灵记录）
     if (res.amount_missing) {
       state.amountDraft = res.draft || null;
@@ -58,6 +73,25 @@ async function confirmAmount() {
 function cancelAmount() {
   state.amountDraft = null;
   state.amountInput = '';
+  state.parsed = null;
+  render();
+}
+
+async function confirmChecked() {
+  const draft = state.checkDraft;
+  if (!draft) return;
+  await submitOrder(draft.text || draft.item, {
+    amount: draft.amount, customer: draft.customer, item: draft.item,
+    category: draft.category, trans_type: draft.trans_type, note: draft.note,
+  });
+  state.checkQuestion = '';
+  state.checkDraft = null;
+  render();
+}
+
+function cancelChecked() {
+  state.checkQuestion = '';
+  state.checkDraft = null;
   state.parsed = null;
   render();
 }
@@ -135,6 +169,15 @@ async function reviewNow() {
   render();
 }
 
+async function reviewFeedback(useful) {
+  try {
+    await api('/api/heartbeat/feedback', 'POST', { useful, reason: '' });
+    toast(useful ? '记下了，下次照这个来' : '记下了，下次换重点');
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
 function toggleSnap() { state.snapOpen = !state.snapOpen; render(); }
 
 function toggleDetail() { state.detailOpen = !state.detailOpen; render(); }
@@ -144,6 +187,8 @@ function _applyHeartbeat(hb) {
   state.layer1 = layers.layer1_summary || '';
   state.layer2 = layers.layer2_detail || '';
   state.skills = Array.isArray(layers.skills) ? layers.skills : [];
+  state.judgeEvidence = (layers.judge && Array.isArray(layers.judge.evidence))
+    ? layers.judge.evidence : [];
 }
 
 async function loadMonth() {
@@ -176,6 +221,10 @@ function renderHome() {
     ${(state.layer1 || state.review)
       ? `<div class="review-box">${esc(state.layer1 || state.review)}</div>`
       : '<div class="acct-note">五位伙计正在各自看账（账目·熟客·库存·票税·监察），约 10 秒…</div>'}
+    <div class="feedback-row">
+      <button class="btn-mini" onclick="reviewFeedback(true)">有用</button>
+      <button class="btn-mini" onclick="reviewFeedback(false)">没用</button>
+    </div>
     ${(state.skills || []).length ? `
       <div class="skill-list">
         ${(state.skills || []).map(skill => `
@@ -188,7 +237,10 @@ function renderHome() {
       <div class="snap-toggle" onclick="toggleDetail()">
         ${state.detailOpen ? '收起' : '展开看为什么'} ▾</div>` : ''}
     ${state.detailOpen && (state.layer2 || state.review) ? `
-      <div class="snap-box">${esc(state.layer2 || state.review)}</div>` : ''}
+      <div class="snap-box">${esc(state.layer2 || state.review)}
+        ${(state.judgeEvidence || []).length ? `
+          <div class="acct-note">掌柜依据：${state.judgeEvidence.map(esc).join('；')}。</div>` : ''}
+      </div>` : ''}
     ${state.snapshot ? `
       <div class="snap-toggle" onclick="toggleSnap()">
         ${state.snapOpen ? '收起' : '掌柜看到的原始事实'} ▾</div>` : ''}
@@ -230,6 +282,23 @@ function renderHome() {
       <div class="summary-item"><div class="summary-num">${fmt(state.month.balance)}</div><div class="summary-label">结余</div></div>
     </div>
   </div>
+
+  ${state.checkDraft ? `
+  <div class="card ask-card">
+    <div class="card-title">我先核对一下</div>
+    <div class="acct-note">${esc(state.checkQuestion || '这笔账我还没完全听准，先核对再记。')}</div>
+    <div class="parsed-grid">
+      <div class="parsed-item"><span class="parsed-label">事由</span><span class="parsed-value">${esc(state.checkDraft.item || '')}</span></div>
+      <div class="parsed-item"><span class="parsed-label">金额</span><span class="parsed-value">${state.checkDraft.amount != null ? esc(state.checkDraft.amount) + ' 元' : '未提'}</span></div>
+      <div class="parsed-item"><span class="parsed-label">方向</span><span class="parsed-value">${state.checkDraft.trans_type === 'income' ? '收入' : '支出'}</span></div>
+      <div class="parsed-item"><span class="parsed-label">分类</span><span class="parsed-value">${esc(state.checkDraft.category || '')}</span></div>
+    </div>
+    ${state.checkDraft.amount != null ? `
+    <div class="ask-row">
+      <button class="ask-btn" onclick="confirmChecked()">对，记下</button>
+      <button class="btn-mini" onclick="cancelChecked()">不记</button>
+    </div>` : ''}
+  </div>` : ''}
 
   ${state.amountDraft ? `
   <div class="card ask-card">

@@ -21,13 +21,15 @@ main.py 的 asyncio 定时任务周期调用 generate_daily_review() 即可。
 import logging
 
 import plain_language
+import ai_quality
 
 import store as storelib
 
 log = logging.getLogger("heartbeat")
 
 __all__ = ["generate_daily_review", "daily_review_text", "daily_snapshot_text",
-           "daily_review_layers", "evolution_daily_check"]
+           "daily_review_layers", "evolution_daily_check", "record_review_feedback",
+           "latest_review_feedback"]
 
 
 def _latest_profile():
@@ -93,21 +95,49 @@ def generate_daily_review():
     snapshot = shop_snapshot.build_snapshot()
     set_domain_context("ledger", "shop_snapshot", snapshot)
 
+    prev = daily_review_text() or ""
+    feedback = latest_review_feedback()
+    if feedback:
+        prev = (prev + "\n" if prev else "") + feedback
+
+    process = None
     try:
-        text = team_domains.generate_daily_review(snapshot)
+        text, process = team_domains.generate_daily_review(
+            snapshot, prev=prev, return_process=True)
     except Exception as e:  # noqa: BLE001 —— 团队编排失败退回拼装版，保证复盘不空
         log.warning("掌柜团队复盘失败，退回基础拼装：%s", e)
         text = _basic_review_fallback()
 
     if not (text or "").strip():
         text = _basic_review_fallback()
+        process = None
+    fallback_evidence = ai_quality.evidence_from_snapshot(snapshot)
+    quality = ai_quality.evaluate_decision(process, text, fallback_evidence)
+    text, quality = ai_quality.repair_decision(text, quality, fallback_evidence)
+    if isinstance(process, dict):
+        process["evidence"] = quality["evidence"]
+
     text = plain_language.polish(text)
     set_domain_context("ledger", "daily_review", text)
+    if isinstance(process, dict):
+        set_domain_context("ledger", "daily_review_decision", {
+            "confidence": process.get("confidence", 0.0),
+            "evidence": process.get("evidence", []),
+            "adopted": process.get("adopted", []),
+            "verdict": process.get("verdict", ""),
+        })
+    set_domain_context("ledger", "daily_review_quality", quality)
 
     try:
         import skill_cards
         context = skill_cards.build_context()
         layers = skill_cards.build_layered_review(context, text)
+        layers["judge"] = {
+            "confidence": quality.get("confidence", 0.0),
+            "evidence": quality.get("evidence", []),
+            "adopted": process.get("adopted", []) if isinstance(process, dict) else [],
+            "verdict": process.get("verdict", "") if isinstance(process, dict) else "规则兜底",
+        }
         set_domain_context("ledger", "daily_review_layers", layers)
     except Exception as e:  # noqa: BLE001 —— 分层输出失败不影响既有复盘
         log.warning("技能卡片分层输出失败，退回纯文本复盘：%s", e)
@@ -151,6 +181,52 @@ def daily_review_layers():
     from db import get_domain_context
     item = get_domain_context("ledger", "daily_review_layers")
     return item["value"] if item else None
+
+
+def record_review_feedback(useful: bool, reason: str = "") -> dict:
+    """记录店主对复盘的反馈，下一轮复盘会作为“上次结论”注入掌柜。"""
+    from datetime import datetime
+    from db import get_domain_context, set_domain_context
+
+    item = get_domain_context("ledger", "daily_review_feedback")
+    history = item["value"] if item else []
+    if not isinstance(history, list):
+        history = []
+    entry = {
+        "useful": bool(useful),
+        "reason": (reason or "").strip()[:200],
+        "review": (daily_review_text() or "")[:500],
+        "at": datetime.now().isoformat(timespec="seconds"),
+    }
+    history.append(entry)
+    history = history[-20:]
+    set_domain_context("ledger", "daily_review_feedback", history)
+    return {"ok": True, "saved": entry, "history_count": len(history)}
+
+
+def latest_review_feedback(limit: int = 3) -> str:
+    """把最近反馈压成给掌柜看的短提示，避免重复无效建议。"""
+    from db import get_domain_context
+
+    item = get_domain_context("ledger", "daily_review_feedback")
+    history = item["value"] if item else []
+    if not isinstance(history, list):
+        return ""
+    parts = []
+    for entry in history[-limit:]:
+        if not isinstance(entry, dict):
+            continue
+        useful = entry.get("useful")
+        reason = str(entry.get("reason") or "").strip()
+        if useful and not reason:
+            parts.append("店主上次认为复盘有用，继续保持只挑一件事。")
+        elif useful:
+            parts.append(f"店主上次认为有用：{reason}")
+        elif reason:
+            parts.append(f"店主上次认为没用，下次避免：{reason}")
+        else:
+            parts.append("店主上次认为复盘没用，要更具体、更能当天动手。")
+    return "；".join(parts)
 
 
 def evolution_daily_check():

@@ -65,7 +65,8 @@ def _decide(task_desc: str, cands: list, adoption_brief: str = "",
         "你是「AI掌柜」，一家街边小店唯一的老板，下面有几位 AI 员工对同一个问题各自给了方案。\n"
         + shopkeeper_persona.PERSONA_RULES + "\n"
         "你作为最终决策者要：\n"
-        "1) 判断谁说得在理、谁在臆测或重复，把合理的判断挑出来，驳掉/修正不合适的；\n"
+        "1) 判断谁说得在理、谁在臆测或重复，把合理的判断挑出来，驳掉/修正不合适的；"
+        "不能采纳没有原始事实支撑的判断；若员工提供了数字/人名/货名，最终答案必须保留；\n"
     )
     if variants:
         prompt += (
@@ -76,7 +77,9 @@ def _decide(task_desc: str, cands: list, adoption_brief: str = "",
     else:
         prompt += (
             "2) 融合成一段连贯、口语化、可直接照做的最终答案（像老掌柜跟老板交代事情）；\n"
-            "3) 明确归因：你最后采纳了哪几位员工的核心判断。\n"
+            "3) 最终答案必须包含三件事：今天先做什么、为什么（引用具体事实）、什么时候完成；"
+            "最多一件事，不许把所有问题罗列一遍；\n"
+            "4) 明确归因：你最后采纳了哪几位员工的核心判断。\n"
         )
     prompt += (
         f"{adoption_brief}\n"
@@ -93,7 +96,8 @@ def _decide(task_desc: str, cands: list, adoption_brief: str = "",
     else:
         prompt += (
             "只输出 JSON，不要任何多余文字。格式："
-            "{\"verdict\":\"你如何取舍的一句话说明\",\"adopted\":[\"被采纳的员工名\",...],\"final\":\"融合后的最终答案\"}"
+            "{\"verdict\":\"你如何取舍的一句话说明\",\"adopted\":[\"被采纳的员工名\",...],"
+            "\"confidence\":0.0,\"evidence\":[\"支撑结论的原始事实\"],\"final\":\"融合后的最终答案\"}"
         )
     try:
         out = ai._extract_json(ai.chat([{"role": "user", "content": prompt}],
@@ -103,7 +107,14 @@ def _decide(task_desc: str, cands: list, adoption_brief: str = "",
             "verdict": out.get("verdict", ""),
             "adopted": out.get("adopted", []),
             "final": out.get("final", "").strip(),
+            "confidence": _judge_confidence(out.get("confidence")),
+            "evidence": _judge_evidence(out.get("evidence")),
         }
+        valid_roles = {role for role, _ in cands}
+        result["adopted"] = [role for role in result["adopted"] if role in valid_roles]
+        if not result["final"]:
+            result["final"] = fail.strip()
+            result["confidence"] = 0.0
         if variants:
             v = out.get("variants", [])
             if not isinstance(v, list) or len(v) < 2:
@@ -113,10 +124,25 @@ def _decide(task_desc: str, cands: list, adoption_brief: str = "",
                 result["variants"] = [fail.strip()]
         return result
     except Exception:  # noqa: BLE001 —— 融合失败退化为拼接候选（降级兜底）
-        result = {"verdict": "", "adopted": [], "final": fail.strip()}
+        result = {"verdict": "", "adopted": [], "final": fail.strip(),
+                  "confidence": 0.0, "evidence": []}
         if variants:
             result["variants"] = [fail.strip()]
         return result
+
+
+def _judge_confidence(value) -> float:
+    try:
+        confidence = float(value)
+    except (TypeError, ValueError):
+        confidence = 0.6
+    return round(min(1.0, max(0.0, confidence)), 2)
+
+
+def _judge_evidence(value) -> list:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()][:5]
 
 
 # ---------------- 通用团队流水线（员工并行竞争 → 掌柜裁决融合 → 采纳归因） ----------------
@@ -198,6 +224,8 @@ def _run_team(domain: str, task: str, prev: str = "",
         "mode": "collaborative" if reviewer else "competitive",
         "employees": [{"role": name, "output": out} for name, out in cands],
         "verdict": judge["verdict"], "adopted": judge["adopted"],
+        "confidence": judge.get("confidence", 0.0),
+        "evidence": judge.get("evidence", []),
         "gene_id": gene_id,
     }
 

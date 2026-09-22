@@ -25,6 +25,8 @@ Page({
     friendlyCategory: '',
     // 金额没听懂时的草稿（不落库，等店主补金额）
     amountDraft: null,
+    checkDraft: null,
+    checkQuestion: '',
     amountInput: '',
     amountMissing: [],   // 多笔时缺金额的明细（一次列出）
     // 记成之后 AI 的最终理解（金额/方向/分类/熟客），显示出来供当场核对与更正
@@ -35,6 +37,7 @@ Page({
     review: '',          // 掌柜今日复盘
     layer1: '',          // 第一层：一句话结论
     layer2: '',          // 第二层：为什么 + 怎么做
+    judgeEvidence: [],   // 掌柜裁决引用的事实
     skills: [],          // 触发的技能卡片
     detailOpen: false,   // 是否展开第二层
     snapshot: '',        // 掌柜看到的全店原始事实（原文）
@@ -88,6 +91,8 @@ Page({
       review: (h && h.ok && h.review) ? h.review : (h && h.review) || '',
       layer1: layers.layer1_summary || '',
       layer2: layers.layer2_detail || '',
+      judgeEvidence: (layers.judge && Array.isArray(layers.judge.evidence))
+        ? layers.judge.evidence : [],
       skills,
       snapshot: snap,
       snapshotLines: snap.split('\n').map(s => s.trim()).filter(Boolean),
@@ -112,6 +117,13 @@ Page({
   // 展开"掌柜看到的原始事实"：让结论可查证，也提醒哪些经营动作还没记
   toggleSnap() {
     this.setData({ snapOpen: !this.data.snapOpen })
+  },
+
+  reviewFeedback(e) {
+    const useful = e && e.currentTarget && e.currentTarget.dataset.useful
+    api.reviewFeedback(!!useful)
+      .then(() => wx.showToast({ title: useful ? '下次照这个来' : '下次换重点', icon: 'none' }))
+      .catch(err => wx.showToast({ title: err.message, icon: 'none' }))
   },
 
   toggleDetail() {
@@ -181,6 +193,24 @@ Page({
           parsed.tagsArr = String(parsed.tags).split(',').filter(Boolean)
         }
         // 金额没听懂：**没有落库**，进入"补金额"状态（rather than 留一条 0 元幽灵记录）
+        if (res.needs_check) {
+          this.setData({
+            parsed,
+            voucher: null,
+            friendlyCategory: '',
+            checkDraft: res.draft || {},
+            checkQuestion: res.check_question || '这笔账我先核对一下',
+            amountDraft: res.amount_missing ? (res.draft || {}) : null,
+            amountMissing: res.amount_missing ? (res.missing || []) : [],
+            amountInput: '',
+            recorded: null,
+            recordedList: [],
+            submitting: false,
+            manualText: ''
+          })
+          return
+        }
+        this.setData({ checkDraft: null, checkQuestion: '' })
         if (res.amount_missing) {
           this.setData({
             parsed,
@@ -263,6 +293,41 @@ Page({
 
   cancelAmount() {
     this.setData({ amountDraft: null, amountInput: '', parsed: null })
+  },
+
+  confirmChecked() {
+    const d = this.data.checkDraft
+    if (!d) return
+    this.setData({ submitting: true })
+    api.createOrder(d.text || d.item, {
+      amount: d.amount, customer: d.customer, item: d.item,
+      category: d.category, trans_type: d.trans_type, note: d.note
+    }).then(res => {
+      this.setData({
+        checkDraft: null,
+        checkQuestion: '',
+        amountDraft: null,
+        amountInput: '',
+        parsed: res.parsed,
+        voucher: res.voucher,
+        friendlyCategory: res.friendly_category,
+        recorded: res.recorded || null,
+        recordedList: res.recorded_list || (res.recorded ? [res.recorded] : []),
+        multi: !!res.multi,
+        submitting: false,
+        summary: res.summary
+      })
+      this.loadSummary()
+      this.loadMonth()
+      wx.showToast({ title: '已记下', icon: 'success' })
+    }).catch(err => {
+      this.setData({ submitting: false })
+      wx.showToast({ title: err.message, icon: 'none' })
+    })
+  },
+
+  cancelChecked() {
+    this.setData({ checkDraft: null, checkQuestion: '', parsed: null })
   },
 
   // ---------- 就地更正（AI 记错了，别等到月底才发现） ----------

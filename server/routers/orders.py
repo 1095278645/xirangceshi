@@ -45,6 +45,30 @@ def create_order(data: OrderIn):
     else:
         parsed = ai.parse_transaction(data.text)
 
+    # 入口防呆：方向、分类或多笔笔数低把握时，不急着落库。
+    # 金额缺失已有追问机制；这里处理的是更隐蔽的“听懂了但可能听错了”。
+    if not explicit and parsed.get("needs_check"):
+        return {
+            "order_id": None,
+            "parsed": parsed,
+            "customer_id": None,
+            "customer_new": False,
+            "amount_missing": parsed.get("amount") is None,
+            "needs_check": True,
+            "check_question": parsed.get("question") or "这笔账我先核对一下再记",
+            "draft": {
+                "text": data.text,
+                "item": parsed.get("item", "") or data.text,
+                "customer": data.customer or parsed.get("customer", ""),
+                "amount": parsed.get("amount"),
+                "trans_type": parsed.get("trans_type", "income"),
+                "category": normalize_category(parsed.get("category", "")),
+                "note": parsed.get("note", ""),
+            },
+            "voucher": None,
+            "summary": db.today_summary(),
+        }
+
     # 一句话多笔：逐笔记账（见函数 docstring）
     subs = parsed.get("transactions") or []
     if len(subs) >= 2:

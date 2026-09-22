@@ -7,6 +7,7 @@
 from fastapi import APIRouter, Query
 
 import metrics
+import ai_quality
 from db_metrics import list_ai_calls
 
 router = APIRouter(prefix="/api", tags=["metrics"])
@@ -16,6 +17,12 @@ router = APIRouter(prefix="/api", tags=["metrics"])
 def ai_metrics(days: int = Query(default=7, ge=1, le=90)):
     """AI 调用汇总：调用量/成功率、token、延迟 P50/P95、估算成本与每单成本。"""
     return metrics.summarize(days)
+
+
+@router.get("/metrics/ai/capability")
+def ai_capability_metrics(days: int = Query(default=7, ge=1, le=90)):
+    """AI 掌柜能力基线：感知/记忆/决策/行动/反馈闭环 + 质量门禁状态。"""
+    return ai_quality.capability_report(days)
 
 
 @router.get("/metrics/ai/calls")

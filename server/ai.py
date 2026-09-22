@@ -206,6 +206,8 @@ def parse_transaction(text: str) -> dict:
         "category(分类，从下面选一个最贴切的：主营业务收入/其他收入/进货/办公费/业务招待费/快递物流费/"
         "租赁及物业费/差旅费/车辆使用费/广告宣传费/软件服务费/培训费/职工薪酬)、\n"
         "note(补充说明)、tags(适合给客户打的标签数组，没有则空数组)。\n"
+        "confidence(你对这次理解的把握，0到1的小数；金额、方向、笔数任一项拿不准就低于0.7)、"
+        "ambiguity(拿不准的点，一句话；没有则空串)。\n"
         "**判断方向的关键**：说话的人是**店主**，他在讲店里刚发生的事。\n"
         "· \"某某吃了/拿了/要了/带走…\"→ 是**顾客消费**，店主收钱，所以是 income；\n"
         "  不要因为出现\"吃\"\"买\"就判成支出 —— 那是顾客在买，不是店主在买。\n"
@@ -233,6 +235,8 @@ def parse_transaction(text: str) -> dict:
             "tags": ",".join(out.get("tags", [])),
             "category": out.get("category", ""),
             "trans_type": out.get("trans_type", "income"),
+            "confidence": _parse_confidence(out.get("confidence")),
+            "ambiguity": str(out.get("ambiguity") or "").strip(),
         }
         if subs:
             # 多笔时，顶层字段对齐第一笔，老调用方（只读 amount/customer）仍能用
@@ -243,11 +247,49 @@ def parse_transaction(text: str) -> dict:
             result["category"] = first["category"] or result["category"]
             result["item"] = first["item"] or result["item"]
             result["customer"] = first["customer"] or result["customer"]
-        return result
+        return _mark_parse_uncertainty(result, text)
     except Exception:
         category, trans_type = detect_category(text)
         return {"customer": "", "item": text, "amount": None, "note": "",
-                "tags": "", "category": category, "trans_type": trans_type}
+                "tags": "", "category": category, "trans_type": trans_type,
+                "confidence": 0.0, "ambiguity": "AI 解析失败，请核对后再记",
+                "needs_check": True, "question": "AI 解析失败，请核对后再记",
+                "fallback": True}
+
+
+def _parse_confidence(value) -> float:
+    try:
+        confidence = float(value)
+    except (TypeError, ValueError):
+        confidence = 0.75
+    return round(min(1.0, max(0.0, confidence)), 2)
+
+
+def _mark_parse_uncertainty(result: dict, text: str) -> dict:
+    confidence = float(result.get("confidence", 0.75))
+    ambiguity = str(result.get("ambiguity") or "").strip()
+    subs = result.get("transactions") or []
+
+    if not str(result.get("item") or "").strip():
+        result["item"] = text
+        confidence = min(confidence, 0.6)
+    if result.get("amount") is None and not subs:
+        confidence = 0.0
+        ambiguity = ambiguity or "没听清金额"
+    if subs and any(sub.get("amount") is None for sub in subs):
+        confidence = 0.0
+        ambiguity = ambiguity or "有一笔没听清金额"
+    if str(result.get("ambiguity") or "").strip():
+        confidence = min(confidence, 0.69)
+
+    result["confidence"] = round(confidence, 2)
+    result["ambiguity"] = ambiguity
+    result["needs_check"] = confidence < 0.7 or bool(ambiguity)
+    if result["needs_check"]:
+        result.setdefault("question", result.get("ambiguity") or "这笔账要再核对一下")
+    else:
+        result.pop("question", None)
+    return result
 
 
 def _normalize_sub_transactions(raw) -> list[dict]:

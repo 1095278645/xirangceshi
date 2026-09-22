@@ -452,6 +452,12 @@ input[type=password] { -webkit-text-security: disc; }
 }
 /* 技能卡片：掌柜今天盯什么（一句话 + 严重度色条） */
 .skill-list { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+
+.feedback-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
 .skill-card {
   background: #faf5f1; border-radius: 10px; padding: 10px 12px;
   border-left: 4px solid #d9c4a9;

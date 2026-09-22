@@ -4,6 +4,7 @@ from fastapi import APIRouter
 import db
 import heartbeat
 from schemas import DomainContextIn, JobIn, StoreProfileIn
+from schemas import ReviewFeedbackIn
 
 router = APIRouter(prefix="/api", tags=["arch"])
 
@@ -87,3 +88,9 @@ def heartbeat_snapshot():
     return {"ok": True, "snapshot": live,
             "cached": heartbeat.daily_snapshot_text(),
             "facts": shop_snapshot.snapshot_facts()}
+
+
+@router.post("/heartbeat/feedback")
+def heartbeat_feedback(data: ReviewFeedbackIn):
+    """记录复盘反馈；下一轮掌柜复盘会参考，避免重复没用的建议。"""
+    return heartbeat.record_review_feedback(data.useful, data.reason)

@@ -24,6 +24,10 @@
     </view>
     <view class="review-box" wx:if="{{layer1 || review}}">{{layer1 || review}}</view>
     <view class="review-wait" wx:else>五位伙计正在各自看账（账目·熟客·库存·票税·监察），约 10 秒…</view>
+    <view class="feedback-row">
+      <view class="feedback-btn" data-useful="{{true}}" bindtap="reviewFeedback">有用</view>
+      <view class="feedback-btn" data-useful="{{false}}" bindtap="reviewFeedback">没用</view>
+    </view>
 
     <view class="skill-list" wx:if="{{skills.length > 0}}">
       <view class="skill-card skill-{{item.severity}}" wx:for="{{skills}}" wx:key="id">
@@ -37,6 +41,7 @@
     </view>
     <view class="snap-box" wx:if="{{detailOpen}}">
       <view class="snap-line">{{layer2 || review}}</view>
+      <view class="snap-note" wx:if="{{judgeEvidence.length}}">掌柜依据：{{judgeEvidence}}。</view>
     </view>
 
     <view class="snap-toggle" wx:if="{{snapshot}}" bindtap="toggleSnap">
@@ -100,6 +105,34 @@
       <text class="voice-icon">{{recognizing ? '🔴' : '🎤'}}</text>
     </view>
     <view class="voice-result" wx:if="{{result}}">{{result}}</view>
+  </view>
+
+  <!-- 低把握：先核对，避免方向/分类/笔数听错后直接落账 -->
+  <view class="card ask-card" wx:if="{{checkDraft}}">
+    <view class="card-title">我先核对一下</view>
+    <view class="ask-why">{{checkQuestion || '这笔账我还没完全听准，核对后再记。'}}</view>
+    <view class="parsed-grid">
+      <view class="parsed-item">
+        <text class="parsed-label">事由</text>
+        <text class="parsed-value">{{checkDraft.item}}</text>
+      </view>
+      <view class="parsed-item">
+        <text class="parsed-label">金额</text>
+        <text class="parsed-value">{{checkDraft.amount != null ? checkDraft.amount + ' 元' : '未提'}}</text>
+      </view>
+      <view class="parsed-item">
+        <text class="parsed-label">方向</text>
+        <text class="parsed-value">{{checkDraft.trans_type === 'income' ? '收入' : '支出'}}</text>
+      </view>
+      <view class="parsed-item">
+        <text class="parsed-label">分类</text>
+        <text class="parsed-value">{{checkDraft.category}}</text>
+      </view>
+    </view>
+    <view class="ask-row" wx:if="{{checkDraft.amount != null}}">
+      <view class="ask-btn" bindtap="confirmChecked">对，记下</view>
+    </view>
+    <view class="ask-cancel" bindtap="cancelChecked">这次不记了</view>
   </view>
 
   <!-- 缺金额：不落库，当场追问（旧版会留一条 0 元幽灵记录，没人会发现） -->
