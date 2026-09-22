@@ -1,0 +1,24 @@
+[project]
+name = "ai-shopkeeper"
+version = "1.0.0"
+description = "巷子里的 AI 掌柜 —— 面向小微实体店的人情味熟客维系与经营减负助手"
+requires-python = ">=3.11"
+
+# ---- 测试 ----
+# 运行：cd server && python -m pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+# ---- 依赖与可复现构建 ----
+# requirements.txt  直接依赖（宽松下限，跟随上游小版本）
+# requirements.lock 确定性锁（含传递依赖，CI/生产用）
+# 重新生成 lock：
+#   pip install -r requirements.txt --dry-run --report report.json
+#   # 或在全新虚拟环境安装固定版本后 `pip freeze > requirements.lock`
+[tool.coverage.run]
+source = ["."]
+omit = ["tests/*", "static/*"]

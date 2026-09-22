@@ -1,0 +1,6 @@
+{
+  "_comment": "复制为 config.local.json 后填入你的配置。config.local.json 已被 .gitignore 排除，不会提交。",
+  "api_key": "sk-替换为你的APIKey",
+  "base_url": "https://api.deepseek.com",
+  "model": "deepseek-chat"
+}

@@ -1,0 +1,5 @@
+# 开发/测试依赖（含运行时依赖）
+-r requirements.txt
+
+pytest>=8,<10
+pytest-cov>=5

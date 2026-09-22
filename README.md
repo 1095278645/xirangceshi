@@ -11,6 +11,11 @@ AIGC:
 
 # 巷子里的AI掌柜
 
+[![CI](https://github.com/1095278645/xirangceshi/actions/workflows/ci.yml/badge.svg)](https://github.com/1095278645/xirangceshi/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-517%20passed-brightgreen.svg)](#测试与验证)
+[![Python](https://img.shields.io/badge/python-3.11-blue.svg)](#快速开始)
+[![License](https://img.shields.io/badge/license-MulanPSL--2.0-blue.svg)](LICENSE)
+
 面向小微实体店/摊主的「人情味」熟客维系与经营减负助手。
 
 摊主手上沾着油/水，打不了字——那就**按住说话**。AI 帮他记账、记住熟客、写朋友圈文案。
@@ -167,7 +172,7 @@ AIGC:
     ├── aggregate_pay.py# 聚合支付适配器（预留收钱吧/付桥等服务商）
     ├── config.py       # 配置读取（环境变量 > config.local.json > 默认值）
     ├── scripts/        # 自检脚本（接口一致性 / 小程序页面 / 网页端页面 / 渲染试跑）
-    ├── tests/          # pytest 测试（482 项）
+    ├── tests/          # pytest 测试（517 项）
     └── static/         # 网页版（手机浏览器可直接访问）
         ├── index.html   # 单页入口（按依赖顺序加载 js/）
         ├── style.css
@@ -208,6 +213,9 @@ python -m venv .venv
 pip install -r requirements.txt
 python -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```
+
+> 也可以 **Docker 一键起后端**（推荐评审/复现环境）：`docker compose up -d --build`，
+> 详见文末「[Docker 一键部署](#docker-一键部署)」。
 
 ### 1.1 开启访问令牌鉴权（局域网/公网部署建议开启）
 
@@ -357,7 +365,7 @@ python ../scripts/prewarm_cache.py
 
 两道关口，用途不同：
 
-**1. 单元/集成测试（480 项，随时可跑，不联网）**
+**1. 单元/集成测试（517 项，随时可跑，不联网）**
 
 ```bash
 cd server
@@ -609,5 +617,52 @@ get_conn() → shops.resolve_db_path() or db.DB_PATH
 > 安全审计记录见 [`docs/security-audit-2026-09.md`](docs/security-audit-2026-09.md)。
 
 > 演示/讲解脚本与现场排障见 [`docs/demo-guide.md`](docs/demo-guide.md)。
+
+## Docker 一键部署
+
+```bash
+# 构建并启动（默认 http://127.0.0.1:8000）
+docker compose up -d --build
+
+# 配 AI Key（任选其一）
+#   a) 环境变量：DEEPSEEK_API_KEY=sk-xxx docker compose up -d
+#   b) 打开网页版「设置」页填写（写入挂载卷，重启不丢）
+
+# 数据持久化在 ./server/data（SQLite 库与备份快照）
+docker compose down
+```
+
+> 镜像基于 `server/requirements.lock` 安装依赖（确定性、可复现）；
+> `.dockerignore` 已排除 `server/data`、`server/config.local.json`，**密钥与账本不会进镜像**。
+
+## 依赖与可复现构建
+
+| 文件 | 用途 |
+|---|---|
+| `server/requirements.txt` | 直接依赖（宽松下限，跟随上游小版本） |
+| `server/requirements.lock` | **确定性锁**（含传递依赖）。CI / 生产：`pip install -r requirements.lock` |
+| `server/requirements-dev.txt` | 开发/测试依赖（`pytest` 等） |
+| `server/pyproject.toml` | `pytest` / `coverage` 配置与依赖生成说明 |
+
+## 持续集成
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) 在 push / PR 时执行：
+
+1. **517 项**单元/集成测试（`pytest -q`，全程不联网，真实 `ai.chat` 被 `tests/conftest.py` 闸门拦截）
+2. 灌演示数据 + 演示前自检（接口契约 / 页面一致性 / 演示数据 / 演示配置）
+3. 小程序接口契约、小程序页面静态检查、网页端页面静态检查
+4. Node 中试跑网页端全部渲染函数
+5. Docker 镜像构建
+
+## 配置与密钥
+
+复制 `server/config.example.json` 为 `server/config.local.json` 后填写 Key（该文件已被 `.gitignore` 排除，**不会提交**）。
+也可用环境变量 `DEEPSEEK_API_KEY` / `DEEPSEEK_BASE_URL` / `DEEPSEEK_MODEL`。
+
+> 不要把任何真实 Key 写进代码或提交；如曾泄露，请到模型平台**重置**。
+
+## 许可证
+
+本项目采用 **木兰宽松许可证，第 2 版（Mulan PSL v2）**，全文见 [LICENSE](LICENSE)。
 
 > AI生成

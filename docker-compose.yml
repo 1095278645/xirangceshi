@@ -1,0 +1,20 @@
+services:
+  shopkeeper:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ai-shopkeeper:1.0.0
+    container_name: ai-shopkeeper
+    ports:
+      - "8000:8000"
+    environment:
+      # AI 网关（留空则不配 Key，自动走规则降级）
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+      DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com}"
+      DEEPSEEK_MODEL: "${DEEPSEEK_MODEL:-deepseek-chat}"
+      # 可选：开启访问令牌鉴权（局域网/公网部署建议开启）
+      SHOP_ACCESS_TOKEN: "${SHOP_ACCESS_TOKEN:-}"
+    volumes:
+      # 数据与备份持久化（SQLite 库、快照）
+      - ./server/data:/app/server/data
+    restart: unless-stopped
