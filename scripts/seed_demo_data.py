@@ -164,7 +164,7 @@ def _guard_repeat():
             (TODAY.strftime("%Y-%m"),)).fetchone()[0]
     if n and "--force" not in sys.argv:
         print(f"⚠ 本月已有 {n} 笔流水，重复灌入会让数据翻倍、日销失真。")
-        print("  如需重灌：先删除 data/ai_shopkeeper.db，或加 --force 参数。")
+        print("  如需重灌：加 --force（会先清空旧库），或先删除 data/ai_shopkeeper.db。")
         return False
     return True
 
@@ -379,6 +379,17 @@ def report():
 
 
 if __name__ == "__main__":
+    if "--force" in sys.argv:
+        # --force 的语义是"重灌"：先清空旧库，否则是往旧数据上追加（流水/提醒翻倍）。
+        db_file = Path(db.DB_PATH)
+        removed = False
+        for suffix in ("", "-wal", "-shm"):
+            f = Path(str(db_file) + suffix)
+            if f.exists():
+                f.unlink()
+                removed = True
+        if removed:
+            print(f"  --force：已清空原有数据库 {db_file}")
     db.init_db()
     if not _guard_repeat():
         sys.exit(1)
