@@ -153,7 +153,7 @@ class TestLiveTeamWithMock(_TempDB):
 
     def test_store_diagnosis_competitive(self):
         """三位员工竞争产出 → 掌柜融合，采纳归因沉淀进 team 域"""
-        def fake_chat(messages, temperature=0.7, max_tokens=1024):
+        def fake_chat(messages, temperature=0.7, max_tokens=1024, **kwargs):
             first = messages[0]
             if isinstance(first, dict) and first.get("role") == "system":
                 sys_text = first["content"]
@@ -177,7 +177,7 @@ class TestLiveTeamWithMock(_TempDB):
 
     def test_copy_collaborative_with_reviewer(self):
         """文案：创意/熟客竞争 → 合规评审 → 掌柜融合（协作流水线）"""
-        def fake_chat(messages, temperature=0.7, max_tokens=1024):
+        def fake_chat(messages, temperature=0.7, max_tokens=1024, **kwargs):
             # 员工/评审调用都带 system 消息；掌柜融合裁决只有一个 user 消息 → 命中末行返回 JSON
             first = messages[0]
             if isinstance(first, dict) and first.get("role") == "system":
@@ -216,7 +216,7 @@ class TestGeneInjection(_TempDB):
     def test_selected_gene_injected_and_reported(self):
         """任务含"开业/今日"信号 → 选中基因并注入其 system_prompt_addon，process 返回 gene_id"""
         captured = {}
-        def fake_chat(messages, temperature=0.7, max_tokens=1024):
+        def fake_chat(messages, temperature=0.7, max_tokens=1024, **kwargs):
             first = messages[0]
             if isinstance(first, dict) and first.get("role") == "system":
                 captured.setdefault("sys_texts", []).append(first["content"])

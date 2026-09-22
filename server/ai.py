@@ -5,6 +5,7 @@
 """
 import json
 import re
+import time
 
 from config import load_settings
 from categories import detect_category
@@ -64,7 +65,7 @@ def get_client():
     return OpenAI(api_key=s["api_key"], base_url=s["base_url"])
 
 
-def chat(messages, temperature=0.7, max_tokens=1024, reasoning_effort=None):
+def chat(messages, temperature=0.7, max_tokens=1024, reasoning_effort=None, domain=""):
     """调用模型，返回正文文本。
 
     关于思考型模型（deepseek-flash / deepseek-v4-pro）：
@@ -87,14 +88,24 @@ def chat(messages, temperature=0.7, max_tokens=1024, reasoning_effort=None):
     budget = max(int(max_tokens or 0), _CHAT_TOKEN_MIN)
     extra = _thinking_params(model, reasoning_effort)
     last_reasoning = 0
+    t0 = time.perf_counter()
+    last_usage = None
     while True:
-        resp = client.chat.completions.create(
-            model=model, messages=messages, temperature=temperature,
-            max_tokens=budget, **extra
-        )
+        try:
+            resp = client.chat.completions.create(
+                model=model, messages=messages, temperature=temperature,
+                max_tokens=budget, **extra
+            )
+        except Exception as e:  # noqa: BLE001
+            # 失败也要留痕：否则看板里只有成功调用，成功率永远是 100%
+            _record_metric(model, domain, t0, None, ok=False, error=str(e))
+            raise
         msg = resp.choices[0].message
+        last_usage = getattr(resp, "usage", None)
         text = msg.content
         if text and text.strip():
+            _record_metric(model, domain, t0, last_usage, ok=True,
+                           reasoning_chars=len(getattr(msg, "reasoning_content", "") or ""))
             return text
         # 记录推理消耗，便于排查是「预算被推理吃光」还是「模型真没输出」
         rc = getattr(msg, "reasoning_content", None)
@@ -102,10 +113,23 @@ def chat(messages, temperature=0.7, max_tokens=1024, reasoning_effort=None):
         if budget >= _CHAT_TOKEN_CAP:
             break
         budget = min(budget * 2, _CHAT_TOKEN_CAP)
+    _record_metric(model, domain, t0, last_usage, ok=False,
+                   error=f"空正文（推理约 {last_reasoning} 字符）")
     raise RuntimeError(
         f"模型返回空内容（{model}）：已把 max_tokens 提升到 {budget} 仍无正文，"
         f"推理过程约占 {last_reasoning} 字符；请检查模型名是否正确"
     )
+
+
+def _record_metric(model, domain, t0, usage, ok, error="", reasoning_chars=0):
+    """把一次调用的耗时/用量落库（旁路，任何异常都不得影响主流程）。"""
+    try:
+        from db_metrics import record_ai_call
+        record_ai_call(model, int((time.perf_counter() - t0) * 1000), usage,
+                       domain=domain, ok=ok, error=error,
+                       reasoning_chars=reasoning_chars)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _thinking_params(model: str, effort: str | None) -> dict:
@@ -148,6 +172,22 @@ def _extract_json(text):
 # ---------------- 1. 文字/文本记账解析 ----------------
 
 
+def _language_hint() -> str:
+    """口语/方言偏好提示：非普通话时提醒模型按语义理解，别纠结字面。
+
+    设置页可选「普通话/粤语/四川话/英语…」；中文方言用词不标准，
+    不认识时容易漏金额或判错方向，这里显式提示模型。
+    """
+    try:
+        lang = (load_settings().get("language") or "").strip()
+    except Exception:  # noqa: BLE001
+        lang = ""
+    if lang and lang not in ("普通话", "zh", "中文", "zh-CN", "zh_CN"):
+        return (f"注意：店主可能用「{lang}」表达（口语/方言），请按语义理解，"
+                "不要因为用词不标准而漏掉金额或算错收支方向。\n")
+    return ""
+
+
 def parse_transaction(text: str) -> dict:
     """把一句大白话转成结构化记账：'王阿姨买了两个肉包和一杯豆浆，6块' / '今天进货花了两百块'"""
     if not ai_available():
@@ -178,10 +218,12 @@ def parse_transaction(text: str) -> dict:
         "· 也**不要只取第一笔**把其余丢掉；\n"
         "· 只有一笔（或同一笔的不同部分，如\"两个肉包一杯豆浆6块\"）时，transactions 留空数组，"
         "照常填上面的单笔字段。\n"
-        f"店主说：{text}"
+        + _language_hint()
+        + f"店主说：{text}"
     )
     try:
-        out = _extract_json(chat([{"role": "user", "content": prompt}], temperature=0.1))
+        out = _extract_json(chat([{"role": "user", "content": prompt}], temperature=0.1,
+                                 domain="记账解析"))
         subs = _normalize_sub_transactions(out.get("transactions"))
         result = {
             "customer": out.get("customer", ""),
@@ -267,7 +309,8 @@ def generate_reminders(customer_brief: str) -> list:
         f"熟客档案：{customer_brief}\n"
     )
     try:
-        return _extract_json(chat([{"role": "user", "content": prompt}], temperature=0.6))
+        return _extract_json(chat([{"role": "user", "content": prompt}], temperature=0.6,
+                                  domain="熟客提醒"))
     except Exception:
         return []
 
@@ -319,7 +362,7 @@ def generate_insights(monthly_data: dict, prev_context: str = "",
     # 经营洞察要做环比/异常识别并给有颗粒度的建议，属于需要判断的任务，
     # 显式开启思考（默认是关闭思考以求速度）。
     return chat([{"role": "user", "content": prompt}], temperature=0.5,
-                max_tokens=500, reasoning_effort="low").strip()
+                max_tokens=500, reasoning_effort="low", domain="经营洞察").strip()
 
 
 # ---------------- 5. 客户画像 ----------------
@@ -354,7 +397,8 @@ def generate_customer_insight(customer: dict, transactions: list) -> str:
         "③ 一条个性化的维系建议（具体到这周该做什么，比如\"上次她说孙子考了一百分，这周见面可以问一句\"，"
         "记住她的细节，不要泛泛\"多问候\"）。直接输出正文，不要列表格式。"
     )
-    return chat([{"role": "user", "content": prompt}], temperature=0.6, max_tokens=400).strip()
+    return chat([{"role": "user", "content": prompt}], temperature=0.6, max_tokens=400,
+                domain="熟客画像").strip()
 
 
 # ---------------- 6. 报税建议 ----------------
@@ -384,7 +428,7 @@ def generate_tax_advice(quarterly_revenue: float, vat_result: dict, prev_advice:
     # 属于需要推理的任务，显式开启高强度思考（全局默认是 off=关闭思考）。
     # 代价：实测耗时 30~65 秒，因此不进演示动线（见 docs/demo-guide.md）。
     return chat([{"role": "user", "content": prompt}], temperature=0.3,
-                max_tokens=400, reasoning_effort="high").strip()
+                max_tokens=400, reasoning_effort="high", domain="报税建议").strip()
 
 
 # 多 agent 团队编排（朋友圈文案 / 单店诊断 / 掌柜复盘）在 team_domains.py。

@@ -53,7 +53,7 @@ def current_db_path():
 # _ensure_schema 用它判断是否需要迁移。
 # （早期只检查 transactions.status 这一列，导致**新增的表不会被创建** ——
 #   实测老库访问 opening_balances 时崩在 "no such table"。）
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def _ensure_schema(conn) -> None:
@@ -433,3 +433,7 @@ def init_db():
         # 对话轨迹表（借鉴 SkillClaw Client Capture，任务时循环采集）
         from db_evolution_trajectory import init_trajectory_tables
         init_trajectory_tables(conn)
+
+        # ===== AI 调用指标（成本/性能看板的底座） =====
+        from db_metrics import init_ai_metrics_tables
+        init_ai_metrics_tables(conn)

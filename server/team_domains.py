@@ -93,7 +93,8 @@ def _decide(task_desc: str, cands: list, adoption_brief: str = "",
         )
     try:
         out = ai._extract_json(ai.chat([{"role": "user", "content": prompt}],
-                                       temperature=temperature, max_tokens=max_tokens))
+                                       temperature=temperature, max_tokens=max_tokens,
+                                       domain="多agent·掌柜裁决"))
         result = {
             "verdict": out.get("verdict", ""),
             "adopted": out.get("adopted", []),
@@ -162,7 +163,8 @@ def _run_team(domain: str, task: str, prev: str = "",
         user = task + (user_tail.format(role=emp["role"]) if user_tail else "")
         return ai.chat([{"role": "system", "content": sys},
                         {"role": "user", "content": user}],
-                       temperature=emp["temperature"], max_tokens=emp["max_tokens"]).strip()
+                       temperature=emp["temperature"], max_tokens=emp["max_tokens"],
+                       domain=f"多agent·{domain}出稿").strip()
 
     # 员工并行竞争产出（记录完整输入输出，供轨迹采集）
     cands = team.run_parallel([lambda e=e: produce(e) for e in employees])
@@ -174,7 +176,8 @@ def _run_team(domain: str, task: str, prev: str = "",
             review_out = ai.chat(
                 [{"role": "system", "content": reviewer["system"]},
                  {"role": "user", "content": f"请评审下面几份内容，指出违规问题和修改建议（2-3句）：\n{review_task}"}],
-                temperature=reviewer["temperature"], max_tokens=reviewer["max_tokens"]).strip()
+                temperature=reviewer["temperature"], max_tokens=reviewer["max_tokens"],
+                domain="多agent·合规评审").strip()
         except Exception:  # noqa: BLE001 —— 评审降级兜底
             review_out = "未发现问题（评审降级跳过）。"
         cands = cands + [(reviewer["role"], review_out)]
