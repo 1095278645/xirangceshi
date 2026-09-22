@@ -165,6 +165,10 @@ const state = {
     profiles: [], profileName: '我的店', savingProfile: false, applyingProfile: null },
   // 掌柜今日复盘（心跳）
   review: '',
+  layer1: '',          // 第一层：一句话结论（90% 用户只看这行）
+  layer2: '',          // 第二层：为什么在意 + 怎么做
+  skills: [],          // 触发的技能卡片（抓漏票/盯现金/揪沉睡熟客…）
+  detailOpen: false,   // 是否展开第二层
   snapshot: '',        // 掌柜看到的全店原始事实
   snapOpen: false,
   reviewBusy: false,

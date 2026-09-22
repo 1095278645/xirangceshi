@@ -25,6 +25,9 @@ import evolution_trajectory
 import db_evolution as dbe
 
 # 域数据/降级函数/生成入口从子模块导入
+import plain_language
+import shopkeeper_persona
+
 from team_domain_copy import (
     _COPY_EMPLOYEES, _COPY_REVIEWER,
     _copy_degraded, _copy_degraded_process,
@@ -60,6 +63,7 @@ def _decide(task_desc: str, cands: list, adoption_brief: str = "",
     cand_txt = "\n\n".join(f"【{role}】{out}" for role, out in cands)
     prompt = (
         "你是「AI掌柜」，一家街边小店唯一的老板，下面有几位 AI 员工对同一个问题各自给了方案。\n"
+        + shopkeeper_persona.PERSONA_RULES + "\n"
         "你作为最终决策者要：\n"
         "1) 判断谁说得在理、谁在臆测或重复，把合理的判断挑出来，驳掉/修正不合适的；\n"
     )
@@ -159,7 +163,9 @@ def _run_team(domain: str, task: str, prev: str = "",
                 sys_suffix = (sys_suffix or "") + "\n本局策略参考（来自近期验证有效的基因，可借鉴不必照搬）：\n" + addon
 
     def produce(emp):
-        sys = emp["system"] + sys_suffix
+        persona = (shopkeeper_persona.COPY_RULES if domain == "copy"
+                   else shopkeeper_persona.EMPLOYEE_RULES)
+        sys = emp["system"] + sys_suffix + "\n" + persona
         user = task + (user_tail.format(role=emp["role"]) if user_tail else "")
         return ai.chat([{"role": "system", "content": sys},
                         {"role": "user", "content": user}],
@@ -214,9 +220,11 @@ def _run_team(domain: str, task: str, prev: str = "",
     except Exception:  # noqa: BLE001 —— 轨迹采集失败不影响主链路（采集零侵入）
         pass
 
+    final = plain_language.polish(judge["final"])
     if variants:
-        return judge["final"], process, judge.get("variants", [judge["final"]])
-    return judge["final"], process
+        variants_list = [plain_language.polish(v) for v in judge.get("variants", [judge["final"]])]
+        return final, process, variants_list
+    return final, process
 
 
 # ---------------- 域注册表（增删能力的唯一入口，test_team 自检其完整性） ----------------

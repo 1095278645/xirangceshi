@@ -12,7 +12,7 @@ AIGC:
 # 巷子里的AI掌柜
 
 [![CI](https://github.com/1095278645/xirangceshi/actions/workflows/ci.yml/badge.svg)](https://github.com/1095278645/xirangceshi/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-517%20passed-brightgreen.svg)](#测试与验证)
+[![Tests](https://img.shields.io/badge/tests-575%20passed-brightgreen.svg)](#测试与验证)
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](#快速开始)
 [![License](https://img.shields.io/badge/license-MulanPSL--2.0-blue.svg)](LICENSE)
 

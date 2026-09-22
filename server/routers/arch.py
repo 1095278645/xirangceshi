@@ -62,6 +62,7 @@ def heartbeat_generate():
     """
     text = heartbeat.generate_daily_review()
     return {"ok": True, "review": text,
+            "layers": heartbeat.daily_review_layers(),
             "snapshot": heartbeat.daily_snapshot_text()}
 
 
@@ -69,8 +70,9 @@ def heartbeat_generate():
 def heartbeat_read():
     text = heartbeat.daily_review_text()
     return {"ok": bool(text), "review": text,
+            "layers": heartbeat.daily_review_layers(),
             "snapshot": heartbeat.daily_snapshot_text()} if text else {
-        "ok": False, "review": None, "snapshot": None}
+        "ok": False, "review": None, "layers": None, "snapshot": None}
 
 
 @router.get("/heartbeat/snapshot")

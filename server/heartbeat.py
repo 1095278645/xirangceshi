@@ -20,12 +20,14 @@ main.py 的 asyncio 定时任务周期调用 generate_daily_review() 即可。
 """
 import logging
 
+import plain_language
+
 import store as storelib
 
 log = logging.getLogger("heartbeat")
 
 __all__ = ["generate_daily_review", "daily_review_text", "daily_snapshot_text",
-           "evolution_daily_check"]
+           "daily_review_layers", "evolution_daily_check"]
 
 
 def _latest_profile():
@@ -99,7 +101,16 @@ def generate_daily_review():
 
     if not (text or "").strip():
         text = _basic_review_fallback()
+    text = plain_language.polish(text)
     set_domain_context("ledger", "daily_review", text)
+
+    try:
+        import skill_cards
+        context = skill_cards.build_context()
+        layers = skill_cards.build_layered_review(context, text)
+        set_domain_context("ledger", "daily_review_layers", layers)
+    except Exception as e:  # noqa: BLE001 —— 分层输出失败不影响既有复盘
+        log.warning("技能卡片分层输出失败，退回纯文本复盘：%s", e)
     return text
 
 
@@ -132,6 +143,13 @@ def daily_snapshot_text():
     """读取最近一次落盘的全店快照（掌柜看到的事实）；无则返回 None"""
     from db import get_domain_context
     item = get_domain_context("ledger", "shop_snapshot")
+    return item["value"] if item else None
+
+
+def daily_review_layers():
+    """读取最近一次分层复盘（一句话/细节/技能卡片）；无则返回 None"""
+    from db import get_domain_context
+    item = get_domain_context("ledger", "daily_review_layers")
     return item["value"] if item else None
 
 

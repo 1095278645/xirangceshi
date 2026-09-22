@@ -112,6 +112,7 @@ async function loadHome() {
     state.summary = s;
     state.month = m;
     state.review = (hb.review || '');
+    _applyHeartbeat(hb);
     state.snapshot = (hb.snapshot || '');
   } catch (_) {}
   render();
@@ -126,6 +127,7 @@ async function reviewNow() {
   try {
     const h = await api('/api/heartbeat', 'POST', {});
     state.review = h.review || '';
+    _applyHeartbeat(h);
     state.snapshot = h.snapshot || '';
     toast('掌柜已复盘');
   } catch (e) { toast(e.message); }
@@ -134,6 +136,15 @@ async function reviewNow() {
 }
 
 function toggleSnap() { state.snapOpen = !state.snapOpen; render(); }
+
+function toggleDetail() { state.detailOpen = !state.detailOpen; render(); }
+
+function _applyHeartbeat(hb) {
+  const layers = (hb && hb.layers) || {};
+  state.layer1 = layers.layer1_summary || '';
+  state.layer2 = layers.layer2_detail || '';
+  state.skills = Array.isArray(layers.skills) ? layers.skills : [];
+}
 
 async function loadMonth() {
   try { state.month = await api('/api/orders/monthly'); } catch (_) {}
@@ -162,9 +173,22 @@ function renderHome() {
       <button class="btn-mini ${state.reviewBusy ? 'disabled' : ''}" onclick="reviewNow()">
         ${state.reviewBusy ? '掌柜在看账…' : '让掌柜再看一遍'}</button>
     </div>
-    ${state.review
-      ? `<div class="review-box">${esc(state.review)}</div>`
+    ${(state.layer1 || state.review)
+      ? `<div class="review-box">${esc(state.layer1 || state.review)}</div>`
       : '<div class="acct-note">五位伙计正在各自看账（账目·熟客·库存·票税·监察），约 10 秒…</div>'}
+    ${(state.skills || []).length ? `
+      <div class="skill-list">
+        ${(state.skills || []).map(skill => `
+          <div class="skill-card skill-${esc(skill.severity || 'low')}">
+            <div class="skill-name">${esc(skill.name || '')}</div>
+            <div class="skill-summary">${esc(skill.summary || '')}</div>
+          </div>`).join('')}
+      </div>` : ''}
+    ${(state.layer2 || state.review) ? `
+      <div class="snap-toggle" onclick="toggleDetail()">
+        ${state.detailOpen ? '收起' : '展开看为什么'} ▾</div>` : ''}
+    ${state.detailOpen && (state.layer2 || state.review) ? `
+      <div class="snap-box">${esc(state.layer2 || state.review)}</div>` : ''}
     ${state.snapshot ? `
       <div class="snap-toggle" onclick="toggleSnap()">
         ${state.snapOpen ? '收起' : '掌柜看到的原始事实'} ▾</div>` : ''}

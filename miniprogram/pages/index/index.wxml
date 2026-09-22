@@ -22,8 +22,22 @@
         {{reviewBusy ? '掌柜在看账…' : '让掌柜再看一遍'}}
       </view>
     </view>
-    <view class="review-box" wx:if="{{review}}">{{review}}</view>
+    <view class="review-box" wx:if="{{layer1 || review}}">{{layer1 || review}}</view>
     <view class="review-wait" wx:else>五位伙计正在各自看账（账目·熟客·库存·票税·监察），约 10 秒…</view>
+
+    <view class="skill-list" wx:if="{{skills.length > 0}}">
+      <view class="skill-card skill-{{item.severity}}" wx:for="{{skills}}" wx:key="id">
+        <view class="skill-name">{{item.name}}</view>
+        <view class="skill-summary">{{item.summary}}</view>
+      </view>
+    </view>
+
+    <view class="snap-toggle" wx:if="{{layer2 || review}}" bindtap="toggleDetail">
+      {{detailOpen ? '收起' : '展开看为什么'}} ▾
+    </view>
+    <view class="snap-box" wx:if="{{detailOpen}}">
+      <view class="snap-line">{{layer2 || review}}</view>
+    </view>
 
     <view class="snap-toggle" wx:if="{{snapshot}}" bindtap="toggleSnap">
       {{snapOpen ? '收起' : '掌柜看到的原始事实'}} ▾

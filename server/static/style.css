@@ -450,6 +450,17 @@ input[type=password] { -webkit-text-security: disc; }
   font-size: 15px; line-height: 1.85; color: #4a3a2c;
   padding: 4px 0; word-break: break-all;
 }
+/* 技能卡片：掌柜今天盯什么（一句话 + 严重度色条） */
+.skill-list { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.skill-card {
+  background: #faf5f1; border-radius: 10px; padding: 10px 12px;
+  border-left: 4px solid #d9c4a9;
+}
+.skill-card.skill-high { border-left-color: #c0392b; }
+.skill-card.skill-medium { border-left-color: #e67e22; }
+.skill-card.skill-low { border-left-color: #27ae60; }
+.skill-name { font-size: 13px; font-weight: 700; color: #6b4f3a; margin-bottom: 3px; }
+.skill-summary { font-size: 14px; line-height: 1.7; color: #4a3a2c; }
 .snap-toggle { font-size: 13px; color: var(--orange-dark); margin-top: 12px; cursor: pointer; }
 .snap-box {
   margin-top: 10px; background: #faf5f1; border-radius: 10px;

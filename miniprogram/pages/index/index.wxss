@@ -229,6 +229,17 @@
   word-break: break-all;
 }
 .review-wait { font-size: 25rpx; color: #a08d7b; line-height: 1.7; padding: 6rpx 0; }
+
+/* 技能卡片：掌柜今天盯什么 */
+.skill-list { margin-top: 12rpx; display: flex; flex-direction: column; gap: 10rpx; }
+.skill-card { background: #faf5f1; border-radius: 12rpx; padding: 14rpx 16rpx;
+  border-left: 6rpx solid #d9c4a9; }
+.skill-card.skill-high { border-left-color: #c0392b; }
+.skill-card.skill-medium { border-left-color: #e67e22; }
+.skill-card.skill-low { border-left-color: #27ae60; }
+.skill-name { font-size: 24rpx; font-weight: 600; color: #6b4f3a; margin-bottom: 4rpx; }
+.skill-summary { font-size: 26rpx; color: #4a3a2c; line-height: 1.6; }
+
 /* 展开"掌柜看到的原始事实" */
 .snap-toggle { font-size: 24rpx; color: #b4532a; margin-top: 16rpx; }
 .snap-box { margin-top: 12rpx; background: #faf5f1; border-radius: 12rpx; padding: 16rpx; }

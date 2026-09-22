@@ -33,6 +33,10 @@ Page({
     multi: false,
     manualText: '',
     review: '',          // 掌柜今日复盘
+    layer1: '',          // 第一层：一句话结论
+    layer2: '',          // 第二层：为什么 + 怎么做
+    skills: [],          // 触发的技能卡片
+    detailOpen: false,   // 是否展开第二层
     snapshot: '',        // 掌柜看到的全店原始事实（原文）
     snapshotLines: [],   // 拆行后的快照，供 wx:for
     snapOpen: false,     // 是否展开原始事实
@@ -78,8 +82,13 @@ Page({
   // WXML 不支持方法调用：快照按行拆成数组，模板才能 wx:for
   _applyReview(h) {
     const snap = (h && h.snapshot) ? String(h.snapshot) : ''
+    const layers = (h && h.layers) ? h.layers : {}
+    const skills = Array.isArray(layers.skills) ? layers.skills : []
     this.setData({
       review: (h && h.ok && h.review) ? h.review : (h && h.review) || '',
+      layer1: layers.layer1_summary || '',
+      layer2: layers.layer2_detail || '',
+      skills,
       snapshot: snap,
       snapshotLines: snap.split('\n').map(s => s.trim()).filter(Boolean),
     })
@@ -103,6 +112,10 @@ Page({
   // 展开"掌柜看到的原始事实"：让结论可查证，也提醒哪些经营动作还没记
   toggleSnap() {
     this.setData({ snapOpen: !this.data.snapOpen })
+  },
+
+  toggleDetail() {
+    this.setData({ detailOpen: !this.data.detailOpen })
   },
 
   // 失败时既弹一次提示，也把首页顶部提示条点亮（持续可见，便于当场排查）
