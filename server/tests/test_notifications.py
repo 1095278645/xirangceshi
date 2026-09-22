@@ -283,10 +283,11 @@ class TestNotifications(unittest.TestCase):
     def test_events_and_providers_declared(self):
         events = {e["event"] for e in notifications.list_events()}
         self.assertEqual(events, {"daily_review", "customer_reminder",
-                                  "payment_received", "revenue_warning"})
+                                  "payment_received", "revenue_warning",
+                                  "order_created"})
         for e in notifications.list_events():
             self.assertTrue(e["name"] and e["desc"] and e["trigger"])
-        for ch in ("mock", "wecom_bot", "wecom_app", "wechat_subscribe"):
+        for ch in ("mock", "webhook", "wecom_bot", "wecom_app", "wechat_subscribe"):
             self.assertIn(ch, notifications.PROVIDERS)
 
 

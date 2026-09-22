@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 import ai
 import db
+import notifications
 import tax as taxcalc
 from categories import is_known_category, normalize_category
 from schemas import (InsightIn, OrderIn, RefundIn, TransactionEditIn, VoidIn)
@@ -104,7 +105,7 @@ def create_order(data: OrderIn):
     safety_warning = taxcalc.detect_boundary(data.text) or taxcalc.check_amount_guard(amount)
     log.info("order created tid=%s type=%s category=%s amount=%s customer=%s",
              tid, trans_type, category, amount, customer or "-")
-    return {
+    result = {
         "order_id": tid, "parsed": parsed,
         "customer_id": cid, "customer_new": cid and is_new,
         "amount_missing": False, "voucher": voucher,
@@ -120,9 +121,34 @@ def create_order(data: OrderIn):
             "customer": customer,
             "category_normalized": bool(raw_category and raw_category.strip() != category),
             "raw_category": raw_category,
+            "evidence": _evidence(amount, category, raw_category, customer, trans_type,
+                                  parsed, data.text),
         },
         "friendly_category": db.FRIENDLY_NAMES.get(category, category),
         "summary": db.today_summary(), "safety_warning": safety_warning,
+    }
+    # 开放 API：记账成功后异步通知 webhook 订阅者（不阻塞响应）
+    notifications.dispatch_event_async(
+        "order_created", f"记账成功：{parsed.get('item', '') or data.text}",
+        f"{'收入' if trans_type == 'income' else '支出'} {amount} 元，分类「{category}」",
+        business_key=f"txn-{tid}")
+    return result
+
+
+def _evidence(amount, category, raw_category, customer, trans_type, parsed, text) -> dict:
+    """结论可解释：这笔账"凭什么这么记"的依据（供界面展开核对）。"""
+    return {
+        "text": text,
+        "amount_source": "金额来自解析结果" if amount is not None else "未取到金额",
+        "category_source": (
+            "模型返回并已归一" if raw_category and raw_category.strip() != category
+            else ("模型返回" if raw_category else "关键词兜底"),
+        ),
+        "category_raw": raw_category or "",
+        "direction": "收入" if trans_type == "income" else "支出",
+        "customer_matched": bool(customer),
+        "item": parsed.get("item", "") or text,
+        "voucher_rule": "复式记账：收入→借库存现金/贷主营业务收入；支出→借相关费用/贷库存现金",
     }
 
 
@@ -249,6 +275,44 @@ def transaction_detail(tid: int):
     if not txn:
         raise HTTPException(404, "交易不存在")
     return {"transaction": txn, "audits": db.list_transaction_audits(tid)}
+
+
+@router.get("/orders/{tid}/explain")
+def order_explain(tid: int):
+    """结论可解释：这笔账凭什么这么记（含复式分录，供店主当场核对）。"""
+    txn = db.get_transaction(tid)
+    if not txn:
+        raise HTTPException(404, "交易不存在")
+    with db.get_conn() as conn:
+        v = conn.execute(
+            "SELECT * FROM vouchers WHERE transaction_id=? ORDER BY id DESC LIMIT 1",
+            (tid,)).fetchone()
+        entries = []
+        if v:
+            entries = [dict(r) for r in conn.execute(
+                "SELECT account_code, account_name, direction, amount "
+                "FROM voucher_entries WHERE voucher_id=? ORDER BY id, direction",
+                (v["id"],)).fetchall()]
+    direction = "收入" if txn.get("trans_type") == "income" else "支出"
+    legs = "、".join(
+        f"{'借' if e['direction'] == 'debit' else '贷'} {e['account_name']} {e['amount']:.2f}"
+        for e in entries)
+    who = txn.get("counterparty") or "顾客"
+    sentence = (f"「{who} · {txn.get('item') or '—'}」记为{direction} "
+                f"{float(txn.get('amount') or 0):.2f} 元，科目「{txn.get('category') or '—'}」"
+                + (f"；分录：{legs}。" if legs else "。（该笔暂无凭证分录）"))
+    return {
+        "transaction": txn,
+        "voucher": dict(v) if v else None,
+        "entries": entries,
+        "explain": sentence,
+        "basis": {
+            "rule": "复式记账：每笔必有借有贷，金额相等",
+            "category": txn.get("category") or "",
+            "source_text": txn.get("note") or txn.get("item") or "",
+            "direction": direction,
+        },
+    }
 
 
 @router.post("/transactions/{tid}")

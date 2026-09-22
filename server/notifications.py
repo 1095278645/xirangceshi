@@ -30,9 +30,12 @@
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import logging
 import os
+import threading
 import urllib.error
 import urllib.request
 from datetime import date, datetime
@@ -43,7 +46,7 @@ import config
 log = logging.getLogger("notifications")
 
 __all__ = [
-    "EVENTS", "list_events", "notify", "dispatch_event",
+    "EVENTS", "list_events", "notify", "dispatch_event", "dispatch_event_async",
     "list_subscriptions", "save_subscription", "delete_subscription",
     "list_logs", "recent_mock_messages", "PROVIDER_NAMES",
 ]
@@ -71,10 +74,16 @@ EVENTS = {
         "desc": "日流水明显低于保本线时提醒",
         "trigger": "每天定时",
     },
+    "order_created": {
+        "name": "记账成功",
+        "desc": "每成功记一笔账时（可用于对接 ERP / 代账系统 / 自有看板）",
+        "trigger": "记账成功后",
+    },
 }
 
 PROVIDER_NAMES = {
     "mock": "本地记录（演示/自测用）",
+    "webhook": "自定义 Webhook（开放 API，POST JSON）",
     "wecom_bot": "企业微信群机器人（推荐，无需 AppID）",
     "wecom_app": "企业微信应用消息（需 corpid/secret/agentid）",
     "wechat_subscribe": "微信小程序订阅消息（需正式 AppID 与模板）",
@@ -150,6 +159,48 @@ def _send_wecom_bot(target: str, title: str, content: str) -> dict:
     return {"ok": True, "channel": "wecom_bot", "detail": resp}
 
 
+def _send_webhook(target: str, title: str, content: str, event: str = "") -> dict:
+    """自定义 Webhook（开放 API）：把事件以 JSON POST 到 target。
+
+    target 格式：`https://your-host/path`，或 `https://host/path|共享密钥`（带密钥时签名）。
+    请求体：`{"event","title","content","at"}`；带密钥时附请求头
+    `X-Shopkeeper-Signature: sha256=<hex>`（HMAC-SHA256，接收方可验签防伪造）。
+    这让「巷子里的 AI 掌柜」能被 ERP / 代账系统 / 自有看板订阅，形成开放 API 生态。
+    """
+    raw = (target or "").strip()
+    secret = ""
+    if "|" in raw:
+        raw, secret = raw.split("|", 1)
+    url = raw.strip()
+    if not url.startswith(("http://", "https://")):
+        raise RuntimeError("webhook 地址需以 http:// 或 https:// 开头")
+    payload = {
+        "event": event or "manual",
+        "title": title or "",
+        "content": content or "",
+        "at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    headers = {"Content-Type": "application/json; charset=utf-8",
+               "X-Shopkeeper-Event": payload["event"]}
+    if secret:
+        sig = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
+        headers["X-Shopkeeper-Signature"] = f"sha256={sig}"
+    req = urllib.request.Request(url, data=body, method="POST", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            text = resp.read().decode("utf-8", "ignore")[:200]
+            code = getattr(resp, "status", 200) or 200
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"webhook HTTP {e.code}: "
+                           f"{e.read().decode('utf-8', 'ignore')[:200]}") from e
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(f"webhook 请求失败：{e}") from e
+    if code >= 300:
+        raise RuntimeError(f"webhook 返回 {code}: {text}")
+    return {"ok": True, "channel": "webhook", "detail": {"status": code, "body": text}}
+
+
 def _send_wecom_app(target: str, title: str, content: str) -> dict:
     """企业微信应用消息（需 corpid + secret + agentid，target 为 "corpid:secret:agentid:用户"）。
 
@@ -217,16 +268,20 @@ def _send_wechat_subscribe(target: str, title: str, content: str) -> dict:
 
 PROVIDERS = {
     "mock": _send_mock,
+    "webhook": _send_webhook,
     "wecom_bot": _send_wecom_bot,
     "wecom_app": _send_wecom_app,
     "wechat_subscribe": _send_wechat_subscribe,
 }
 
 
-def _send_via(channel: str, target: str, title: str, content: str) -> dict:
+def _send_via(channel: str, target: str, title: str, content: str,
+              event: str = "") -> dict:
     fn = PROVIDERS.get(channel)
     if not fn:
         raise RuntimeError(f"未知通道：{channel}（可用：{sorted(PROVIDERS)}）")
+    if channel == "webhook":       # 开放 API：需要把事件名一并传给接收方
+        return fn(target, title, content, event)
     return fn(target, title, content)
 
 
@@ -253,7 +308,7 @@ def notify(channel: str, target: str, title: str, content: str,
     for i in range(max(1, retries)):
         attempts = i + 1
         try:
-            result = _send_via(channel, target, title, content)
+            result = _send_via(channel, target, title, content, event)
             _log_delivery(event, channel, target, title, content, True, attempts)
             return {"ok": True, "channel": channel, "attempts": attempts,
                     "detail": result.get("detail")}
@@ -349,6 +404,26 @@ def dispatch_event(event: str, title: str, content: str,
         results.append(r)
     ok = all(r["ok"] for r in results) if results else True
     return {"ok": ok, "skipped": False, "event": event, "results": results}
+
+
+def dispatch_event_async(event: str, title: str, content: str,
+                         business_key: str = "", dedup_days: int = 0) -> None:
+    """异步分发到后台守护线程（fire-and-forget）。
+
+    用于「记账成功」这类**不该拖慢主流程**的事件：若同步等 webhook 返回，
+    弱网下店主每记一笔就要多等几秒。异常只记日志，不影响调用方。
+    """
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        return   # 测试里不起后台线程，避免线程与临时库清理竞态
+
+    def _run() -> None:
+        try:
+            dispatch_event(event, title, content,
+                           business_key=business_key, dedup_days=dedup_days)
+        except Exception as e:  # noqa: BLE001
+            log.warning("异步事件分发失败 %s：%s", event, e)
+
+    threading.Thread(target=_run, name=f"dispatch-{event}", daemon=True).start()
 
 
 def _already_sent(event: str, business_key: str, days: int) -> bool:

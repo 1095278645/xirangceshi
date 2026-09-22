@@ -2,6 +2,7 @@
 from fastapi import APIRouter
 
 import ai
+import benchmark
 import db
 import store as storelib
 from schemas import StoreModelIn
@@ -43,6 +44,27 @@ def store_model(data: StoreModelIn):
 def store_from_ledger(year: int | None = None, month: int | None = None):
     """从账本真实流水反推单店输入：实际日销 + 毛利率（不传年月自动取最近有收入的月份）"""
     return db.store_ledger_stats(year, month)
+
+
+@router.get("/store/benchmark")
+def store_benchmark(biz_type: str = "餐饮", year: int | None = None, month: int | None = None):
+    """同业基准（**示例/仿真值**）：本店指标 vs 同业态参考区间。
+
+    诚实声明见 benchmark.py 与返回值里的 disclaimer —— 不含真实门店数据，
+    接入脱敏聚合结果后接口契约不变。
+    """
+    stats = db.store_ledger_stats(year, month)
+    from db_ledger import _ACTIVE_FILTER
+    with db.get_conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS c FROM transactions "
+            f"WHERE substr(created_at,1,7)=? AND {_ACTIVE_FILTER} "
+            "AND trans_type='income' AND amount>0", (stats["period"],)).fetchone()
+    cnt = int(row["c"] or 0)
+    avg_ticket = round(float(stats["income_total"]) / cnt, 2) if cnt else None
+    out = benchmark.compare(biz_type, stats, avg_ticket)
+    out["period"] = stats["period"]
+    return out
 
 
 @router.post("/store/diagnosis")

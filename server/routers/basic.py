@@ -29,6 +29,7 @@ def get_settings():
         "has_key": bool(s["api_key"]),
         "base_url": s["base_url"],
         "model": s["model"],
+        "language": s.get("language", "普通话"),
         "provider": config.detect_provider(s["base_url"]),
     }
 
@@ -40,12 +41,14 @@ def update_settings(data: SettingsIn):
         api_key=data.api_key,
         base_url=data.base_url or None,
         model=data.model or None,
+        language=data.language,
     )
     return {
         "ok": True,
         "ai_enabled": bool(s["api_key"]),
         "base_url": s["base_url"],
         "model": s["model"],
+        "language": s.get("language", "普通话"),
     }
 
 

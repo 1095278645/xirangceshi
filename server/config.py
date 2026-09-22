@@ -16,33 +16,42 @@ _LOCAL_CONFIG = BASE_DIR / "config.local.json"
 # 默认值（环境变量优先）
 DEFAULT_BASE_URL = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEFAULT_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
+DEFAULT_LANGUAGE = os.environ.get("SHOP_LANGUAGE", "普通话")
 
 
 def load_settings() -> dict:
-    """读取 AI 配置：环境变量 > config.local.json > 默认值。返回 {api_key, base_url, model}。"""
+    """读取 AI 配置：环境变量 > config.local.json > 默认值。
+    返回 {api_key, base_url, model, language}。"""
     api_key = os.environ.get("DEEPSEEK_API_KEY", "")
     base_url = DEFAULT_BASE_URL
     model = DEFAULT_MODEL
-    if not api_key and _LOCAL_CONFIG.exists():
+    language = DEFAULT_LANGUAGE
+    if _LOCAL_CONFIG.exists():
         try:
             with open(_LOCAL_CONFIG, encoding="utf-8") as f:
                 cfg = json.load(f)
-            api_key = cfg.get("api_key", "")
-            base_url = cfg.get("base_url", base_url)
-            model = cfg.get("model", model)
+            if not api_key:
+                api_key = cfg.get("api_key", "")
+                base_url = cfg.get("base_url", base_url)
+                model = cfg.get("model", model)
+            language = cfg.get("language", language)
         except (json.JSONDecodeError, OSError):
             pass
-    return {"api_key": api_key, "base_url": base_url, "model": model}
+    return {"api_key": api_key, "base_url": base_url, "model": model,
+            "language": language or DEFAULT_LANGUAGE}
 
 
-def save_settings(api_key: str = "", base_url: str | None = None, model: str | None = None) -> dict:
+def save_settings(api_key: str = "", base_url: str | None = None,
+                  model: str | None = None, language: str | None = None) -> dict:
     """保存配置到 config.local.json（该文件已被 gitignore）。api_key 传空串表示清除。
-    返回保存后的完整配置。"""
+    language 传 None 表示不改动现有口语/方言偏好。返回保存后的完整配置。"""
     cur = load_settings()
     if base_url:
         cur["base_url"] = base_url
     if model:
         cur["model"] = model
+    if language is not None:
+        cur["language"] = language
     cur["api_key"] = api_key
     # Pattern 21: Atomic Write — 先写 .tmp 再 os.replace，防止写到一半崩溃导致配置损坏
     atomic_write_json(_LOCAL_CONFIG, cur, indent=2)

@@ -48,6 +48,7 @@ class SettingsIn(BaseModel):
     api_key: str = ""          # 传空串 = 清除 Key
     base_url: str = ""
     model: str = ""
+    language: str | None = None   # 口语/方言偏好（普通话/粤语/四川话/英语…），None=不改
 
 
 class VatIn(BaseModel):

@@ -31,6 +31,9 @@ def notify_providers():
     return {"providers": [
         {"id": "mock", "name": notifications.PROVIDER_NAMES["mock"],
          "ready": True, "target_label": "", "hint": "无需配置，推送内容记录在本地文件"},
+        {"id": "webhook", "name": notifications.PROVIDER_NAMES["webhook"],
+         "ready": True, "target_label": "https://your-host/path 或 ...|共享密钥",
+         "hint": "开放 API：把事件以 JSON POST 出去；填 |密钥 则附 HMAC-SHA256 签名，供接收方验签"},
         {"id": "wecom_bot", "name": notifications.PROVIDER_NAMES["wecom_bot"],
          "ready": True, "target_label": "群机器人 Webhook key",
          "hint": "企业微信群 → 添加群机器人 → 复制 Webhook 地址里的 key；不需要正式 AppID"},
