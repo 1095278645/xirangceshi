@@ -471,6 +471,7 @@ curl -X POST "http://127.0.0.1:8000/api/notify/wecom-bot" \
 | 通道 | 能否直接落地 |
 |---|---|
 | 本地记录（`mock`） | ✅ 免配置，内容写到 `server/data/notifications.jsonl`，演示时用它展示"推送了什么" |
+| 自定义 Webhook（`webhook`） | ✅ **开放 API**：把事件以 JSON POST 出去（`order_created` 等），填 `url\|密钥` 时附 HMAC-SHA256 签名供验签 |
 | 企业微信群机器人（`wecom_bot`） | ✅ 填个 key 就能收到真消息 |
 | 企业微信应用消息（`wecom_app`） | ⚠️ 需企业微信管理员建应用（corpid/secret/agentid） |
 | 微信小程序订阅消息（`wechat_subscribe`） | ⚠️ 需正式 AppID、用户逐次授权订阅、并在公众平台申请模板；**游客模式不可用** |
@@ -579,6 +580,10 @@ get_conn() → shops.resolve_db_path() or db.DB_PATH
 | `GET /api/store/presets` | 单店模型业态预设（六业态参考毛利率区间与经营提示） |
 | `POST /api/store/model` | 单店模型计算（保本线/目标日销/回本周期/现金流/三维诊断与建议） |
 | `GET /api/store/from-ledger` | 从账本流水反推实际日销/毛利率（自动定位最近有收入的月份） |
+| `GET /api/store/benchmark` | 同业基准（**示例/仿真值**）：本店指标 vs 同业态参考区间 |
+| `GET /api/orders/{id}/explain` | 结论可解释：这笔账凭什么这么记（含复式分录） |
+| `GET /api/metrics/ai` | 运行指标：AI 调用量/成功率、token、延迟 P50/P95、**估算成本与每单成本** |
+| `GET /api/metrics/ai/calls` | 最近的原始 AI 调用记录（排查慢调用/失败调用） |
 | `GET /api/payment/sources` | 收款账户列表（微信商户/聚合支付） |
 | `POST /api/payment/sources` | 新增/更新收款账户（mchid 填 DEMO 即演示模式） |
 | `DELETE /api/payment/sources/{id}` | 删除收款账户 |
@@ -617,6 +622,11 @@ get_conn() → shops.resolve_db_path() or db.DB_PATH
 > 安全审计记录见 [`docs/security-audit-2026-09.md`](docs/security-audit-2026-09.md)。
 
 > 演示/讲解脚本与现场排障见 [`docs/demo-guide.md`](docs/demo-guide.md)。
+
+> 部署、云化演进（Litestream / Postgres / 连锁）与开放 API 见 [`docs/deployment-evolution.md`](docs/deployment-evolution.md)。
+
+> 免鉴权接口（收款页、语音上传）已内置**滑动窗口限流**（`SHOP_RATE_LIMIT=0` 可关）；
+> H5 支持 **PWA**（添加到主屏幕、离线兜底）与**无障碍**（右下角字号缩放 / 语音朗读）。
 
 ## Docker 一键部署
 

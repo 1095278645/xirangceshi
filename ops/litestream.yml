@@ -1,0 +1,23 @@
+# Litestream 样例配置：把 SQLite 持续复制到对象存储（异地容灾）
+# 文档：https://litestream.io
+#
+# 用法：
+#   litestream replicate -config ops/litestream.yml
+#   恢复：litestream restore -o server/data/ai_shopkeeper.db s3://your-bucket/ai-shopkeeper
+#
+# 环境变量（示例用 S3 兼容对象存储；OSS/COS 走各自的 S3 兼容端点）：
+#   LITESTREAM_ACCESS_KEY_ID / LITESTREAM_SECRET_ACCESS_KEY
+#
+# 注意：本文件不含任何真实密钥，请用环境变量注入。
+
+dbs:
+  - path: ./server/data/ai_shopkeeper.db
+    replicas:
+      - type: s3
+        bucket: your-bucket
+        path: ai-shopkeeper
+        endpoint: https://s3.your-region.amazonaws.com   # 换成本地/云对象存储端点
+        region: your-region
+        sync-interval: 10s        # 至少每 10 秒同步一次
+        retention: 168h           # 保留 7 天
+        snapshot-interval: 24h    # 每 24 小时做一次全量快照
