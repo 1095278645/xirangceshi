@@ -40,6 +40,10 @@ _THINKING_OFF = "off"
 _THINKING_MODELS = frozenset({
     "deepseek-flash", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp",
     "deepseek-v4-pro",
+    # 企业网关（OpenAI 兼容）上的 V4.1-Flash 实际模型名带版本号，
+    # 同一模型的另一写法；不登记会被当成非思考模型，默认思考模式下的
+    # 推理开销会拖慢演示并可能吃光预算。
+    "deepseek-v4.1-flash",
 })
 
 # 官方允许的推理强度档位（非法值会被服务端拒绝，这里先收敛）
