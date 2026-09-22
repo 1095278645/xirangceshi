@@ -1,0 +1,16 @@
+# 统一换行符，避免跨平台（尤其 CI/Linux 与 Docker）踩 CRLF 坑
+* text=auto
+
+# 必须在任何平台都保持 LF 的文件
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.json      text eol=lf
+*.py        text eol=lf
+*.md        text eol=lf
+
+# 二进制，不做换行转换
+*.png       binary
+*.db        binary
+*.xlsx      binary
