@@ -213,6 +213,11 @@ app.add_middleware(
 # 因此 CORS 先处理（含 OPTIONS 预检），再由鉴权拦截实际 API 调用。
 app.add_middleware(auth.AccessTokenMiddleware, origin_checker=_is_allowed_origin)
 
+# 限流：保护免鉴权的公开接口（收款页）与语音上传，避免被刷。
+# 测试环境整体放行（见 ratelimit._is_test_env），不影响既有用例。
+import ratelimit  # noqa: E402  放在中间件注册段更直观
+app.add_middleware(ratelimit.RateLimitMiddleware)
+
 # 业务路由：按域拆分，由 registry 声明式注册表统一挂载。
 # 新增/停用/删除业务域只改 routers/registry.py 的 BUSINESS_DOMAINS 声明，
 # 本文件与各域流程代码均无需改动（对标 team_domains 的声明式注册表思想）。
@@ -242,6 +247,22 @@ def pay_page_short(token: str):
 def web_index():
     """手机浏览器打开 http://电脑IP:8000/ 即用"""
     return FileResponse(str(_STATIC_DIR / "index.html"))
+
+
+@app.get("/manifest.webmanifest")
+def pwa_manifest():
+    """PWA 清单（浏览器"添加到主屏幕"用）。显式声明媒体类型，避免被当成二进制。"""
+    return FileResponse(str(_STATIC_DIR / "manifest.webmanifest"),
+                        media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+def pwa_service_worker():
+    """Service Worker 必须能从根路径注册（scope=/），否则作用域被限制在 /static/。"""
+    resp = FileResponse(str(_STATIC_DIR / "sw.js"), media_type="application/javascript")
+    resp.headers["Service-Worker-Allowed"] = "/"
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
 
 
 if __name__ == "__main__":
