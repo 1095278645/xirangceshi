@@ -284,6 +284,8 @@ def main() -> int:
                     help="把本次结果写成基线（仅在确认表现可接受时用）")
     ap.add_argument("--compare", action="store_true",
                     help="与基线对比，有退化则退出码 1")
+    ap.add_argument("--report", default="", metavar="PREFIX",
+                    help="把报告写成 <PREFIX>.json 与 <PREFIX>.md（供看板/CI 归档）")
     args = ap.parse_args()
 
     cases = CASES
@@ -311,6 +313,38 @@ def main() -> int:
         print(f"\n✅ 已写入基线：{BASELINE_PATH.relative_to(SERVER)}")
 
     rc = 0
+    if args.report:
+        import datetime
+        import eval_report
+        summary = eval_report.dimension_summary(
+            report["hits"], report["total"], report["per_category"])
+        exp_by_text = {c[1]: c for c in CASES}
+        failures = []
+        for t, c in report["cases"].items():
+            if c.get("ok"):
+                continue
+            e = exp_by_text.get(t) or ("", "", None, "", "", "")
+            failures.append({
+                "text": t,
+                "expected": {"amount": e[2], "direction": e[3],
+                             "category": e[4], "customer": e[5]},
+                "got": c.get("got") or {}, "category": c.get("category")})
+        meta = {"model": None,
+                "at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        try:
+            import ai
+            meta["model"] = ai.load_settings().get("model")
+        except Exception:  # noqa: BLE001
+            pass
+        md = eval_report.to_markdown(meta, summary, failures)
+        json_path = Path(args.report + ".json")
+        md_path = Path(args.report + ".md")
+        json_path.write_text(json.dumps(
+            {"meta": meta, "summary": summary, "cases": report["cases"]},
+            ensure_ascii=False, indent=2), encoding="utf-8")
+        md_path.write_text(md, encoding="utf-8")
+        print(f"\n✅ 报告已写出：{json_path} / {md_path}")
+
     if args.compare:
         if len(cases) < len(CASES):
             print("\n（--compare 建议跑全量；当前是子集，对比结果仅供参考）")
