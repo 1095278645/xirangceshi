@@ -15,8 +15,33 @@ router = APIRouter(prefix="/api", tags=["metrics"])
 
 @router.get("/metrics/ai")
 def ai_metrics(days: int = Query(default=7, ge=1, le=90)):
-    """AI 调用汇总：调用量/成功率、token、延迟 P50/P95、估算成本与每单成本。"""
-    return metrics.summarize(days)
+    """AI 调用汇总：调用量/成功率、token、延迟 P50/P95、估算成本与每单成本。
+
+    另含 **进化层状态分块**（批次 B）：把进化摘要并入既有看板，不再单开端点。
+    """
+    out = metrics.summarize(days)
+    out["evolution"] = _evolution_block()
+    return out
+
+
+def _evolution_block() -> dict:
+    """进化层是否启用 + 各域采纳率/基因数（只读，供看板）。"""
+    import config
+    if not config.evolution_enabled():
+        return {"enabled": False,
+                "note": "进化层默认关闭（设 SHOP_ENABLE_EVOLUTION=1 或 config 里 enable_evolution=true 开启）"}
+    import team_domains
+    import team_evolution
+    domains = {}
+    for d in team_domains.list_team_domains():
+        s = team_evolution.get_evolution_summary(d)
+        domains[d] = {
+            "adoption_rate": s.get("adoption_rate"),
+            "genes_active": s.get("genes_active"),
+            "genes_suppressed": s.get("genes_suppressed"),
+            "capsules_recent": s.get("capsules_recent"),
+        }
+    return {"enabled": True, "domains": domains}
 
 
 @router.get("/metrics/ai/capability")

@@ -5,19 +5,20 @@
 """
 from datetime import datetime, timezone
 
+import config
 import db_evolution as dbe
 import team_evolution as te
 from db_arch import set_domain_context, get_domain_context
 
-# 技能蒸馏阈值（GenericAgent）
-DISTILL_SUCCESS_COUNT = 7
-DISTILL_HOURS_GAP = 24
+# 技能蒸馏阈值（来自 config，便于统一调整；批次 B 收敛后不再散落魔法数）
+DISTILL_SUCCESS_COUNT = config.EVOLUTION_DISTILL_SUCCESS_COUNT
+DISTILL_HOURS_GAP = config.EVOLUTION_DISTILL_HOURS_GAP
 DISTILL_SCORE_MULTIPLIER = 0.8
 
 # 晋升规则阈值（self-improving-agent）
-PROMOTE_RECURRENCE = 3
-PROMOTE_DISTINCT_TASKS = 2
-PROMOTE_DAYS_WINDOW = 30
+PROMOTE_RECURRENCE = config.EVOLUTION_PROMOTE_RECURRENCE
+PROMOTE_DISTINCT_TASKS = config.EVOLUTION_PROMOTE_DISTINCT_TASKS
+PROMOTE_DAYS_WINDOW = config.EVOLUTION_PROMOTE_DAYS_WINDOW
 
 # 保守编辑硬约束（借鉴 SkillClaw 的 8 条，蒸馏必须遵守，防止 LLM 过度改写）
 CONSERVATIVE_CONSTRAINTS = [
@@ -73,6 +74,9 @@ def distill_skill(domain):
     # 有效样本 = 总样本 - 环境异常（避免误判基因成功率偏低）
     effective_total = len(recent) - env_failures
     if effective_total < 7:
+        return None
+    # 最小样本量保护：样本不足时不做蒸馏（调用时读 config，便于测试覆盖）
+    if effective_total < config.EVOLUTION_MIN_SAMPLES:
         return None
     if success_count < DISTILL_SUCCESS_COUNT:
         return None
@@ -140,6 +144,8 @@ def promote_learning(domain):
     pending = dbe.get_pending_learnings(domain)
     promoted = []
 
+    # 注：晋升的最小证据由"复现次数 ≥3 + 不同任务 ≥2"自身保证（见下方条件），
+    # 不再叠加胶囊总样本门槛——两者证据类型不同，混用会误伤。
     for item in pending:
         if item.get("recurrence_count", 0) < PROMOTE_RECURRENCE:
             continue

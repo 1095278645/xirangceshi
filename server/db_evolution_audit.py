@@ -165,6 +165,32 @@ def _seq(conn):
     return f"{_SEQ_CACHE['seq']:03d}"
 
 
+# ---------------- 数据保留（批次 B：防止胶囊/事件/轨迹无界增长） ----------------
+
+def prune_evolution_data(days: int | None = None, per_domain: int | None = None) -> dict:
+    """按"天数 + 每域条数"双限清理三张流水表，返回各表删除行数（幂等）。
+
+    为什么需要：capsules/events/trajectories 只增不减，长期会拖大备份包。
+    由 main 的备份循环定期调用（与快照同一节奏），失败不影响主流程。
+    """
+    import config
+    d = int(days if days is not None else config.EVOLUTION_KEEP_DAYS)
+    cap = int(per_domain if per_domain is not None else config.EVOLUTION_KEEP_PER_DOMAIN)
+    deleted = {}
+    with _conn() as conn:
+        for t in ("agent_capsules", "agent_events", "agent_trajectories"):
+            old = conn.execute(
+                f"DELETE FROM {t} WHERE timestamp < datetime('now','localtime', ?)",
+                (f"-{d} days",)).rowcount
+            over = conn.execute(
+                f"DELETE FROM {t} WHERE rowid IN ("
+                f"  SELECT rowid FROM (SELECT rowid,"
+                f"   ROW_NUMBER() OVER (PARTITION BY domain ORDER BY rowid DESC) rn"
+                f"   FROM {t}) WHERE rn > ?)", (cap,)).rowcount
+            deleted[t] = int(old or 0) + int(over or 0)
+    return deleted
+
+
 # ---------------- 进化层建表（从 db.py init_db 拆出） ----------------
 
 def init_evolution_tables(conn):

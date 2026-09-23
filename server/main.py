@@ -48,6 +48,14 @@ async def _backup_loop():
                 log.info("自动备份完成：%s（%.1f KB）", info["name"], info["size"] / 1024)
         except Exception as e:  # noqa: BLE001
             log.error("自动备份失败：%s", e)
+        # 进化层数据保留：按天数 + 每域条数双限清理（批次 B），失败不影响主流程
+        try:
+            import db_evolution_audit
+            pruned = await asyncio.to_thread(db_evolution_audit.prune_evolution_data)
+            if pruned and any(pruned.values()):
+                log.info("进化数据清理：%s", pruned)
+        except Exception as e:  # noqa: BLE001
+            log.warning("进化数据清理失败：%s", e)
         # 首次启动后等一小会儿再循环，避免与建库/迁移抢 IO
         await asyncio.sleep(30 if first else BACKUP_INTERVAL_SECONDS)
         first = False

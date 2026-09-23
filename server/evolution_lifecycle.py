@@ -6,12 +6,13 @@
 import random
 from datetime import datetime
 
+import config
 import db_evolution as dbe
 
-# 基因抑制阈值（EvoMap/evolver）
-SUPPRESS_MIN_ATTEMPTS = 4
-SUPPRESS_MAX_SUCCESS_RATE = 0.15
-SUPPRESS_CONSECUTIVE_INERT = 8
+# 基因抑制阈值（来自 config，统一调整；批次 B 收敛魔法数）
+SUPPRESS_MIN_ATTEMPTS = config.EVOLUTION_SUPPRESS_MIN_ATTEMPTS
+SUPPRESS_MAX_SUCCESS_RATE = config.EVOLUTION_SUPPRESS_MAX_SUCCESS_RATE
+SUPPRESS_CONSECUTIVE_INERT = config.EVOLUTION_SUPPRESS_CONSECUTIVE_INERT
 
 # 失败原因分类（借鉴 SkillClaw 的三类问题区分）
 REASON_GENE = "gene_deficiency"   # 基因本身不足 → 触发蒸馏
@@ -45,13 +46,18 @@ def suppress_gene(gene_id):
     total = gene.get("success_count", 0) + gene.get("failure_count", 0)
     success_rate = (gene.get("success_count", 0) + 1) / (total + 2) if total > 0 else 0.5
 
+    # 低成功率分支的样本门槛（调用时读 config，便于测试覆盖）
+    min_n = max(SUPPRESS_MIN_ATTEMPTS, config.EVOLUTION_MIN_SAMPLES)
+
     should_suppress = False
     reason = ""
 
-    if total >= SUPPRESS_MIN_ATTEMPTS and success_rate <= SUPPRESS_MAX_SUCCESS_RATE:
+    # 低成功率抑制：需足够样本（小样本误判代价高）
+    if total >= min_n and success_rate <= SUPPRESS_MAX_SUCCESS_RATE:
         should_suppress = True
         reason = f"low_success_rate: {total} attempts, rate={success_rate:.2f}"
 
+    # 连续无效抑制：这本身就是"用它 N 次都没被采纳"的直接证据，不再叠加总样本门槛
     if gene.get("consecutive_inert", 0) >= SUPPRESS_CONSECUTIVE_INERT:
         should_suppress = True
         reason = f"consecutive_inert: {gene['consecutive_inert']}"

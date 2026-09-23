@@ -146,6 +146,13 @@ class TestCopyTeamPipeline(_NoKeyAI, _TempDB):
 class TestLiveTeamWithMock(_TempDB):
     """有 API Key 时的真实竞争融合 / 协作流水线（mock chat，不依赖真实大模型）"""
 
+    def setUp(self):
+        super().setUp()
+        # 采纳归因/经验累计属进化层（默认关闭），本测试要验证采纳统计 → 显式开启
+        self._evo_env = mock.patch.dict("os.environ", {"SHOP_ENABLE_EVOLUTION": "1"})
+        self._evo_env.start()
+        self.addCleanup(self._evo_env.stop)
+
     def _result(self):
         return storelib.calc_store_model(
             daily_revenue=300, rent=6000, salary=8000,
@@ -230,6 +237,10 @@ class TestGeneInjection(_TempDB):
 
     def setUp(self):
         super().setUp()
+        # 进化层默认关闭（批次 B）；本测试验证"基因注入"，需显式开启
+        self._evo_env = mock.patch.dict("os.environ", {"SHOP_ENABLE_EVOLUTION": "1"})
+        self._evo_env.start()
+        self.addCleanup(self._evo_env.stop)
         import team_evolution
         team_evolution.seed_initial_genes()
 

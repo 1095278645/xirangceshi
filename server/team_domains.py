@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import ai
+import config
 import team
 import evolution
 import evolution_trajectory
@@ -172,7 +173,7 @@ def _run_fast(domain: str, task: str, system: str, temperature: float = 0.5,
     cfg = TEAM_DOMAINS[domain]
     evo_cfg = cfg.get("evolution", {})
     gene_id = None
-    if evo_cfg.get("enabled") and ai.ai_available():
+    if config.evolution_enabled() and evo_cfg.get("enabled") and ai.ai_available():
         review = evolution.review_injection(domain)
         if review:
             system += f"\n{review}"
@@ -225,7 +226,7 @@ def _run_team(domain: str, task: str, prev: str = "",
 
     # 进化层：任务前回顾 + 基因选择（启用且 AI 可用时）
     gene_id = None
-    if evo_cfg.get("enabled") and ai.ai_available():
+    if config.evolution_enabled() and evo_cfg.get("enabled") and ai.ai_available():
         review = evolution.review_injection(domain)
         if review:
             sys_suffix = (sys_suffix or "") + "\n" + review
@@ -268,7 +269,7 @@ def _run_team(domain: str, task: str, prev: str = "",
     # 掌柜裁决融合
     judge = _decide(judge_desc, cands, team.adoption_brief(domain), prev, fail=fail,
                     variants=variants)
-    if judge["adopted"]:
+    if judge["adopted"] and config.evolution_enabled():
         team.record_adoption(domain, judge["adopted"])
     process = {
         "mode": "collaborative" if reviewer else "competitive",

@@ -24,7 +24,7 @@ class TestAPIProfile(unittest.TestCase):
         paths = _paths("core")
         for path in ("/api/orders", "/api/customers", "/api/insights",
                      "/api/store/model", "/api/collect/create",
-                     "/api/backup/list", "/api/shops", "/api/genes"):
+                     "/api/backup/list", "/api/shops", "/api/evolution/summary"):
             self.assertIn(path, paths)
 
     def test_core_profile_hides_advanced_domains(self):
@@ -37,9 +37,9 @@ class TestAPIProfile(unittest.TestCase):
     def test_profile_counts(self):
         core = sum(len(router.routes) for router in registry.get_routers("core"))
         full = sum(len(router.routes) for router in registry.get_routers("full"))
-        # 撤掉旧端点后（批次 A/C）的基线：数量只应下降，不应回涨
-        self.assertEqual(core, 82)
-        self.assertEqual(full, 130)
+        # 撤掉旧端点 + 进化端点收敛（批次 A/C/B）后的基线：数量只应下降
+        self.assertEqual(core, 73)
+        self.assertEqual(full, 121)
 
     def test_invalid_profile_rejected(self):
         with self.assertRaises(ValueError):

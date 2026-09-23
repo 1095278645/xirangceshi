@@ -231,7 +231,15 @@ def latest_review_feedback(limit: int = 3) -> str:
 
 def evolution_daily_check():
     """每日进化检查：经验晋升 / 基因抑制 / 技能蒸馏。
-    纯本地算法，不依赖 AI API。返回检查结果摘要。"""
+    纯本地算法，不依赖 AI API。返回检查结果摘要。
+
+    批次 B 起默认关闭（`config.evolution_enabled()`）：演示/小样本下进化既不收敛
+    也无法验证，关闭可避免"看起来有、其实在空转"。
+    """
+    import config
+    if not config.evolution_enabled():
+        return {"enabled": False, "promoted": [], "suppressed": [], "distilled": []}
+
     import team_domains
     import team_evolution
     import evolution

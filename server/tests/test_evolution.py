@@ -14,6 +14,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import ai
+import config
 import db
 import team
 import team_domains
@@ -39,6 +40,14 @@ class _TempDB(unittest.TestCase):
 
     def setUp(self):
         super().setUp()
+        # 进化层默认关闭（批次 B）；本模块测的是进化能力本身，故显式开启
+        self._evo_env = mock.patch.dict("os.environ", {"SHOP_ENABLE_EVOLUTION": "1"})
+        self._evo_env.start()
+        self.addCleanup(self._evo_env.stop)
+        # 测试用少量样本验证机制 → 把"最小样本量"降到 1（生产默认 20）
+        self._evo_min = mock.patch.object(config, "EVOLUTION_MIN_SAMPLES", 1)
+        self._evo_min.start()
+        self.addCleanup(self._evo_min.stop)
         # 每个测试清空进化表，避免互相干扰
         with db.get_conn() as conn:
             for t in ("agent_events", "agent_capsules", "agent_genes",
@@ -634,6 +643,29 @@ class TestTrajectory(_TempDB):
         et.record_trajectory(domain="store", task="t2", employees=[])
         self.assertEqual(len(et.get_trajectories("copy")), 1)
         self.assertEqual(len(et.get_trajectories("store")), 1)
+
+
+class TestEvolutionGate(_TempDB):
+    """批次 B：进化层默认关闭（避免"看起来有、其实空转"）。"""
+
+    def test_daily_check_disabled_when_off(self):
+        with mock.patch.dict("os.environ", {"SHOP_ENABLE_EVOLUTION": "0"}):
+            r = heartbeat.evolution_daily_check()
+        self.assertFalse(r.get("enabled"))
+        self.assertEqual(r["promoted"], [])
+        self.assertEqual(r["suppressed"], [])
+        self.assertEqual(r["distilled"], [])
+
+    def test_small_sample_blocks_suppression(self):
+        """最小样本量保护：样本不足时不得抑制基因。"""
+        import db_evolution as dbe
+        import evolution_lifecycle as el
+        dbe.save_gene("g_small", "copy", ["开业"], system_prompt_addon="x")
+        # 失败 3 次（低于 最小样本量 20），成功率 0 → 期望"不抑制"
+        for _ in range(3):
+            dbe.update_gene_stats("g_small", failure=True)
+        self.assertFalse(el.suppress_gene("g_small"))
+        self.assertEqual(dbe.get_gene("g_small")["status"], "active")
 
 
 if __name__ == "__main__":

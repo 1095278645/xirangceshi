@@ -1,71 +1,30 @@
-"""自适应进化层路由：经验日志 / 基因库 / 胶囊 / 事件 / 进化检查"""
+"""自适应进化层：**只保留一个只读摘要端点**（批次 B 收敛）
+
+为什么收敛：进化能力的输入信号（真值反馈）在实际运行中只接了一半，10 个端点
+里 9 个没有任何前端消费者。"看不见、也转不动"的写接口留着只会让人误会它在工作。
+现在把它定性为**内部离线机制**：编排仍由 `heartbeat.evolution_daily_check()` 驱动
+（默认关闭，见 `config.evolution_enabled()`），对外只暴露一个只读摘要，供看板/排查。
+"""
 from fastapi import APIRouter
 
-import heartbeat
+import config
+import team_domains
 import team_evolution
-import db_evolution as dbe
-from schemas import LearningIn, OutcomeIn, GeneIn
 
 router = APIRouter(prefix="/api", tags=["evolution"])
 
-@router.post("/learning")
-def learning_record(data: LearningIn):
-    lid = dbe.record_learning(
-        domain=data.domain, trigger_type=data.trigger_type,
-        pattern_key=data.pattern_key or None, source=data.source,
-        details=data.details, metadata=data.metadata)
-    return {"learning_id": lid}
 
-@router.get("/learnings")
-def learning_list(domain: str = "", status: str = "", limit: int = 100):
-    return {"items": dbe.get_learnings(domain or None, status or None, limit)}
+@router.get("/evolution/summary")
+def evolution_summary(domain: str = ""):
+    """只读：进化层状态摘要（默认汇总全部已注册域）。
 
-@router.post("/outcome")
-def outcome_record(data: OutcomeIn):
-    cap_id = team_evolution.record_outcome(
-        domain=data.domain, gene_id=data.gene_id, content=data.content,
-        user_adopted=data.user_adopted, user_edited=data.user_edited,
-        edit_diff=data.edit_diff or None, task_context=data.task_context)
-    # 经验采集：用户采纳前做了修改 → 记一条"需改进"的经验模式（去重累加复现次数）
-    if data.user_edited:
-        dbe.record_learning(
-            data.domain, "user_edited", f"{data.domain}.user-edited",
-            source="frontend", details="用户对AI产出做了修改后采纳/放弃",
-            metadata={"distinct_tasks": [str(data.task_context or "")]})
-    return {"capsule_id": cap_id}
-
-@router.get("/genes")
-def gene_list(domain: str = ""):
-    return {"items": dbe.get_all_genes(domain) if domain else []}
-
-@router.post("/genes")
-def gene_save(data: GeneIn):
-    result = dbe.save_gene(
-        gene_id=data.gene_id, domain=data.domain,
-        trigger_signals=data.trigger_signals,
-        system_prompt_addon=data.system_prompt_addon,
-        strategy_steps=data.strategy_steps,
-        category=data.category, is_distilled=data.is_distilled)
-    dbe.log_event("gene_created", gene_id=data.gene_id, domain=data.domain,
-                  details="manual gene creation")
-    return result
-
-@router.get("/capsules")
-def capsule_list(domain: str = "", limit: int = 20):
-    return {"items": dbe.get_recent_capsules(domain, limit) if domain else []}
-
-@router.get("/events")
-def event_list(domain: str = "", event_type: str = "", limit: int = 50):
-    return {"items": dbe.get_events(domain or None, event_type or None, limit)}
-
-@router.get("/evolution/{domain}")
-def evolution_summary(domain: str):
-    return team_evolution.get_evolution_summary(domain)
-
-@router.post("/evolution/seed")
-def evolution_seed():
-    return {"seeded": team_evolution.seed_initial_genes()}
-
-@router.post("/evolution/check")
-def evolution_check():
-    return {"ok": True, "results": heartbeat.evolution_daily_check()}
+    同时返回是否启用，避免"端点有数据 ≠ 进化在跑"的误解。
+    """
+    if domain:
+        return {"enabled": config.evolution_enabled(), "domain": domain,
+                "summary": team_evolution.get_evolution_summary(domain)}
+    return {
+        "enabled": config.evolution_enabled(),
+        "domains": {d: team_evolution.get_evolution_summary(d)
+                    for d in team_domains.list_team_domains()},
+    }

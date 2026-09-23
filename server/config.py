@@ -26,6 +26,45 @@ YEAR_MAX = 9999          # 期间解析可接受的年份上界
 HTTP_SUCCESS_MAX = 299   # HTTP 成功状态上限（≤ 视为成功，> 视为失败）
 HTTP_OK = 200            # 常规成功状态码
 
+# ---- 自适应进化层（批次 B：收敛为"内部离线机制"）----
+# 默认关闭：演示/小样本下，进化既不收敛也无法验证；接通真值并建立评测后再打开。
+# 打开方式：环境变量 SHOP_ENABLE_EVOLUTION=1，或 config.local.json 里 "enable_evolution": true
+ENABLE_EVOLUTION_DEFAULT = os.environ.get("SHOP_ENABLE_EVOLUTION", "0") not in ("0", "false", "False")
+# 最小样本量：低于此值时"只记录、不调权、不抑制"，避免小样本误判
+EVOLUTION_MIN_SAMPLES = int(os.environ.get("SHOP_EVOLUTION_MIN_SAMPLES", "20") or "20")
+# 技能蒸馏
+EVOLUTION_DISTILL_SUCCESS_COUNT = int(os.environ.get("SHOP_EVOLUTION_DISTILL_SUCCESS", "7") or "7")
+EVOLUTION_DISTILL_HOURS_GAP = int(os.environ.get("SHOP_EVOLUTION_DISTILL_HOURS", "24") or "24")
+# 经验晋升
+EVOLUTION_PROMOTE_RECURRENCE = int(os.environ.get("SHOP_EVOLUTION_PROMOTE_RECURRENCE", "3") or "3")
+EVOLUTION_PROMOTE_DISTINCT_TASKS = int(os.environ.get("SHOP_EVOLUTION_PROMOTE_TASKS", "2") or "2")
+EVOLUTION_PROMOTE_DAYS_WINDOW = int(os.environ.get("SHOP_EVOLUTION_PROMOTE_DAYS", "30") or "30")
+# 基因抑制
+EVOLUTION_SUPPRESS_MIN_ATTEMPTS = int(os.environ.get("SHOP_EVOLUTION_SUPPRESS_MIN", "4") or "4")
+EVOLUTION_SUPPRESS_MAX_SUCCESS_RATE = float(
+    os.environ.get("SHOP_EVOLUTION_SUPPRESS_RATE", "0.15") or "0.15")
+EVOLUTION_SUPPRESS_CONSECUTIVE_INERT = int(
+    os.environ.get("SHOP_EVOLUTION_SUPPRESS_INERT", "8") or "8")
+# 数据保留（防止 capsules/events/trajectories 无界增长）
+EVOLUTION_KEEP_DAYS = int(os.environ.get("SHOP_EVOLUTION_KEEP_DAYS", "90") or "90")
+EVOLUTION_KEEP_PER_DOMAIN = int(os.environ.get("SHOP_EVOLUTION_KEEP_ROWS", "500") or "500")
+
+
+def evolution_enabled() -> bool:
+    """是否启用进化层：环境变量 > config.local.json > 默认（关闭）。"""
+    env = os.environ.get("SHOP_ENABLE_EVOLUTION")
+    if env not in (None, ""):
+        return env not in ("0", "false", "False")
+    try:
+        if _LOCAL_CONFIG.exists():
+            with open(_LOCAL_CONFIG, encoding="utf-8") as f:
+                cfg = json.load(f)
+            if "enable_evolution" in cfg:
+                return bool(cfg.get("enable_evolution"))
+    except (json.JSONDecodeError, OSError):
+        pass
+    return ENABLE_EVOLUTION_DEFAULT
+
 
 def load_settings() -> dict:
     """读取 AI 配置：环境变量 > config.local.json > 默认值。
