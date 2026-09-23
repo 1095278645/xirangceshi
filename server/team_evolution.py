@@ -9,7 +9,6 @@ import json
 import os
 
 import db_evolution as dbe
-import evolution
 
 __all__ = ["seed_initial_genes", "record_outcome", "get_evolution_summary",
            "update_insight_index", "extract_common_signals", "extract_content_pattern"]
@@ -58,6 +57,7 @@ def record_outcome(domain, gene_id, content, user_adopted=False,
                    user_edited=False, edit_diff=None, task_context=None):
     """记录用户行为结果（采纳/修改/跳过）→ Capsule + Event + 基因统计更新。
     对接前端：用户选了一条变体 → user_adopted=True；修改了 → user_edited=True。"""
+    import evolution   # 延迟导入：evolution 顶层依赖本模块，避免顶部形成导入环
     return evolution.record_outcome(
         domain=domain, gene_id=gene_id, content=content,
         user_adopted=user_adopted, user_edited=user_edited,
@@ -67,6 +67,7 @@ def record_outcome(domain, gene_id, content, user_adopted=False,
 
 def get_evolution_summary(domain):
     """获取某域的进化状态摘要（供 API / 前端展示）"""
+    import evolution   # 延迟导入（见 record_outcome 说明）
     genes = dbe.get_all_genes(domain)
     active = [g for g in genes if g.get("status") == "active"]
     suppressed = [g for g in genes if g.get("status") == "suppressed"]
