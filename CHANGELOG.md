@@ -2,6 +2,27 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [1.1.2] - 2026-09-22
+
+自适应进化层收敛（批次 B）：定性为**内部离线机制**，默认关闭、端点数 10→1、阈值入配置、加入最小样本量与数据保留。
+
+### 变更
+- **进化层默认关闭**（`config.evolution_enabled()`）：`SHOP_ENABLE_EVOLUTION=1` 或
+  `config.local.json` 的 `enable_evolution` 开启。心跳的每日进化检查、生成时的基因注入与
+  采纳归因均受此开关控制。
+- **端点收敛 10 → 1**：仅保留只读 `GET /api/evolution/summary`；撤出
+  `/api/learning(s)`、`/api/outcome`、`/api/genes`(写)、`/api/capsules`、`/api/events`、
+  `/api/evolution/seed|check`。网页端 `copy.js` 中已失效的采纳上报一并移除。
+- **阈值入 config**：`EVOLUTION_DISTILL_*`、`EVOLUTION_PROMOTE_*`、`EVOLUTION_SUPPRESS_*`。
+- **最小样本量保护**：低成功率抑制与技能蒸馏在样本不足时"只记录、不调权"（默认 20，可配）。
+- **数据保留**：新增 `prune_evolution_data()`，按"90 天 + 每域 500 条"清理
+  胶囊/事件/轨迹，由主进程备份循环定期调用。
+- **可观测**：进化状态并入既有 `GET /api/metrics/ai` 的 `evolution` 分块（不新增端点）。
+
+### 测试
+- 新增 `TestEvolutionGate`（默认关闭；小样本不抑制）；`test_evolution` / `test_team`
+  中涉及进化的用例显式开启该能力并覆盖最小样本量。
+
 ## [1.1.1] - 2026-09-22
 
 架构收敛（原则：**只减不加**）：撤旧入口、内部端点不出网、断依赖环、阈值归位、拆分超长文件。
