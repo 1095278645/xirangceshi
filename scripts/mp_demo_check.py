@@ -29,14 +29,21 @@ def check_contract() -> None:
     print("1. 小程序调用的接口 × 后端 OpenAPI 契约")
     print("=" * 72)
 
-    import main  # noqa: E402  需要 server 在 sys.path 上
+    import main  # noqa: E402  需要 server 在 sys.path 上（确保依赖可导入）
 
+    # 契约以「完整业务域」为准：小程序覆盖所有域，而运行时可能按 api_profile=core
+    # 做减法挂载（只挂 12 个域），若按运行时 openapi 核对会把高级域误报为"接口缺失"。
+    from routers import registry  # noqa: E402
     backend: dict[str, set[str]] = {}
-    for path, ops in main.app.openapi().get("paths", {}).items():
-        for m in ops:
-            if m.upper() in ("HEAD", "OPTIONS"):
+    for r in registry.get_routers("full"):
+        for route in r.routes:
+            path = getattr(route, "path", None)
+            if not path:
                 continue
-            backend.setdefault(m.upper(), set()).add(path)
+            for m in (getattr(route, "methods", None) or set()):
+                if m.upper() in ("HEAD", "OPTIONS"):
+                    continue
+                backend.setdefault(m.upper(), set()).add(path)
 
     src = (MP / "utils" / "api.js").read_text(encoding="utf-8")
     calls: list[tuple[str, str]] = []

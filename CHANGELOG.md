@@ -2,6 +2,30 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [1.1.1] - 2026-09-22
+
+架构收敛（原则：**只减不加**）：撤旧入口、内部端点不出网、断依赖环、阈值归位、拆分超长文件。
+
+### 移除（旧入口，已被统一洞察入口取代）
+- `POST /api/copy` → 改用 `POST /api/insights`（`scene=copy`）
+- `POST /api/orders/insights` → `scene=monthly`
+- `POST /api/store/diagnosis` → `scene=store`
+- `POST /api/customers/{cid}/insight` → `scene=customer`
+- `POST /api/tax/advice` → `scene=tax`
+- 内部编排端点不再出网：`/api/context`、`/api/context/{domain}`、`/api/jobs`、`/api/queue`
+  （`/api/store/profile`、`/api/profiles`、`/api/profile/{id}` 仍保留：两个前端都在用）
+
+### 变更
+- 依赖环：顶层 import 环 **1 → 0**（`evolution ↔ evolution_growth ↔ team_evolution` 中的
+  `team_evolution → evolution` 改为函数内延迟导入）。
+- 阈值归位 `config.py`：`YEAR_MIN/YEAR_MAX`、`HTTP_SUCCESS_MAX`、`HTTP_OK`（架构自检 L8 通过）。
+- `db.py`（439 行）的建表 DDL 外移到 `db_schema.init_schema()`，`db.py` 只做连接与聚合导出。
+- `scripts/mp_demo_check.py` 改为按**完整业务域契约**核对（避免 `api_profile=core` 时把高级域误报为缺失）。
+- `scripts/prewarm_cache.py`、`docs/demo-guide.md`、`README.md` 同步为统一洞察入口。
+
+### 移除（测试）
+- `tests/test_insights_cache.py`：其覆盖的旧端点已下线，缓存语义由 `tests/test_unified_insights.py` 覆盖。
+
 ## [1.1.0] - 2026-09-22
 
 从"功能可用"走向"可度量、可解释、可开放、可传播"。
