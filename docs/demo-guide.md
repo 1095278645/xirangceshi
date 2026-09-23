@@ -43,12 +43,17 @@ New-NetFirewallRule -DisplayName "AI掌柜演示" -Direction Inbound -LocalPort 
 
 **Key 配在后端，手机不需要配任何模型地址**——手机只连你电脑的后端，由后端去调模型。
 
+> ⚠️ **同时请把「API 能力档」切到「完整」（full）**：默认是「核心（core）」，
+> 只挂载 12 个域，`/api/products`、`/api/invoices`、`/api/accounting/*`、`/api/notify/*` 等
+> **不会挂载**，小程序的高级页面会 404。网页端与小程序端的「设置」页都有这个下拉框，
+> 选「完整」后保存即可；也可直接写进 `config.local.json`：`"api_profile": "full"`。
+
 最省事的方式：后端启动后，**用电脑浏览器**打开 `http://127.0.0.1:8000`，
 进「设置」页填 Key 并保存。也可以直接写文件：
 
 ```json
 // server/config.local.json（已被 .gitignore 排除，不会误提交）
-{ "api_key": "sk-你的Key", "base_url": "https://api.deepseek.com", "model": "deepseek-flash" }
+{ "api_key": "sk-你的Key", "base_url": "https://api.deepseek.com", "model": "deepseek-flash", "api_profile": "full" }
 ```
 
 保存后**立即生效，不用重启后端**。
