@@ -196,7 +196,7 @@ def _send_webhook(target: str, title: str, content: str, event: str = "") -> dic
                            f"{e.read().decode('utf-8', 'ignore')[:200]}") from e
     except Exception as e:  # noqa: BLE001
         raise RuntimeError(f"webhook 请求失败：{e}") from e
-    if code >= 300:
+    if code > config.HTTP_SUCCESS_MAX:
         raise RuntimeError(f"webhook 返回 {code}: {text}")
     return {"ok": True, "channel": "webhook", "detail": {"status": code, "body": text}}
 

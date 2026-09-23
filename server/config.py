@@ -20,6 +20,12 @@ DEFAULT_LANGUAGE = os.environ.get("SHOP_LANGUAGE", "普通话")
 DEFAULT_AI_PIPELINE = os.environ.get("AI_PIPELINE", "fast")
 DEFAULT_API_PROFILE = os.environ.get("SHOP_API_PROFILE", "core")
 
+# ---- 业务阈值（从业务代码抽离，统一在此调整，避免散落魔法数）----
+YEAR_MIN = 1900          # 期间解析可接受的年份下界
+YEAR_MAX = 9999          # 期间解析可接受的年份上界
+HTTP_SUCCESS_MAX = 299   # HTTP 成功状态上限（≤ 视为成功，> 视为失败）
+HTTP_OK = 200            # 常规成功状态码
+
 
 def load_settings() -> dict:
     """读取 AI 配置：环境变量 > config.local.json > 默认值。

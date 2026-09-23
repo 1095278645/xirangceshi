@@ -117,6 +117,9 @@ def kill_tree(proc) -> None:
         proc.kill()
 
 
+HTTP_OK = 200   # 常规成功状态码（避免魔法数散落）
+
+
 def wait_health(proc, timeout=45) -> tuple[bool, str]:
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -124,7 +127,7 @@ def wait_health(proc, timeout=45) -> tuple[bool, str]:
             break
         try:
             with urllib.request.urlopen(BASE + "/api/health", timeout=2) as r:
-                if r.status == 200:
+                if r.status == HTTP_OK:
                     return True, ""
         except Exception:  # noqa: BLE001
             time.sleep(0.4)

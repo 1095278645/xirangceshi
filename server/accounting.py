@@ -32,6 +32,7 @@ from __future__ import annotations
 import logging
 from datetime import date
 
+import config
 from categories import ACCOUNT_CATEGORY_NAMES, ACCOUNT_NAMES, ACCOUNT_TITLES
 
 log = logging.getLogger("accounting")
@@ -77,7 +78,7 @@ def _period_bounds(period: str | None) -> tuple[str, str]:
     except (ValueError, TypeError):
         raise ValueError(
             f"会计期间格式不对：{period!r}，应为 'YYYY-MM'（如 2026-09）") from None
-    if not (1 <= m <= 12) or y < 1900 or y > 9999:
+    if not (1 <= m <= 12) or y < config.YEAR_MIN or y > config.YEAR_MAX:
         raise ValueError(f"会计期间超出范围：{period!r}")
     nxt = f"{y + 1:04d}-01" if m == 12 else f"{y:04d}-{m + 1:02d}"
     return f"{y:04d}-{m:02d}", nxt
