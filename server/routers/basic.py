@@ -1,13 +1,12 @@
-"""基础接口：健康检查 / AI 提供商与设置 / 文案生成"""
+"""基础接口：健康检查 / AI 提供商与设置 / 统一洞察入口"""
 from fastapi import APIRouter
 
 import ai
 import config
-import db
 from fastapi import HTTPException
 
 from insight_service import generate as generate_insight
-from schemas import CopyIn, SettingsIn, UnifiedInsightIn
+from schemas import SettingsIn, UnifiedInsightIn
 
 router = APIRouter(prefix="/api", tags=["basic"])
 
@@ -59,23 +58,6 @@ def update_settings(data: SettingsIn):
         "ai_pipeline": s.get("ai_pipeline", "fast"),
         "api_profile": s.get("api_profile", "core"),
     }
-
-
-@router.post("/copy")
-def copywriting(data: CopyIn):
-    # 从 domain_context 读取经营记忆，拼成上下文喂给 AI（无 AI 时填入模板）
-    context_parts = []
-    review = db.get_domain_context("ledger", "daily_review")
-    if review and review.get("value"):
-        context_parts.append(str(review["value"])[:200])
-    store_diag = db.get_domain_context("store", "diagnosis")
-    if store_diag and store_diag.get("value"):
-        context_parts.append(str(store_diag["value"])[:200])
-    context = " | ".join(context_parts) if context_parts else ""
-    text, process, variants = ai.generate_copy(data.shop_name, data.scene, data.extra,
-                                                data.customer_name, context, return_process=True)
-    return {"text": text, "team": process, "variants": variants,
-            "gene_id": (process or {}).get("gene_id")}
 
 
 @router.post("/insights")

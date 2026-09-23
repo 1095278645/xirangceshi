@@ -195,18 +195,19 @@ python ..\scripts\seed_demo_data.py                               # 灌入演示
 
 ### 8. 预热缓存（建议做，让现场秒出）
 
-账本页有两块 AI 内容会在页面操作时**自动请求**。它们现在都**按维度缓存**：
-第一次要几十秒，之后秒回。建议演示前先花一分钟把它们生成好。
+账本页有两块 AI 内容会在页面操作时**自动请求**。它们现在都走**统一入口
+`/api/insights`** 并按同日缓存：第一次要几十秒，之后秒回。建议演示前先花一分钟
+把它们生成好。
 
 ```powershell
 cd server
-# 经营洞察（按月缓存）
-curl.exe -s -X POST http://127.0.0.1:8000/api/orders/insights `
-  -H "Content-Type: application/json" -d "{\"year\":2026,\"month\":9,\"refresh\":true}" > $null
+# 经营洞察（scene=monthly）
+curl.exe -s -X POST http://127.0.0.1:8000/api/insights `
+  -H "Content-Type: application/json" -d "{\"scene\":\"monthly\",\"payload\":{\"year\":2026,\"month\":9},\"refresh\":true}" > $null
 
-# 报税建议（按销售额分 1000 元一档缓存，这里预热 350000 这一档）
-curl.exe -s -X POST http://127.0.0.1:8000/api/tax/advice `
-  -H "Content-Type: application/json" -d "{\"quarterly_revenue\":350000,\"refresh\":true}" > $null
+# 报税建议（scene=tax，这里预热季度销售额 350000）
+curl.exe -s -X POST http://127.0.0.1:8000/api/insights `
+  -H "Content-Type: application/json" -d "{\"scene\":\"tax\",\"payload\":{\"quarterly_revenue\":350000},\"refresh\":true}" > $null
 ```
 
 > 月份与销售额按你演示时要用的数字填。用 `refresh=true` 强制按当前演示数据

@@ -30,7 +30,7 @@ def _load_router(module: str) -> APIRouter:
 
 # ---------------- 业务域注册表（增删能力的唯一入口，与 team_domains 同风格） ----------------
 BUSINESS_DOMAINS = [
-    {"name": "arch",      "module": "arch",      "desc": "领域上下文 / 任务队列 / 单店档案 / 心跳复盘", "enabled": True},
+    {"name": "arch",      "module": "arch",      "desc": "心跳复盘（掌柜每日复盘；其余内部编排不再出网）", "enabled": True},
     {"name": "basic",     "module": "basic",     "desc": "健康检查 / AI 设置 / 文案生成",                 "enabled": True},
     {"name": "metrics",   "module": "metrics",   "desc": "运行指标（AI 成本 / 性能看板）",                 "enabled": True},
     {"name": "orders",    "module": "orders",    "desc": "记账 / 流水 / 凭证",                           "enabled": True},

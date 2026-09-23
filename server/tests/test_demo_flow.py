@@ -142,8 +142,12 @@ class TestDemoFlow(unittest.TestCase):
     # ---------------- 第 3 站 ----------------
     def test_station3_copy(self):
         with self._client() as c:
-            r = c.post("/api/copy", json={"shop_name": "巷子里的早餐铺",
-                                          "scene": "今日营业", "extra": ""})
+            # 统一洞察入口（旧 /api/copy 已下线）
+            r = c.post("/api/insights", json={
+                "scene": "copy",
+                "payload": {"shop_name": "巷子里的早餐铺",
+                            "scene": "今日营业", "extra": ""},
+            })
             self.assertEqual(r.status_code, 200)
             j = r.json()
             self.assertTrue(j.get("text"))

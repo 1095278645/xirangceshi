@@ -1,7 +1,6 @@
 """单店经营模型（勇哥方法论泛化：保本线先行）"""
 from fastapi import APIRouter
 
-import ai
 import benchmark
 import db
 import store as storelib
@@ -65,26 +64,3 @@ def store_benchmark(biz_type: str = "餐饮", year: int | None = None, month: in
     out = benchmark.compare(biz_type, stats, avg_ticket)
     out["period"] = stats["period"]
     return out
-
-
-@router.post("/store/diagnosis")
-def store_diagnosis(data: StoreModelIn):
-    """AI 经营诊断：跑单店模型 → 读取上次诊断(domain_context) → AI 生成 → 落盘"""
-    model_result = storelib.calc_store_model(
-        daily_revenue=data.daily_revenue,
-        gross_margin=data.gross_margin,
-        rent=data.rent,
-        salary=data.salary,
-        utilities=data.utilities,
-        total_investment=data.total_investment,
-        cash_on_hand=data.cash_on_hand,
-        traffic=data.traffic,
-        competitor=data.competitor,
-        biz_type=data.biz_type,
-    )
-    prev = db.get_domain_context("store", "diagnosis")
-    prev_text = prev["value"] if prev else ""
-    text, process = ai.generate_store_diagnosis(model_result, prev_text, return_process=True)
-    db.set_domain_context("store", "diagnosis", text)
-    return {"diagnosis": text, "model": model_result, "ai_used": ai.ai_available(),
-            "team": process}

@@ -1,8 +1,8 @@
 """预热演示缓存：让经营洞察与报税建议在现场秒出。
 
-做两件事（都走真实接口，会真调 AI，共约 30~90 秒）：
-  1. 经营洞察 —— 按月份缓存（账本页一打开就请求它）
-  2. 报税建议 —— 按销售额分 1000 元一档缓存（点「算增值税」后请求）
+做两件事（都走**统一洞察入口** `/api/insights`，会真调 AI，共约 30~90 秒）：
+  1. 经营洞察 —— scene=monthly（账本页一打开就请求它）
+  2. 报税建议 —— scene=tax（点「算增值税」后请求）
 
 用法：
     cd server
@@ -43,8 +43,9 @@ def main():
     print(f"[1/2] 经营洞察 {today.year}-{today.month:02d} …")
     t0 = time.time()
     try:
-        r = post("/api/orders/insights", {"year": today.year, "month": today.month,
-                                          "refresh": True})
+        r = post("/api/insights", {"scene": "monthly",
+                                   "payload": {"year": today.year, "month": today.month},
+                                   "refresh": True})
         dt = time.time() - t0
         text = str(r.get("insights", ""))
         print(f"      ✅ 生成完成 {dt:.1f}s  cached={r.get('cached')}  {len(text)} 字")
@@ -63,7 +64,9 @@ def main():
         print(f"[2/2] 报税建议 季度销售额 {rev:,} …")
         t0 = time.time()
         try:
-            r = post("/api/tax/advice", {"quarterly_revenue": rev, "refresh": True})
+            r = post("/api/insights", {"scene": "tax",
+                                       "payload": {"quarterly_revenue": rev},
+                                       "refresh": True})
             dt = time.time() - t0
             text = str(r.get("advice", ""))
             print(f"      ✅ 生成完成 {dt:.1f}s  cached={r.get('cached')}  {len(text)} 字")

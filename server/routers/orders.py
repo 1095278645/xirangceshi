@@ -8,7 +8,7 @@ import db
 import notifications
 import tax as taxcalc
 from categories import is_known_category, normalize_category
-from schemas import (InsightIn, OrderIn, RefundIn, TransactionEditIn, VoidIn)
+from schemas import (OrderIn, RefundIn, TransactionEditIn, VoidIn)
 
 log = logging.getLogger("orders")
 router = APIRouter(prefix="/api", tags=["orders"])
@@ -377,57 +377,3 @@ def transaction_refund(tid: int, data: RefundIn | None = None):
 def audits(limit: int = Query(default=100, ge=1, le=500)):
     """最近的更正历史（谁在什么时候改了什么）。"""
     return {"audits": db.list_transaction_audits(limit=limit)}
-
-def _insight_cache_key(period: str) -> str:
-    """按月份分键缓存。原实现用固定的 monthly_insights 键，
-    导致切换月份时会命中上个月的分析内容。"""
-    return f"monthly_insights:{period}"
-
-
-def _gen_insights(year, month):
-    """调用 AI 生成并落盘（只在需要重新生成时执行）。"""
-    monthly = db.monthly_summary(year, month)
-    # 传实际营业天数：否则模型会按 30 天折算日均，与单店模型的
-    # 「实际日销」（收入÷营业天数）口径不一致，同一场演示里自相矛盾。
-    try:
-        days = db.store_ledger_stats(year, month).get("active_days")
-    except Exception:  # noqa: BLE001
-        days = None
-    prev = db.get_domain_context("ledger", _insight_cache_key(monthly["period"]))
-    text = ai.generate_insights(monthly, prev["value"] if prev else "", days)
-    db.set_domain_context("ledger", _insight_cache_key(monthly["period"]), text)
-    return {"insights": text, "monthly": monthly, "ai_used": ai.ai_available(),
-            "cached": False}
-
-
-@router.post("/orders/insights")
-def order_insights(data: InsightIn):
-    """AI 经营洞察（按月缓存）。
-
-    默认命中缓存直接返回，避免每次进账本页 / 切标签都触发一次 20~30 秒的
-    AI 调用（账本页默认标签就是流水，加载完会自动请求洞察）。传 refresh=true
-    才强制重新生成。
-    """
-    monthly = db.monthly_summary(data.year, data.month)
-    period = monthly["period"]
-    cache_key = _insight_cache_key(period)
-
-    if not data.refresh:
-        hit = db.get_domain_context("ledger", cache_key)
-        text = hit["value"] if hit else ""
-        # 旧版固定键的缓存：仅当它就是本月数据时才复用，避免张冠李戴
-        if not text:
-            legacy = db.get_domain_context("ledger", "monthly_insights")
-            if legacy and (legacy.get("value") or "").startswith(period):
-                text = legacy["value"]
-        if text:
-            return {"insights": text, "monthly": monthly,
-                    "ai_used": ai.ai_available(), "cached": True,
-                    "updated_at": (hit or {}).get("updated_at", "")}
-
-    if not ai.ai_available():
-        # 无 Key：走降级模板，不产生"缓存"概念上的困扰（内容每次一致）
-        text = ai.generate_insights(monthly, "")
-        return {"insights": text, "monthly": monthly, "ai_used": False, "cached": False}
-
-    return _gen_insights(data.year, data.month)
