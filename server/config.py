@@ -48,6 +48,13 @@ EVOLUTION_SUPPRESS_CONSECUTIVE_INERT = int(
 # 数据保留（防止 capsules/events/trajectories 无界增长）
 EVOLUTION_KEEP_DAYS = int(os.environ.get("SHOP_EVOLUTION_KEEP_DAYS", "90") or "90")
 EVOLUTION_KEEP_PER_DOMAIN = int(os.environ.get("SHOP_EVOLUTION_KEEP_ROWS", "500") or "500")
+# 验证门（批次 B+：候选基因必须"过门"才能转正）
+EVOLUTION_VERIFY_MIN_ADOPTED = int(os.environ.get("SHOP_EVOLUTION_VERIFY_ADOPTED", "3") or "3")
+EVOLUTION_VERIFY_MIN_TASKS = int(os.environ.get("SHOP_EVOLUTION_VERIFY_TASKS", "2") or "2")
+# 可选外部基准命令（如 `python scripts/eval_ai_parse.py --compare`）；为空则只用证据门。
+# 对应 DGM/Hermes 的 "benchmark gate"：退出码 0 才算通过。
+EVOLUTION_VERIFY_CMD = os.environ.get("SHOP_EVOLUTION_VERIFY_CMD", "")
+EVOLUTION_VERIFY_TIMEOUT = int(os.environ.get("SHOP_EVOLUTION_VERIFY_TIMEOUT", "300") or "300")
 
 
 def evolution_enabled() -> bool:

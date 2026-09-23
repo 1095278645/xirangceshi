@@ -118,14 +118,17 @@ def distill_skill(domain):
         confidence=0.5 * DISTILL_SCORE_MULTIPLIER,
         success_count=0,
         failure_count=0,
-        status="active",
+        # 批次 B+：蒸馏产物先进"候选池"，必须过验证门（或人工确认）才转 active。
+        # 对应业界做法：DGM 的"改动必须实证验证"、Hermes 的"约束门禁"。
+        status="candidate",
         category="reinforce",
         is_distilled=1,
     )
 
     dbe.log_event("gene_distilled", gene_id=gene_id, domain=domain,
                   details=(f"distilled from {success_count}/{len(recent)} capsules"
-                           f" (env={env_failures} excluded, source={source_gene['gene_id'] if source_gene else '-'})"))
+                           f" (env={env_failures} excluded, source={source_gene['gene_id'] if source_gene else '-'})"
+                           f"；status=candidate（待验证，见 verify_candidate）"))
 
     te.update_insight_index(domain)
     set_domain_context(domain, "last_distill_time",
@@ -204,3 +207,135 @@ def review_injection(domain):
 
     return ("【历史经验提醒】以下是该域近期出现的问题模式，请避免：\n"
             + "\n".join(lines))
+
+
+# ---------------- 候选池 + 验证门 + 人工确认 + 归档（批次 B+） ----------------
+#
+# 业界共识（见 deliverables/GitHub自进化项目学习报告.md）：
+#   变了要能验证、改了要能审计、升级要能回退。
+# 因此蒸馏/晋升产物一律先进 candidate；只有"过门"（证据门 + 可选外部基准门）
+# 或人工 confirm 才转 active；被否决的进 archived（保留可查，不删除）。
+
+import json as _json
+import subprocess as _subprocess
+
+
+def _adoption_evidence(domain: str) -> dict:
+    """从近期胶囊提取证据：采纳次数 + 覆盖的不同任务数。
+
+    注意：只认 **user_adopted**（真实信号）。模型裁决计数不算证据 —— 否则就是我们
+    在报告里批评过的"模型自证环路"。
+    """
+    capsules = dbe.get_recent_capsules(domain, limit=200) or []
+    adopted = [c for c in capsules if c.get("user_adopted")]
+    tasks = set()
+    for c in adopted:
+        raw = c.get("task_context")
+        if not raw:
+            continue
+        try:
+            ctx = _json.loads(raw) if isinstance(raw, str) else raw
+        except (ValueError, TypeError):
+            continue
+        key = str(ctx)[:120] if not isinstance(ctx, dict) else str(
+            sorted(ctx.items()))[:120]
+        if key:
+            tasks.add(key)
+    return {"captures": len(capsules), "adopted": len(adopted),
+            "distinct_tasks": len(tasks)}
+
+
+def _run_external_benchmark() -> dict:
+    """可选外部基准门：执行 config.EVOLUTION_VERIFY_CMD，退出码 0 才算通过。"""
+    cmd = (config.EVOLUTION_VERIFY_CMD or "").strip()
+    if not cmd:
+        return {"configured": False, "passed": True}
+    try:
+        proc = _subprocess.run(cmd, shell=True, capture_output=True,
+                               timeout=config.EVOLUTION_VERIFY_TIMEOUT)
+        tail = (proc.stdout or b"").decode("utf-8", "ignore")[-400:]
+        return {"configured": True, "passed": proc.returncode == 0,
+                "returncode": proc.returncode, "tail": tail}
+    except Exception as e:  # noqa: BLE001
+        return {"configured": True, "passed": False, "error": str(e)}
+
+
+def list_candidates(domain: str = "") -> list:
+    """列出候选基因（status=candidate）。未传域时遍历所有已注册域。"""
+    domains = [domain] if domain else list(_team_domains().list_team_domains())
+    out = []
+    for d in domains:
+        out.extend(g for g in dbe.get_all_genes(d) if g.get("status") == "candidate")
+    return out
+
+
+def _team_domains():
+    """延迟导入 team_domains（避免与其形成顶层导入环）。"""
+    import team_domains
+    return team_domains
+
+
+def verify_candidate(gene_id: str, domain: str = "") -> dict:
+    """验证门：候选基因是否够格转正。
+
+    - 证据门：该域**真实采纳**次数 ≥ EVOLUTION_VERIFY_MIN_ADOPTED 且覆盖任务 ≥ MIN_TASKS；
+    - 基准门（可选）：若配置了 EVOLUTION_VERIFY_CMD，需其退出码为 0；
+    通过 → status=active（+ 审计事件）；不通过 → 保持 candidate（+ 审计事件）。
+    """
+    gene = dbe.get_gene(gene_id)
+    if not gene:
+        return {"ok": False, "error": "基因不存在"}
+    if gene.get("status") != "candidate":
+        return {"ok": False, "error": f"仅候选基因可验证（当前 {gene.get('status')}）"}
+    dom = domain or gene.get("domain") or ""
+    ev = _adoption_evidence(dom)
+    gate_ok = (ev["adopted"] >= config.EVOLUTION_VERIFY_MIN_ADOPTED
+               and ev["distinct_tasks"] >= config.EVOLUTION_VERIFY_MIN_TASKS)
+    bench = _run_external_benchmark()
+    ok = gate_ok and bench.get("passed", True)
+
+    if ok:
+        dbe.set_gene_status(gene_id, "active")
+        dbe.log_event("gene_validated", gene_id=gene_id, domain=dom,
+                      details=(f"证据：adopted={ev['adopted']}/任务={ev['distinct_tasks']}；"
+                               f"基准={'通过' if bench.get('configured') else '未配置'}"))
+    else:
+        dbe.log_event("gene_validation_failed", gene_id=gene_id, domain=dom,
+                      details=(f"证据：adopted={ev['adopted']}/任务={ev['distinct_tasks']}；"
+                               f"需 adopted≥{config.EVOLUTION_VERIFY_MIN_ADOPTED} 且 任务≥"
+                               f"{config.EVOLUTION_VERIFY_MIN_TASKS}；基准={bench}"))
+    return {"ok": ok, "gene_id": gene_id, "evidence": ev, "benchmark": bench,
+            "gate": {"min_adopted": config.EVOLUTION_VERIFY_MIN_ADOPTED,
+                     "min_tasks": config.EVOLUTION_VERIFY_MIN_TASKS}}
+
+
+def approve_candidate(gene_id: str, confirm: bool = False) -> dict:
+    """人工确认转正：必须 confirm=True（与项目其它危险操作一致，防误触）。"""
+    gene = dbe.get_gene(gene_id)
+    if not gene:
+        return {"ok": False, "error": "基因不存在"}
+    if not confirm:
+        return {"ok": False, "error": "转正需 confirm=true"}
+    dbe.set_gene_status(gene_id, "active")
+    dbe.log_event("gene_approved", gene_id=gene_id, domain=gene.get("domain"),
+                  details="人工确认转正（跳过自动验证门）")
+    return {"ok": True, "gene_id": gene_id, "status": "active"}
+
+
+def reject_candidate(gene_id: str, reason: str = "") -> dict:
+    """否决候选：进 archived（保留可查、不再使用），而非删除。"""
+    gene = dbe.get_gene(gene_id)
+    if not gene:
+        return {"ok": False, "error": "基因不存在"}
+    dbe.set_gene_status(gene_id, "archived")
+    dbe.log_event("gene_rejected", gene_id=gene_id, domain=gene.get("domain"),
+                  details=reason or "人工否决（归档保留）")
+    return {"ok": True, "gene_id": gene_id, "status": "archived"}
+
+
+def gene_ledger(domain: str = "", limit: int = 50) -> list:
+    """可读的"基因变更账本"：直接复用 agent_events（不新增表）。"""
+    types = ("gene_distilled", "gene_validated", "gene_validation_failed",
+             "gene_approved", "gene_rejected", "gene_suppressed", "gene_created")
+    events = dbe.get_events(domain or None, None, limit * 3) or []
+    return [e for e in events if e.get("event_type") in types][:limit]

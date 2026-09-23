@@ -2,6 +2,31 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [1.1.3] - 2026-09-22
+
+进化层补齐业界护栏（对照 GitHub 自进化项目调研）：**验证 / 审计 / 可回退**。
+
+### 新增
+- **候选池**：蒸馏产物一律先入 `candidate`，不再直接 `active`
+  （`evolution_growth.distill_skill`）。
+- **验证门** `verify_candidate()`：证据门（真实采纳次数 + 覆盖任务数）+ 可选**基准门**
+  （`EVOLUTION_VERIFY_CMD`，退出码 0 才通过，对应 DGM/Hermes 的 benchmark gate）。
+- **人工确认**：`POST /api/evolution/candidates/{gene_id}`
+  （`action=verify|approve|reject`；`approve` 需 `confirm=true`）。
+- **归档可回退**：否决的候选转 `archived`（保留可查、不再使用）。
+- **变更账本**：`gene_ledger()` 复用 `agent_events`（不新增表），随只读
+  `GET /api/evolution/summary` 返回候选池与账本。
+
+### 变更
+- 进化端点 1 → 2（仅加回 1 个候选处理端点）；`/api/evolution/summary` 扩展为
+  "摘要 + 候选池 + 账本"。
+- config 新增 `EVOLUTION_VERIFY_MIN_ADOPTED` / `EVOLUTION_VERIFY_MIN_TASKS` /
+  `EVOLUTION_VERIFY_CMD` / `EVOLUTION_VERIFY_TIMEOUT`。
+
+### 测试
+- 新增 `TestCandidateGate`（未验证不生效 / 证据不足拦截 / 过门转正 / 需 confirm /
+  否决归档 / 账本留痕）与 `TestEvolutionHTTP`。
+
 ## [1.1.2] - 2026-09-22
 
 自适应进化层收敛（批次 B）：定性为**内部离线机制**，默认关闭、端点数 10→1、阈值入配置、加入最小样本量与数据保留。

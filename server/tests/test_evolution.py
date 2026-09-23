@@ -668,5 +668,92 @@ class TestEvolutionGate(_TempDB):
         self.assertEqual(dbe.get_gene("g_small")["status"], "active")
 
 
+class TestCandidateGate(_TempDB):
+    """批次 B+：候选池 + 验证门 + 人工确认 + 归档（业界护栏：验证/审计/可回退）。"""
+
+    def _mk_candidate(self, gid="g_cand", domain="copy"):
+        dbe.save_gene(gene_id=gid, domain=domain, trigger_signals=["开业"],
+                      system_prompt_addon="x", status="candidate")
+        return gid
+
+    def test_candidate_not_active_until_verified(self):
+        gid = self._mk_candidate()
+        self.assertNotIn(gid, [g["gene_id"] for g in dbe.get_active_genes("copy")])
+        self.assertIn(gid, [g["gene_id"] for g in evolution.list_candidates("copy")])
+
+    def test_verify_blocks_without_evidence(self):
+        gid = self._mk_candidate()
+        r = evolution.verify_candidate(gid)
+        self.assertFalse(r["ok"])
+        self.assertEqual(dbe.get_gene(gid)["status"], "candidate")
+
+    def test_verify_passes_with_evidence(self):
+        gid = self._mk_candidate()
+        for i in range(2):
+            dbe.save_capsule(f"cg-{i}", gid, "copy", user_adopted=True,
+                             task_context='{"t": %d}' % i)
+        with mock.patch.object(config, "EVOLUTION_VERIFY_MIN_ADOPTED", 2), \
+                mock.patch.object(config, "EVOLUTION_VERIFY_MIN_TASKS", 2):
+            r = evolution.verify_candidate(gid)
+        self.assertTrue(r["ok"])
+        self.assertEqual(dbe.get_gene(gid)["status"], "active")
+        self.assertIn(gid, [g["gene_id"] for g in dbe.get_active_genes("copy")])
+
+    def test_approve_requires_confirm(self):
+        gid = self._mk_candidate()
+        self.assertFalse(evolution.approve_candidate(gid).get("ok"))
+        self.assertEqual(dbe.get_gene(gid)["status"], "candidate")
+        self.assertTrue(evolution.approve_candidate(gid, confirm=True)["ok"])
+        self.assertEqual(dbe.get_gene(gid)["status"], "active")
+
+    def test_reject_archives_but_keeps(self):
+        gid = self._mk_candidate()
+        self.assertTrue(evolution.reject_candidate(gid, "不符合预期")["ok"])
+        self.assertEqual(dbe.get_gene(gid)["status"], "archived")   # 保留可查
+        self.assertNotIn(gid, [g["gene_id"] for g in dbe.get_active_genes("copy")])
+
+    def test_ledger_records_changes(self):
+        gid = self._mk_candidate()
+        evolution.reject_candidate(gid)
+        types = {e.get("event_type") for e in evolution.gene_ledger("copy")}
+        self.assertIn("gene_rejected", types)
+
+
+class TestEvolutionHTTP(_TempDB):
+    """候选处理与摘要端点（HTTP 层）。"""
+
+    def _client(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from routers import evolution as evo_router
+        app = FastAPI()
+        app.include_router(evo_router.router)
+        return TestClient(app)
+
+    def test_summary_and_candidate_action(self):
+        gid = "g_http_cand"
+        dbe.save_gene(gene_id=gid, domain="copy", trigger_signals=["开业"],
+                      system_prompt_addon="x", status="candidate")
+        c = self._client()
+        s = c.get("/api/evolution/summary?domain=copy")
+        self.assertEqual(s.status_code, 200)
+        body = s.json()
+        self.assertIn("candidates", body)
+        self.assertIn("ledger", body)
+        self.assertIn("gate", body)
+
+        r = c.post(f"/api/evolution/candidates/{gid}", json={"action": "verify"})
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(r.json()["ok"])          # 无证据 → 不通过
+
+        r2 = c.post(f"/api/evolution/candidates/{gid}", json={"action": "approve"})
+        self.assertEqual(r2.status_code, 400)     # 缺 confirm
+
+        r3 = c.post(f"/api/evolution/candidates/{gid}",
+                    json={"action": "approve", "confirm": True})
+        self.assertEqual(r3.status_code, 200)
+        self.assertTrue(r3.json()["ok"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

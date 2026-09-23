@@ -37,9 +37,9 @@ class TestAPIProfile(unittest.TestCase):
     def test_profile_counts(self):
         core = sum(len(router.routes) for router in registry.get_routers("core"))
         full = sum(len(router.routes) for router in registry.get_routers("full"))
-        # 撤掉旧端点 + 进化端点收敛（批次 A/C/B）后的基线：数量只应下降
-        self.assertEqual(core, 73)
-        self.assertEqual(full, 121)
+        # 基线：批次 A/C 撤旧端点；批次 B 收敛进化端点、B+ 仅加回 1 个候选处理端点
+        self.assertEqual(core, 74)
+        self.assertEqual(full, 122)
 
     def test_invalid_profile_rejected(self):
         with self.assertRaises(ValueError):

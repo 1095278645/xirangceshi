@@ -338,3 +338,10 @@ class GeneIn(BaseModel):
     strategy_steps: list | None = None
     category: str = "innovate"      # innovate / repair / reinforce
     is_distilled: int = 0
+
+
+class EvolutionCandidateIn(BaseModel):
+    """候选基因处理：verify（跑验证门）/ approve（人工确认转正）/ reject（归档）"""
+    action: str = "verify"          # verify / approve / reject
+    confirm: bool = False           # approve 必须 confirm=true（与项目危险操作一致）
+    reason: str = ""

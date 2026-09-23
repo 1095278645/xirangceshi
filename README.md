@@ -55,9 +55,16 @@ AIGC:
 
 > **关于「长期进化」**：基因/蒸馏/抑制这一层**默认关闭**（`SHOP_ENABLE_EVOLUTION=1` 可开启）。
 > 原因：它依赖真实反馈信号，而当前只有网页端在上报采纳、小样本下也不收敛，
-> 默认关闭可避免"看起来有、其实在空转"。开启后请在 `config` 里同时设置最小样本量
-> （`SHOP_EVOLUTION_MIN_SAMPLES`）；只读摘要见 `GET /api/evolution/summary`，
-> 状态已并入 `GET /api/metrics/ai` 的 `evolution` 分块。
+> 默认关闭可避免"看起来有、其实在空转"。
+>
+> 开启后按业界护栏运行（验证 / 审计 / 可回退）：
+> - 蒸馏产物先进**候选池**（`candidate`），须过**验证门**才转 `active`：
+>   证据门（真实采纳次数 ≥ `SHOP_EVOLUTION_VERIFY_ADOPTED`、覆盖任务 ≥ `SHOP_EVOLUTION_VERIFY_TASKS`）
+>   ＋ 可选**基准门**（`SHOP_EVOLUTION_VERIFY_CMD`，如 `python scripts/eval_ai_parse.py --compare`，退出码 0 才算过）；
+> - 人工转正：`POST /api/evolution/candidates/{gene_id}` `{"action":"approve","confirm":true}`；
+>   否决则 **归档保留**（`archived`），不删除；
+> - **变更账本**与候选池见只读 `GET /api/evolution/summary`（复用 `agent_events`，未新增表），
+>   状态同时并入 `GET /api/metrics/ai` 的 `evolution` 分块。
 
 - 朋友圈文案：创意文案师 / 熟客运营 并行出稿 → 合规审核挑毛病 → 掌柜融合成一条可直接发的正文。
 - 单店诊断：财务 / 经营 / 风控 三个顾问从不同视角竞争 → 掌柜取舍融合成一段诊断与整改动作，并沉淀「上次采纳了谁」用于后续参考。

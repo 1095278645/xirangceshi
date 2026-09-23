@@ -31,6 +31,8 @@ from evolution_lifecycle import (  # noqa: F401
 )
 from evolution_growth import (  # noqa: F401
     distill_skill, promote_learning, review_injection,
+    list_candidates, verify_candidate, approve_candidate, reject_candidate,
+    gene_ledger,
     DISTILL_SUCCESS_COUNT, DISTILL_HOURS_GAP, DISTILL_SCORE_MULTIPLIER,
     PROMOTE_RECURRENCE, PROMOTE_DISTINCT_TASKS, PROMOTE_DAYS_WINDOW,
     CONSERVATIVE_CONSTRAINTS, CORE_SIGNAL_KEEP_RATIO,
