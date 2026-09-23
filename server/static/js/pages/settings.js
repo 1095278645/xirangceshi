@@ -4,9 +4,8 @@
 // ---------- 设置 ----------
 async function loadSettings() {
   try {
-    const [s, p, ps, pl] = await Promise.all([
+    const [s, p] = await Promise.all([
       api('/api/settings'), api('/api/providers'),
-      api('/api/payment/sources'), api('/api/payment/logs'),
     ]);
     state.aiEnabled = s.ai_enabled;
     state.hasKey = s.has_key;
@@ -17,8 +16,9 @@ async function loadSettings() {
     state.baseUrlInput = s.base_url;
     state.modelInput = s.model;
     state.language = s.language || '普通话';
-    state.paySources = ps.sources || [];
-    state.payLogs = pl.logs || [];
+    state.aiPipeline = s.ai_pipeline || 'fast';
+    state.apiProfile = s.api_profile || 'core';
+    if (state.apiProfile === 'full') await loadPaySettings();
   } catch (_) {}
   render();
 }
@@ -31,11 +31,14 @@ async function saveSettings() {
       api_key: key,
       base_url: state.baseUrlInput.trim(),
       model: state.modelInput.trim(),
-      language: state.language || '普通话'
+      language: state.language || '普通话',
+      ai_pipeline: state.aiPipeline
     });
     state.aiEnabled = r.ai_enabled;
     state.baseUrl = r.base_url;
     state.model = r.model;
+    state.aiPipeline = r.ai_pipeline || state.aiPipeline;
+    state.apiProfile = r.api_profile || state.apiProfile;
     state.apiKeyInput = '';
     toast('已保存，AI 生效');
   } catch (e) { toast(e.message); }
@@ -45,13 +48,47 @@ async function saveSettings() {
 async function clearKey() {
   if (!confirm('清除后将回到兜底模式，确定？')) return;
   try {
-    const r = await api('/api/settings', 'POST', { api_key: '' });
+    const r = await api('/api/settings', 'POST', {
+      api_key: '',
+      ai_pipeline: state.aiPipeline,
+      api_profile: state.apiProfile,
+    });
     state.aiEnabled = r.ai_enabled;
     state.baseUrl = r.base_url;
     state.model = r.model;
+    state.aiPipeline = r.ai_pipeline || state.aiPipeline;
+    state.apiProfile = r.api_profile || state.apiProfile;
     toast('已清除');
   } catch (e) { toast(e.message); }
   render();
+}
+
+async function loadPaySettings() {
+  try {
+    const [ps, pl] = await Promise.all([
+      api('/api/payment/sources'), api('/api/payment/logs'),
+    ]);
+    state.paySources = ps.sources || [];
+    state.payLogs = pl.logs || [];
+  } catch (_) {
+    state.paySources = [];
+    state.payLogs = [];
+  }
+}
+
+async function saveProfile() {
+  try {
+    const r = await api('/api/settings', 'POST', {
+      ai_pipeline: state.aiPipeline,
+      api_profile: state.apiProfile,
+    });
+    state.aiPipeline = r.ai_pipeline || state.aiPipeline;
+    state.apiProfile = r.api_profile || state.apiProfile;
+    toast(state.apiProfile === 'full'
+      ? '已切换完整模式，重启后端后高级功能可用'
+      : '已切换核心模式，重启后端后生效');
+    render();
+  } catch (e) { toast(e.message); }
 }
 
 function selectProvider(id) {
@@ -221,7 +258,26 @@ function renderSettings() {
       ? `<span class="link-btn" onclick="copyLink('${keyUrl}')">还没有 Key？去「${curProv.name}」开通（复制链接）</span>`
       : '<div class="howto-text">自定义服务请到对应平台获取 API Key。</div>'}
   </div>
-  ${renderPaySettings()}
+  <div class="card">
+    <div class="card-title">能力模式</div>
+    <div class="form-item">
+      <label class="form-label">AI 生成</label>
+      <select class="form-select" onchange="state.aiPipeline=this.value">
+        <option value="fast" ${state.aiPipeline === 'fast' ? 'selected' : ''}>快速（默认，1 次调用）</option>
+        <option value="team" ${state.aiPipeline === 'team' ? 'selected' : ''}>多角色实验（保留进化对照）</option>
+      </select>
+    </div>
+    <div class="form-item">
+      <label class="form-label">功能范围</label>
+      <select class="form-select" onchange="state.apiProfile=this.value">
+        <option value="core" ${state.apiProfile === 'core' ? 'selected' : ''}>核心（默认，店主主路径）</option>
+        <option value="full" ${state.apiProfile === 'full' ? 'selected' : ''}>完整（财务 / 库存 / 会计等）</option>
+      </select>
+    </div>
+    <button class="btn-primary" onclick="saveProfile()">保存能力模式</button>
+    <div class="howto-text">功能范围切换后需重启后端。核心模式保留进化层和收款码，不删除任何数据。</div>
+  </div>
+  ${state.apiProfile === 'full' ? renderPaySettings() : ''}
   <div class="card">
     <div class="card-title">说明</div>
     <div class="howto-text">1. 支持多家大模型，选好后填对应的 API Key 即可。</div>

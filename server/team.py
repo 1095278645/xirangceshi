@@ -31,8 +31,8 @@ def _safe_run(fn):
     """单个员工容错：某位员工调用失败不拖垮整个团队，返回占位文本继续竞争"""
     try:
         return fn()
-    except Exception as e:  # noqa: BLE001 —— 员工级失败降级为占位，由掌柜裁决兜底
-        return f"[{e.__class__.__name__}: 该员工本次未能产出]"
+    except Exception:  # noqa: BLE001 —— 员工级失败降级为占位，由掌柜裁决兜底
+        return "该员工本次未能产出，已由其他视角兜底。"
 
 
 def run_parallel(producers: list, max_workers: int = MAX_WORKERS) -> list:

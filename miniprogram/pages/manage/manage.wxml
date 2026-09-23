@@ -21,16 +21,16 @@
     <view class="quick-item" data-tab="backup" bindtap="switchTab">
       <view class="qi-icon">💾</view><view class="qi-text">备份</view>
     </view>
-    <view class="quick-item" data-tab="notify" bindtap="switchTab">
+    <view class="quick-item" wx:if="{{apiProfile === 'full'}}" data-tab="notify" bindtap="switchTab">
       <view class="qi-icon">🔔</view><view class="qi-text">推送</view>
     </view>
   </view>
 
   <!-- 标签 -->
   <view class="tabs">
-    <view class="tab {{tab === 'account' ? 'on' : ''}}" data-tab="account" bindtap="switchTab">会计报表</view>
+    <view class="tab {{tab === 'account' ? 'on' : ''}}" wx:if="{{apiProfile === 'full'}}" data-tab="account" bindtap="switchTab">会计报表</view>
     <view class="tab {{tab === 'backup' ? 'on' : ''}}" data-tab="backup" bindtap="switchTab">数据备份</view>
-    <view class="tab {{tab === 'notify' ? 'on' : ''}}" data-tab="notify" bindtap="switchTab">主动触达</view>
+    <view class="tab {{tab === 'notify' ? 'on' : ''}}" wx:if="{{apiProfile === 'full'}}" data-tab="notify" bindtap="switchTab">主动触达</view>
   </view>
 
   <!-- ============ 会计报表 ============ -->

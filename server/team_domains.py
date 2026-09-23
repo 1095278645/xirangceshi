@@ -162,6 +162,56 @@ def _task_signals(domain: str, task: str) -> list:
     return signals
 
 
+def _run_fast(domain: str, task: str, system: str, temperature: float = 0.5,
+              max_tokens: int = 500, variants: bool = False):
+    """快速模式：一次生成；仍注入进化基因并记录轨迹。
+
+    默认业务路径更看重响应速度和成本。多员工竞争保留在 team 实验模式中，
+    进化层不因快速模式断链：仍读取近期回顾、选择基因、保存任务轨迹。
+    """
+    cfg = TEAM_DOMAINS[domain]
+    evo_cfg = cfg.get("evolution", {})
+    gene_id = None
+    if evo_cfg.get("enabled") and ai.ai_available():
+        review = evolution.review_injection(domain)
+        if review:
+            system += f"\n{review}"
+        gene = evolution.select_gene(domain, _task_signals(domain, task),
+                                     evo_cfg.get("strategy", "auto"))
+        if gene:
+            gene_id = gene["gene_id"]
+            addon = (gene.get("system_prompt_addon") or "").strip()
+            if addon:
+                system += "\n本局策略参考（来自近期验证有效的基因，可借鉴不必照搬）：\n" + addon
+
+    raw = ai.chat([{"role": "system", "content": system},
+                   {"role": "user", "content": task}],
+                  temperature=temperature, max_tokens=max_tokens,
+                  domain=f"快速·{domain}").strip()
+    final = plain_language.translate(raw)
+    variant_list = []
+    if variants:
+        variant_list = [x.strip() for x in raw.split("|||") if x.strip()][:3] or [final]
+        final = variant_list[0]
+    process = {
+        "mode": "fast", "employees": [{"role": "快速生成", "output": raw}],
+        "verdict": "单次生成，保留进化基因注入", "adopted": [],
+        "confidence": 0.75, "evidence": [], "gene_id": gene_id,
+    }
+    if variant_list:
+        process["variants"] = variant_list
+    try:
+        evolution_trajectory.record_trajectory(
+            domain=domain, task=task, gene_id=gene_id, system_inputs={
+                "快速生成": {"system": system, "user": task}},
+            mode="fast", employees=[{"role": "快速生成", "system": system,
+                                     "user": task, "output": raw}],
+            verdict=process["verdict"], final=final, adopted=[])
+    except Exception:  # noqa: BLE001
+        pass
+    return (final, process, variant_list) if variants else (final, process)
+
+
 def _run_team(domain: str, task: str, prev: str = "",
               sys_suffix: str = "", user_tail: str = "", variants: bool = False):
     """域级编排骨架：员工并行竞争 →（可选协作评审）→ 掌柜裁决融合 → 采纳归因。
@@ -248,7 +298,8 @@ def _run_team(domain: str, task: str, prev: str = "",
     except Exception:  # noqa: BLE001 —— 轨迹采集失败不影响主链路（采集零侵入）
         pass
 
-    final = plain_language.polish(judge["final"])
+    final = (plain_language.translate(judge["final"]) if domain == "copy"
+             else plain_language.polish(judge["final"]))
     if variants:
         variants_list = [plain_language.polish(v) for v in judge.get("variants", [judge["final"]])]
         return final, process, variants_list

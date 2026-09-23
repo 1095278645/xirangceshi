@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import importlib
 
+import config
+
 from fastapi import APIRouter
 
 
@@ -50,15 +52,28 @@ BUSINESS_DOMAINS = [
 ]
 
 
+CORE_DOMAINS = {
+    'arch', 'basic', 'orders', 'voice', 'customers', 'tax', 'store',
+    'report', 'evolution', 'backup', 'collect', 'shops',
+}
+
+
 def get_enabled_domains() -> list[dict]:
     """已启用业务域声明列表（enabled=True）"""
     return [d for d in BUSINESS_DOMAINS if d.get("enabled", True)]
 
 
-def get_routers() -> list[APIRouter]:
+def get_routers(profile: str | None = None) -> list[APIRouter]:
     """返回所有已启用业务域的 APIRouter（main.py 统一挂载）。
     新增 / 停用 / 删除能力只改 BUSINESS_DOMAINS 声明，本函数与 main.py 均无需改动。"""
-    return [_load_router(d["module"]) for d in get_enabled_domains()]
+    if profile not in (None, "core", "full"):
+        raise ValueError("api_profile must be core or full")
+    if profile is None:
+        profile = config.load_settings().get("api_profile", "core")
+    domains = get_enabled_domains()
+    if profile == "core":
+        domains = [d for d in domains if d["name"] in CORE_DOMAINS]
+    return [_load_router(d["module"]) for d in domains]
 
 
 def list_domains() -> list[dict]:

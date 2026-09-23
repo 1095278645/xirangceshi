@@ -76,8 +76,6 @@ def generate_store_diagnosis(model_result: dict, prev_diagnosis: str = "",
         if not return_process:
             return text
         return text, _store_degraded_process(model_result)
-    # late import 避免循环依赖
-    from team_domains import _run_team
     d = model_result
     brief = {
         "业态": d["preset"]["name"], "实际日销": d["inputs"]["daily_revenue"],
@@ -90,6 +88,16 @@ def generate_store_diagnosis(model_result: dict, prev_diagnosis: str = "",
     }
     task = (f"这家店的经营诊断，数据如下：\n{json.dumps(brief, ensure_ascii=False)}\n"
             + (f"上次诊断（参考不照抄）：{prev_diagnosis}\n" if prev_diagnosis else ""))
+    if ai.load_settings().get("ai_pipeline") != "team":
+        from team_domains import _run_fast
+        final, process = _run_fast(
+            "store", task,
+            system=("你是街边小店经营掌柜。先给结论：健康/整改/止损；再引用保本线、"
+                    "现金可扛月数等事实，最后给一两个今天就能做的动作。禁用空话。"),
+            temperature=0.4, max_tokens=500)
+        return (final, process) if return_process else final
+
+    from team_domains import _run_team
     final, process = _run_team("store", task, prev=prev_diagnosis,
                                sys_suffix="（你是这家店的一位员工，观点要具体、口语、直接，2-4 句。）",
                                user_tail="请站在「{role}」的视角，给出你最要紧的判断。")

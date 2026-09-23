@@ -155,12 +155,24 @@ def generate_daily_review(snapshot: str, prev: str = "",
             return text
         return text, _review_degraded_process(snapshot)
 
-    from team_domains import _run_team
     task = (
         "这是这家店今天的全店经营快照（各岗位据此发言）：\n"
         f"{snapshot}\n\n"
         "请各位从自己负责的那一块出发，说最要紧的一件事。"
     )
+    if prev:
+        task += f"\n上次结论（参考不照抄）：{prev}\n"
+    if ai.load_settings().get("ai_pipeline") != "team":
+        from team_domains import _run_fast
+        final, process = _run_fast(
+            "review", task,
+            system=("你是街边小店掌柜，像老板交代事情一样复盘。只挑今天最该动手的一两件，"
+                    "先给最要紧的数字，再给具体动作；其余略过。不超过200字，"
+                    "不用小标题和客套话。"),
+            temperature=0.4, max_tokens=500)
+        return (final, process) if return_process else final
+
+    from team_domains import _run_team
     result = _run_team(
         "review", task, prev=prev,
         sys_suffix=("（掌柜口吻：像老掌柜跟老板交代事情。只挑**今天最该动手的一两件**，"

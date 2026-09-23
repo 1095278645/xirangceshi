@@ -11,7 +11,8 @@ function todayStr() {
 Page({
   data: {
     tabIndex: 0,
-    tabs: ['流水', '算税', '科目', '报表', '现金', '库存', '发票'],
+    tabs: ['流水', '算税', '科目', '报表'],
+    apiProfile: 'core',
     // ---- 流水 ----
     year: 0,
     month: 0,
@@ -86,6 +87,14 @@ Page({
     const now = new Date()
     this.setData({ year: now.getFullYear(), month: now.getMonth() + 1 })
     api.resetFailFlag()
+    api.getSettings()
+      .then(s => this.setData({
+        apiProfile: s.api_profile || 'core',
+        tabs: (s.api_profile || 'core') === 'full'
+          ? ['流水', '算税', '科目', '报表', '现金', '库存', '发票']
+          : ['流水', '算税', '科目', '报表']
+      }))
+      .catch(() => null)
     this.loadTransactions()
     api.accountTitles()
       .then(r => this.setData({ categories: r.categories || [] }))
@@ -98,6 +107,7 @@ Page({
 
   switchTab(e) {
     const idx = Number(e.currentTarget.dataset.index)
+    if (this.data.apiProfile !== 'full' && idx > 3) return
     this.setData({ tabIndex: idx })
     if (idx === 0) this.loadTransactions()
     if (idx === 1 && !this.data.calendar) this.loadCalendar()

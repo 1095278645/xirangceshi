@@ -9,7 +9,8 @@ Page({
   data: {
     shop: null,          // 当前店铺信息
     shopCount: 0,        // 多店时才显示切换区
-    tab: 'account',      // account | backup | notify
+    tab: 'backup',       // account | backup | notify
+    apiProfile: 'core',
     period: '',          // 会计期间 YYYY-MM
     loading: false,
     // 会计
@@ -26,9 +27,17 @@ Page({
       period: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
     })
     this.loadContext()
-    this.loadAccount()
+    api.getSettings()
+      .then(s => {
+        const full = (s.api_profile || 'core') === 'full'
+        this.setData({ apiProfile: full ? 'full' : 'core', tab: full ? 'account' : 'backup' })
+        if (full) {
+          this.loadAccount()
+          this.loadNotify()
+        }
+      })
+      .catch(() => null)
     this.loadBackups()
-    this.loadNotify()
   },
 
   onShow() { this.loadContext() },
@@ -42,6 +51,7 @@ Page({
 
   switchTab(e) {
     const tab = e.currentTarget.dataset.tab
+    if (this.data.apiProfile !== 'full' && tab !== 'backup') return
     this.setData({ tab })
     if (tab === 'account') this.loadAccount()
     if (tab === 'backup') this.loadBackups()

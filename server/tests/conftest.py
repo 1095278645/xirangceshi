@@ -22,11 +22,17 @@ Key"，**不看是不是在测试里**。于是任何没打桩的 AI 路径都�
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from unittest import mock
 
 import pytest
+
+# 既有测试覆盖完整能力面；core/full 边界由注册表专项测试单独校验。
+os.environ["SHOP_API_PROFILE"] = "full"
+import config  # noqa: E402  必须在 main 导入前隔离本机配置
+config._LOCAL_CONFIG = Path(os.environ.get("TEMP", ".")) / f"xirang-pytest-{os.getpid()}.json"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

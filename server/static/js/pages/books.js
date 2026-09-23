@@ -41,8 +41,8 @@ async function loadInsights(refresh) {
   render();
   try {
     // 默认命中后端按月缓存（秒回）；refresh=true 才真正调 AI
-    const r = await api('/api/orders/insights', 'POST',
-      { year, month, refresh: !!refresh });
+    const r = await api('/api/insights', 'POST',
+      { scene: 'monthly', payload: { year, month }, refresh: !!refresh });
     if (myId !== _insightReq) return;  // 过期响应，丢弃
     state.books.insight = r.insights;
     state.books.insightAiUsed = r.ai_used;
@@ -104,8 +104,8 @@ async function loadTaxAdvice(refresh) {
   render();
   try {
     // 默认命中后端按销售额分桶的缓存（秒回）；refresh=true 才真正调 AI
-    const r = await api('/api/tax/advice', 'POST',
-      { quarterly_revenue: v, refresh: !!refresh });
+    const r = await api('/api/insights', 'POST',
+      { scene: 'tax', payload: { quarterly_revenue: v }, refresh: !!refresh });
     if (myId !== _taxAdviceReq) return;  // 过期响应，丢弃
     state.books.taxAdvice = r.advice;
     state.books.taxAdviceAiUsed = r.ai_used;

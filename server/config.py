@@ -17,6 +17,8 @@ _LOCAL_CONFIG = BASE_DIR / "config.local.json"
 DEFAULT_BASE_URL = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEFAULT_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
 DEFAULT_LANGUAGE = os.environ.get("SHOP_LANGUAGE", "普通话")
+DEFAULT_AI_PIPELINE = os.environ.get("AI_PIPELINE", "fast")
+DEFAULT_API_PROFILE = os.environ.get("SHOP_API_PROFILE", "core")
 
 
 def load_settings() -> dict:
@@ -26,6 +28,8 @@ def load_settings() -> dict:
     base_url = DEFAULT_BASE_URL
     model = DEFAULT_MODEL
     language = DEFAULT_LANGUAGE
+    ai_pipeline = DEFAULT_AI_PIPELINE
+    api_profile = DEFAULT_API_PROFILE
     if _LOCAL_CONFIG.exists():
         try:
             with open(_LOCAL_CONFIG, encoding="utf-8") as f:
@@ -35,15 +39,20 @@ def load_settings() -> dict:
                 base_url = cfg.get("base_url", base_url)
                 model = cfg.get("model", model)
             language = cfg.get("language", language)
+            ai_pipeline = cfg.get("ai_pipeline", ai_pipeline)
+            api_profile = cfg.get("api_profile", api_profile)
         except (json.JSONDecodeError, OSError):
             pass
     return {"api_key": api_key, "base_url": base_url, "model": model,
-            "language": language or DEFAULT_LANGUAGE}
+            "language": language or DEFAULT_LANGUAGE,
+            "ai_pipeline": ai_pipeline if ai_pipeline in ("fast", "team") else "fast",
+            "api_profile": api_profile if api_profile in ("core", "full") else "core"}
 
 
-def save_settings(api_key: str = "", base_url: str | None = None,
-                  model: str | None = None, language: str | None = None) -> dict:
-    """保存配置到 config.local.json（该文件已被 gitignore）。api_key 传空串表示清除。
+def save_settings(api_key: str | None = None, base_url: str | None = None,
+                  model: str | None = None, language: str | None = None,
+                  ai_pipeline: str | None = None, api_profile: str | None = None) -> dict:
+    """保存配置到 config.local.json（该文件已被 gitignore）。api_key 传 None 表示保留，空串表示清除。
     language 传 None 表示不改动现有口语/方言偏好。返回保存后的完整配置。"""
     cur = load_settings()
     if base_url:
@@ -52,7 +61,12 @@ def save_settings(api_key: str = "", base_url: str | None = None,
         cur["model"] = model
     if language is not None:
         cur["language"] = language
-    cur["api_key"] = api_key
+    if ai_pipeline in ("fast", "team"):
+        cur["ai_pipeline"] = ai_pipeline
+    if api_profile in ("core", "full"):
+        cur["api_profile"] = api_profile
+    if api_key is not None:
+        cur["api_key"] = api_key
     # Pattern 21: Atomic Write — 先写 .tmp 再 os.replace，防止写到一半崩溃导致配置损坏
     atomic_write_json(_LOCAL_CONFIG, cur, indent=2)
     return cur

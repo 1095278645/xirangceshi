@@ -4,7 +4,10 @@ from fastapi import APIRouter
 import ai
 import config
 import db
-from schemas import CopyIn, SettingsIn
+from fastapi import HTTPException
+
+from insight_service import generate as generate_insight
+from schemas import CopyIn, SettingsIn, UnifiedInsightIn
 
 router = APIRouter(prefix="/api", tags=["basic"])
 
@@ -30,6 +33,8 @@ def get_settings():
         "base_url": s["base_url"],
         "model": s["model"],
         "language": s.get("language", "普通话"),
+        "ai_pipeline": s.get("ai_pipeline", "fast"),
+        "api_profile": s.get("api_profile", "core"),
         "provider": config.detect_provider(s["base_url"]),
     }
 
@@ -42,6 +47,8 @@ def update_settings(data: SettingsIn):
         base_url=data.base_url or None,
         model=data.model or None,
         language=data.language,
+        ai_pipeline=data.ai_pipeline,
+        api_profile=data.api_profile,
     )
     return {
         "ok": True,
@@ -49,6 +56,8 @@ def update_settings(data: SettingsIn):
         "base_url": s["base_url"],
         "model": s["model"],
         "language": s.get("language", "普通话"),
+        "ai_pipeline": s.get("ai_pipeline", "fast"),
+        "api_profile": s.get("api_profile", "core"),
     }
 
 
@@ -67,3 +76,12 @@ def copywriting(data: CopyIn):
                                                 data.customer_name, context, return_process=True)
     return {"text": text, "team": process, "variants": variants,
             "gene_id": (process or {}).get("gene_id")}
+
+
+@router.post("/insights")
+def unified_insights(data: UnifiedInsightIn):
+    """统一 AI 洞察入口：默认同日缓存，失败时返回本地兜底而不是报错。"""
+    try:
+        return generate_insight(data.scene, data.payload, data.refresh)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc

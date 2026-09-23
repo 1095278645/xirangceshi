@@ -40,7 +40,7 @@ def load_routes() -> set[tuple[str, str]]:
     from routers import registry
 
     out: set[tuple[str, str]] = set()
-    for r in registry.get_routers():
+    for r in registry.get_routers("full"):
         prefix = getattr(r, "prefix", "") or ""
         for route in r.routes:
             path = getattr(route, "path", "") or ""

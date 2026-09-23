@@ -139,6 +139,8 @@ const state = {
   model: '',
   provider: '',
   providers: [],
+  aiPipeline: 'fast',
+  apiProfile: 'core',
   apiKeyInput: '',
   baseUrlInput: '',
   modelInput: '',
@@ -313,6 +315,7 @@ function render() {
     t.classList.toggle('active', inMore ? (r2 === 'more') : (r2 === r));
     t.style.display = (r === 'custDetail' && r2 !== 'customers') ? 'none' : 'flex';
   });
+  updateMoreMenu();
 }
 
 // ---------- 更多抽屉 ----------
@@ -346,4 +349,12 @@ function go(route) {
   else if (route === 'collect') loadCollect();
   else if (route === 'shops') loadShops();
   else if (route === 'metrics') loadMetrics();
+}
+
+function updateMoreMenu() {
+  const advanced = ['accounting', 'notify', 'finance', 'stock', 'invoice', 'metrics'];
+  const showAdvanced = state.apiProfile === 'full';
+  document.querySelectorAll('.more-item').forEach(item => {
+    item.style.display = showAdvanced || !advanced.includes(item.dataset.route) ? '' : 'none';
+  });
 }

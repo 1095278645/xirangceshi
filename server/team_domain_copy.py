@@ -83,11 +83,22 @@ def generate_copy(shop_name: str, scene: str, extra: str, customer_name: str = "
         if not return_process:
             return text
         return text, _copy_degraded_process(shop_name, scene, extra), [text]
-    # late import 避免循环依赖
-    from team_domains import _run_team
     task = (f"店铺：{shop_name}；场景：{scene}；补充：{extra}\n"
             + (f"熟客：{customer_name}，可自然带一句（不硬凑）\n" if customer_name else "")
             + (f"经营上下文（参考不照抄）：{context}\n" if context else ""))
+    settings = ai.load_settings()
+    if settings.get("ai_pipeline") != "team":
+        from team_domains import _run_fast
+        final, process, variants = _run_fast(
+            "copy", task,
+            system=("为街边小店写朋友圈文案。要像真人老板随手发圈：短句、具体细节、"
+                    "口语自然；不用广告腔、网红词、排比。禁止出现复盘、账本、"
+                    "看这笔账等无关提醒。输出3条风格各异的正文，每条不超过80字，"
+                    "用 ||| 分隔。"),
+            temperature=0.8, max_tokens=600, variants=True)
+        return (final, process, variants) if return_process else final
+
+    from team_domains import _run_team
     final, process, variants = _run_team(
         "copy", task,
         sys_suffix="（请输出3条风格各异的朋友圈文案正文，每条不超过80字，分别用不同的文案公式和角度，"

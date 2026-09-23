@@ -2,12 +2,12 @@
 <view class="page">
 
   <!-- 能力入口：管理台 / 收款 / 多店（低频但重要，集中在这里进） -->
-  <view class="card">
+  <view class="card" wx:if="{{apiProfile === 'full'}}">
     <view class="card-title">更多能力</view>
     <view class="nav-row" bindtap="goManage">
       <view class="nav-main">
         <view class="nav-t">管理台</view>
-        <view class="nav-s">会计报表（利润表/资产负债表/余额表）· 数据备份与恢复 · 推送设置</view>
+        <view class="nav-s">{{apiProfile === 'full' ? '会计报表 · 数据备份与恢复 · 推送设置' : '数据备份与恢复'}}</view>
       </view>
       <view class="nav-arrow">›</view>
     </view>
@@ -28,7 +28,7 @@
   </view>
 
   <!-- 后端地址（真机演示必配） -->
-  <view class="card">
+  <view class="card" wx:if="{{apiProfile === 'full'}}">
     <view class="card-title">后端地址（真机必配）</view>
     <view class="form-item">
       <text class="form-label">电脑的局域网地址</text>
@@ -96,8 +96,8 @@
     <view class="howto" bindtap="howToGet">还没有 Key？去对应平台开通（复制链接）</view>
   </view>
 
-  <!-- 收款账户（二维码收付款流水自动入账本） -->
-  <view class="card">
+  <!-- 收款账户（完整模式：二维码收付款流水自动入账本） -->
+  <view class="card" wx:if="{{apiProfile === 'full'}}">
     <view class="card-title">收款账户 · 流水自动入账本</view>
     <view class="howto-text">把微信/聚合支付收款码的流水自动同步进账本，无需手工记账。</view>
     <view class="form-item">

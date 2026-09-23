@@ -151,6 +151,24 @@ class TestLiveTeamWithMock(_TempDB):
             daily_revenue=300, rent=6000, salary=8000,
             utilities=2000, total_investment=100000, cash_on_hand=30000)
 
+    def _team_mode(self):
+        return mock.patch.object(ai, "load_settings", return_value={
+            "ai_pipeline": "team", "api_profile": "full",
+        })
+
+    def test_copy_fast_default_uses_one_call_and_keeps_evolution_trace(self):
+        with mock.patch.object(ai, "ai_available", return_value=True), \
+             mock.patch.object(ai, "chat", return_value="快文案|||备选一|||备选二") as chat, \
+             mock.patch.object(team_domains.evolution_trajectory, "record_trajectory") as trajectory:
+            text, process, variants = ai.generate_copy(
+                "老王面馆", "今日营业", "新出卤面", "王阿姨", return_process=True)
+        self.assertIn("快文案", text)
+        self.assertEqual(process["mode"], "fast")
+        self.assertEqual(chat.call_count, 1)
+        self.assertEqual(len(variants), 3)
+        trajectory.assert_called_once()
+        self.assertEqual(trajectory.call_args.kwargs["mode"], "fast")
+
     def test_store_diagnosis_competitive(self):
         """三位员工竞争产出 → 掌柜融合，采纳归因沉淀进 team 域"""
         def fake_chat(messages, temperature=0.7, max_tokens=1024, **kwargs):
@@ -166,7 +184,8 @@ class TestLiveTeamWithMock(_TempDB):
             # 掌柜融合裁决
             return ('{"verdict":"采纳财务与风控的核心判断","adopted":["财务顾问","风控顾问"],'
                     '"final":"最终诊断：现金流危险，日销不到保本线，先把固定成本降下来，做一个月的整改窗口。"}')
-        with mock.patch.object(ai, "ai_available", return_value=True), \
+        with self._team_mode(), \
+             mock.patch.object(ai, "ai_available", return_value=True), \
              mock.patch.object(ai, "chat", side_effect=fake_chat):
             text, process = ai.generate_store_diagnosis(self._result(), return_process=True)
         self.assertIn("最终诊断", text)
@@ -192,7 +211,8 @@ class TestLiveTeamWithMock(_TempDB):
             return ('{"verdict":"合并创意与熟客","adopted":["创意文案师","熟客运营"],'
                     '"final":"新出卤面香得很，王阿姨来一碗不？",'
                     '"variants":["新出卤面香得很，王阿姨来一碗不？","宜|尝鲜 忌|将就","收银台说：今天第50次听到随便看看"]}')
-        with mock.patch.object(ai, "ai_available", return_value=True), \
+        with self._team_mode(), \
+             mock.patch.object(ai, "ai_available", return_value=True), \
              mock.patch.object(ai, "chat", side_effect=fake_chat):
             text, process, variants = ai.generate_copy("老王面馆", "今日营业", "新出卤面",
                                               "王阿姨", return_process=True)

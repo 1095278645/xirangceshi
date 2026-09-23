@@ -107,7 +107,7 @@ async function calcStoreModel() {
       competitor: f.competitor,
       biz_type: state.store.bizType,
     };
-    const r = await api('/api/store/diagnosis', 'POST', body);
+    const r = await api('/api/insights', 'POST', { scene: 'store', payload: body });
     state.store.result = r.model;
     state.store.diagnosis = r.diagnosis;
     state.store.diagnosisAiUsed = r.ai_used;

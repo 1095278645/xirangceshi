@@ -45,10 +45,12 @@ class VoiceIn(BaseModel):
 
 
 class SettingsIn(BaseModel):
-    api_key: str = ""          # 传空串 = 清除 Key
+    api_key: str | None = None # None=保留；空串=清除 Key
     base_url: str = ""
     model: str = ""
     language: str | None = None   # 口语/方言偏好（普通话/粤语/四川话/英语…），None=不改
+    ai_pipeline: str | None = None  # 不传=保留现值；fast=单次生成；team=多agent实验
+    api_profile: str | None = None  # 不传=保留现值；core=核心接口；full=完整接口
 
 
 class VatIn(BaseModel):
@@ -117,6 +119,13 @@ class InsightIn(BaseModel):
     year: int | None = None
     month: int | None = None
     refresh: bool = False     # True=强制重新生成；默认命中缓存直接返回
+
+
+class UnifiedInsightIn(BaseModel):
+    """统一 AI 洞察入口（copy / monthly / tax / customer / store）"""
+    scene: str
+    payload: dict = {}
+    refresh: bool = False
 
 
 class TransactionEditIn(BaseModel):

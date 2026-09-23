@@ -9,7 +9,7 @@ async function generateCopy() {
   state.copyGeneId = null;
   render();
   try {
-    const r = await api('/api/copy', 'POST', state.copyForm);
+    const r = await api('/api/insights', 'POST', { scene: 'copy', payload: state.copyForm });
     state.copyResult = r.text;
     state.copyVariants = (r.variants && r.variants.length > 1) ? r.variants : [r.text];
     state.copyGeneId = r.gene_id || null;

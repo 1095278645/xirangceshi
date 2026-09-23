@@ -13,6 +13,8 @@ Page({
     providerNames: [],
     providerIndex: 0,
     keyLabel: 'API Key（sk- 开头）',
+    apiPipeline: 'fast',
+    apiProfile: 'core',
     // 收款账户
     paySources: [],
     payLogs: [],
@@ -120,14 +122,14 @@ Page({
   },
 
   load() {
-    Promise.all([api.getSettings(), api.getProviders(), api.paySources(), api.payLogs()])
-      .then(([s, p, ps, pl]) => {
+    Promise.all([api.getSettings(), api.getProviders()])
+      .then(([s, p]) => {
         const providers = p.providers || []
         const providerNames = providers.map(x => x.name)
         let idx = providers.findIndex(x => x.id === s.provider)
         if (idx < 0) idx = providers.length - 1 // 自定义
         const cur = providers[idx] || {}
-        this.setData({
+        const base = {
           aiEnabled: s.ai_enabled,
           hasKey: s.has_key,
           baseUrl: s.base_url,
@@ -136,11 +138,22 @@ Page({
           providerNames,
           providerIndex: idx,
           keyLabel: cur.key_label || 'API Key',
-          paySources: ps.sources || [],
-          payLogs: pl.logs || []
-        })
+          aiPipeline: s.ai_pipeline || 'fast',
+          apiProfile: s.api_profile || 'core'
+        }
+        this.setData(base)
+        if (base.apiProfile === 'full') this.loadPaySources()
       })
       .catch(err => api.reportError(err))
+  },
+
+  loadPaySources() {
+    Promise.all([api.paySources(), api.payLogs()])
+      .then(([ps, pl]) => this.setData({
+        paySources: ps.sources || [],
+        payLogs: pl.logs || []
+      }))
+      .catch(() => this.setData({ paySources: [], payLogs: [] }))
   },
 
   onProviderChange(e) {
@@ -177,7 +190,9 @@ Page({
     api.saveSettings({
       api_key: key,
       base_url: this.data.baseUrl.trim(),
-      model: this.data.model.trim()
+      model: this.data.model.trim(),
+      ai_pipeline: this.data.aiPipeline,
+      api_profile: this.data.apiProfile
     })
       .then(() => {
         wx.showToast({ title: '已保存，AI 生效', icon: 'success' })
@@ -194,7 +209,11 @@ Page({
       content: '清除后将回到兜底模式（手动记账仍可用，AI 功能关闭）',
       success: (res) => {
         if (!res.confirm) return
-        api.saveSettings({ api_key: '' })
+        api.saveSettings({
+          api_key: '',
+          ai_pipeline: this.data.aiPipeline,
+          api_profile: this.data.apiProfile
+        })
           .then(() => {
             wx.showToast({ title: '已清除', icon: 'none' })
             this.load()

@@ -25,7 +25,7 @@ async function loadCustInsight(id) {
   state.custInsightLoading = true;
   render();
   try {
-    const r = await api('/api/customers/' + id + '/insight', 'POST', {});
+    const r = await api('/api/insights', 'POST', { scene: 'customer', payload: { customer_id: id } });
     if (myId !== _custInsightReq) return;  // 过期响应，丢弃
     state.custInsight = r.insight;
     state.custInsightAiUsed = r.ai_used;

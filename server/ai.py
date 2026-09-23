@@ -79,7 +79,7 @@ def chat(messages, temperature=0.7, max_tokens=1024, reasoning_effort=None, doma
          本项目多数调用是信息抽取/短文案，实测同一提示词下
          思考 low 用 2.5s/255 tokens，非思考只要 0.5s/26 tokens，质量相当；
          关闭后 temperature 也恢复生效，多 agent 角色差异化得以保留。
-         确需深度推理的任务（经营洞察 low、报税建议 high）在调用点显式指定。
+         确需深度推理的任务（经营洞察 low）在调用点显式指定。
       2. 正文为空时递增预算重试，直到 _CHAT_TOKEN_CAP。
       3. 仍为空则抛清晰异常，由调用方走兜底，而不是把空串一路传下去。
     """
@@ -199,27 +199,13 @@ def parse_transaction(text: str) -> dict:
             "tags": "", "category": category, "trans_type": trans_type, "fallback": True,
         }
     prompt = (
-        "你是一家街边小店的AI掌柜兼代账会计，负责把店主随口说的记账话翻译成结构化数据，并按小企业会计准则分类。\n"
-        "规则：只输出JSON，不要多余文字。字段：\n"
-        "customer(顾客称呼,没有则空串)、item(买的东西/事由)、amount(金额,数字,没提到则null)、\n"
-        "trans_type(\"income\"收入或\"expense\"支出，判断这笔钱是收进还是花出)、\n"
-        "category(分类，从下面选一个最贴切的：主营业务收入/其他收入/进货/办公费/业务招待费/快递物流费/"
-        "租赁及物业费/差旅费/车辆使用费/广告宣传费/软件服务费/培训费/职工薪酬)、\n"
-        "note(补充说明)、tags(适合给客户打的标签数组，没有则空数组)。\n"
-        "confidence(你对这次理解的把握，0到1的小数；金额、方向、笔数任一项拿不准就低于0.7)、"
-        "ambiguity(拿不准的点，一句话；没有则空串)。\n"
-        "**判断方向的关键**：说话的人是**店主**，他在讲店里刚发生的事。\n"
-        "· \"某某吃了/拿了/要了/带走…\"→ 是**顾客消费**，店主收钱，所以是 income；\n"
-        "  不要因为出现\"吃\"\"买\"就判成支出 —— 那是顾客在买，不是店主在买。\n"
-        "· \"买了/进了/交了/花了/发了…\"且主语是店主或店里 → 才是 expense。\n"
-        "· 存疑时按店铺视角（收入优先），拿不准就用 income。\n"
-        "另外要留意**一句话里说了好几件事**的情况（店主常这么讲）：\n"
-        "· 如果这句话包含**两笔或更多互不相干的收支**（不同的人、不同的东西、"
-        "或一收一支），用 transactions 字段逐笔列出，每笔都要有 item/amount/trans_type/category；\n"
-        "· **绝对不要把几笔的钱加在一起**当一个金额（\"收了50，又收了80\"是两笔，不是130）；\n"
-        "· 也**不要只取第一笔**把其余丢掉；\n"
-        "· 只有一笔（或同一笔的不同部分，如\"两个肉包一杯豆浆6块\"）时，transactions 留空数组，"
-        "照常填上面的单笔字段。\n"
+        "把店主的话解析成记账JSON，只输出JSON。字段：customer、item、amount、"
+        "trans_type(income/expense)、category、note、tags、confidence、ambiguity、transactions。\n"
+        "category只能选：主营业务收入/其他收入/进货/办公费/业务招待费/快递物流费/"
+        "租赁及物业费/差旅费/车辆使用费/广告宣传费/软件服务费/培训费/职工薪酬。\n"
+        "视角：说话者是店主。顾客吃了/买了/带走=income；店主买了/进了/交了/花了=expense；"
+        "拿不准优先income并降低confidence。\n"
+        "多笔互不相干收支必须逐笔放入transactions，不得合并金额或漏记；单笔则transactions为[]。\n"
         + _language_hint()
         + f"店主说：{text}"
     )
@@ -391,20 +377,17 @@ def generate_insights(monthly_data: dict, prev_context: str = "",
         f"本月收支数据：{json.dumps(monthly_data, ensure_ascii=False, default=str)}\n"
         + (f"本月实际营业天数：{business_days} 天\n" if business_days else "")
         + (f"上次分析参考：{prev_context}\n" if prev_context else "")
-        + "请输出3-5条经营洞察：① 环比变化趋势 ② 异常品类 ③ 可执行建议。\n"
-        "口语化，不要用专业术语，像掌柜跟老板聊天一样。先用现金流/保本线看这个月是赚是亏，"
-        "再给具体可执行的动作——不是\"提升营收、加强营销\"这种空话，"
-        "而是\"把进货款压低到多少以内\"\"哪个品类进货砍一半\"这样有颗粒度的建议。直接输出正文。\n"
+        + "输出不超过3条：① 本月赚亏 ② 最该盯的支出 ③ 一个明天可做的动作。\n"
+        "口语化，不写专业术语和空话，动作要带具体金额或品类。\n"
         "重要：算日均营业额、日均开销时，**用上面给的实际营业天数去除**，"
         "不要默认按 30 天折算 —— 老板会拿这个数字跟别的页面对照，算错就穿帮了。\n"
         "另外：**不要推算「日保本线」**。日保本线由「单店模型」页按标准 30 天/月计算，"
         "你这边只有半个多月的数据，两边算法不同会给出不同数字。"
         "你只说月保本流水（月固定成本 ÷ 毛利率）即可。"
     )
-    # 经营洞察要做环比/异常识别并给有颗粒度的建议，属于需要判断的任务，
-    # 显式开启思考（默认是关闭思考以求速度）。
+    # 数据汇总已由本地完成；默认关闭思考，避免月度洞察长时间等待。
     return chat([{"role": "user", "content": prompt}], temperature=0.5,
-                max_tokens=500, reasoning_effort="low", domain="经营洞察").strip()
+                max_tokens=180, domain="经营洞察").strip()
 
 
 # ---------------- 5. 客户画像 ----------------
@@ -466,11 +449,9 @@ def generate_tax_advice(quarterly_revenue: float, vat_result: dict, prev_advice:
         + "请输出：① 本季度要交多少税 ② 有没有节税空间 ③ 下个季度该注意什么。\n"
         "口语化，不要用税法术语。直接输出正文。"
     )
-    # 报税建议要同时回答"交多少/有无节税空间/下季度注意什么"三个问题，
-    # 属于需要推理的任务，显式开启高强度思考（全局默认是 off=关闭思考）。
-    # 代价：实测耗时 30~65 秒，因此不进演示动线（见 docs/demo-guide.md）。
+    # 默认走轻量推理：税务计算已由本地规则完成，AI 只负责解释和提醒。
     return chat([{"role": "user", "content": prompt}], temperature=0.3,
-                max_tokens=400, reasoning_effort="high", domain="报税建议").strip()
+                max_tokens=300, reasoning_effort="low", domain="报税建议").strip()
 
 
 # 多 agent 团队编排（朋友圈文案 / 单店诊断 / 掌柜复盘）在 team_domains.py。

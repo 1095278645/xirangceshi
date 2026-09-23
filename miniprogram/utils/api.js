@@ -154,16 +154,16 @@ module.exports = {
   monthlySummary: () => request('/api/orders/monthly'),
   vouchers: () => request('/api/vouchers'),
   orderInsights: (year, month, refresh) =>
-    request('/api/orders/insights', 'POST', { year, month, refresh: !!refresh }),
+    request('/api/insights', 'POST', { scene: 'monthly', payload: { year, month }, refresh: !!refresh }),
 
   // 熟客
   customers: () => request('/api/customers'),
   customerDetail: (id) => request('/api/customers/' + id),
   addMemory: (customerId, content) => request('/api/memories', 'POST', { customer_id: customerId, content }),
-  customerInsight: (cid) => request('/api/customers/' + cid + '/insight', 'POST', {}),
+  customerInsight: (cid) => request('/api/insights', 'POST', { scene: 'customer', payload: { customer_id: cid } }),
 
   // 文案
-  generateCopy: (data) => request('/api/copy', 'POST', data),
+  generateCopy: (data) => request('/api/insights', 'POST', { scene: 'copy', payload: data }),
 
   // 提醒
   generateReminders: () => request('/api/reminders/generate', 'POST'),
@@ -185,8 +185,8 @@ module.exports = {
   taxCit: (annualIncome, isSmall) => request('/api/tax/cit', 'POST', { annual_income: annualIncome, is_small: isSmall }),
   taxCalendar: (year, month) => request(`/api/tax/calendar?year=${year}&month=${month}`),
   taxAdvice: (quarterlyRevenue, refresh) =>
-    request('/api/tax/advice', 'POST',
-      { quarterly_revenue: quarterlyRevenue, refresh: !!refresh }),
+    request('/api/insights', 'POST',
+      { scene: 'tax', payload: { quarterly_revenue: quarterlyRevenue }, refresh: !!refresh }),
   reportUrl: (year, month) => getBaseUrl() + `/api/report/monthly?year=${year}&month=${month}`,
 
   // 收款账户（二维码收付款流水同步）
@@ -201,7 +201,7 @@ module.exports = {
   // 单店模型（保本线先行）
   storePresets: () => request('/api/store/presets'),
   storeModel: (data) => request('/api/store/model', 'POST', data),
-  storeDiagnosis: (data) => request('/api/store/diagnosis', 'POST', data),
+  storeDiagnosis: (data) => request('/api/insights', 'POST', { scene: 'store', payload: data }),
   storeFromLedger: () => request('/api/store/from-ledger'),
 
   // 单店档案（存档复用）
