@@ -4,12 +4,16 @@
 为兼容旧入口，底部从 team_domains 再导出 generate_copy / generate_store_diagnosis。
 """
 import json
+import logging
 import re
 import time
 
+import config
 from config import load_settings
 from categories import detect_category
 from ai_parsing import extract_amount as _extract_amount, extract_customer as _extract_customer  # noqa: F401
+
+log = logging.getLogger("ai")
 
 # 递增重试的 max_tokens 上限。思考型模型（deepseek-flash / v4-pro）的推理开销
 # 随提示词长度与任务复杂度增长：实测短提示 600~1700 tokens，多问句任务
@@ -65,6 +69,51 @@ def get_client():
     return OpenAI(api_key=s["api_key"], base_url=s["base_url"])
 
 
+def _prompt_chars(messages) -> int:
+    total = 0
+    for m in messages or []:
+        try:
+            total += len(str(m.get("content") or ""))
+        except AttributeError:
+            continue
+    return total
+
+
+def _enforce_prompt_budget(messages, domain: str = ""):
+    """L11 速度硬约束：提示词进模型前先做预算检查。
+
+    - 超过 AI_PROMPT_WARN_CHARS：告警（提示应先摘要）；
+    - 超过 AI_PROMPT_MAX_CHARS：截断（**保留 system 全文**，其余按顺序保留、截尾）。
+
+    为什么要统一在这里做：项目里散落着各处的 `[:N]` 自觉截断，容易随迭代退化；
+    这里是一道"兜底闸门"，保证任何脚本原始大输出都不会未经处理直接喂给模型。
+    """
+    total = _prompt_chars(messages)
+    if total <= config.AI_PROMPT_WARN_CHARS:
+        return messages
+    log.warning("提示词偏长：%d 字符（告警阈值 %d，domain=%s）——建议先摘要再喂模型",
+                total, config.AI_PROMPT_WARN_CHARS, domain or "-")
+    if total <= config.AI_PROMPT_MAX_CHARS:
+        return messages
+
+    sys_msgs = [m for m in messages if str(m.get("role") or "") == "system"]
+    others = [m for m in messages if str(m.get("role") or "") != "system"]
+    remain = max(0, config.AI_PROMPT_MAX_CHARS
+                 - sum(len(str(m.get("content") or "")) for m in sys_msgs))
+    out = list(sys_msgs)
+    for m in others:
+        content = str(m.get("content") or "")
+        if len(content) <= remain:
+            out.append(m)
+            remain -= len(content)
+        else:
+            out.append({**m, "content": content[:remain]})
+            remain = 0
+    log.warning("提示词超上限已截断：%d → ≤%d 字符（domain=%s）",
+                total, config.AI_PROMPT_MAX_CHARS, domain or "-")
+    return out
+
+
 def chat(messages, temperature=0.7, max_tokens=1024, reasoning_effort=None, domain=""):
     """调用模型，返回正文文本。
 
@@ -83,6 +132,7 @@ def chat(messages, temperature=0.7, max_tokens=1024, reasoning_effort=None, doma
       2. 正文为空时递增预算重试，直到 _CHAT_TOKEN_CAP。
       3. 仍为空则抛清晰异常，由调用方走兜底，而不是把空串一路传下去。
     """
+    messages = _enforce_prompt_budget(messages, domain=domain)   # L11：提示词预算护栏
     model = load_settings()["model"]
     client = get_client()
     budget = max(int(max_tokens or 0), _CHAT_TOKEN_MIN)

@@ -56,6 +56,12 @@ EVOLUTION_VERIFY_MIN_TASKS = int(os.environ.get("SHOP_EVOLUTION_VERIFY_TASKS", "
 EVOLUTION_VERIFY_CMD = os.environ.get("SHOP_EVOLUTION_VERIFY_CMD", "")
 EVOLUTION_VERIFY_TIMEOUT = int(os.environ.get("SHOP_EVOLUTION_VERIFY_TIMEOUT", "300") or "300")
 
+# ---- 提示词预算（L11 速度硬约束）----
+# 进入模型前，提示词过长先告警；超过上限则截断（保留 system，其余截尾）。
+# 目的：任何"脚本原始大输出"都不应未经摘要直接喂给模型。
+AI_PROMPT_WARN_CHARS = int(os.environ.get("SHOP_AI_PROMPT_WARN", "8000") or "8000")
+AI_PROMPT_MAX_CHARS = int(os.environ.get("SHOP_AI_PROMPT_MAX", "24000") or "24000")
+
 
 def evolution_enabled() -> bool:
     """是否启用进化层：环境变量 > config.local.json > 默认（关闭）。"""

@@ -2,6 +2,23 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [1.1.5] - 2026-09-22
+
+补齐 Skill Optimizer 诊断的两条 P1：提示词预算护栏 + 开发约定（铁律）。
+
+### 新增
+- **提示词预算护栏（Lens 11 速度硬约束）**：`ai.chat` 入口统一做预算检查 ——
+  `config.AI_PROMPT_WARN_CHARS`（默认 8000，超限告警）与
+  `config.AI_PROMPT_MAX_CHARS`（默认 24000，超限截断且**保留 system**）。
+  保证任何"脚本原始大输出"都不会未经处理直接喂给模型；各处仍应先按语义取 Top-N。
+- **`AGENTS.md`（Lens 5 文档层铁律）**：面向 Agent 的精准入口，写明 5 条必守铁律
+  （密钥不入库 / 危险操作 confirm / 数据本地 / 变更必过验收 / 有限取值用枚举）
+  与开发约定（阈值入 config、脚本输出先截断、单文件 ≤400 行、渐进披露、护栏带测试）。
+
+### 测试
+- 新增 `tests/test_ai_prompt_guard.py`（短提示不动 / 告警不截断 / 超限截断且保 system /
+  畸形输入不崩 / `ai.chat` 真实接线）。
+
 ## [1.1.4] - 2026-09-22
 
 按 Skill Optimizer 十一透镜对工程做一轮体检并落地修复（ACI 防呆 + 文档渐进披露）。
