@@ -36,7 +36,7 @@ async function deleteProduct(id) {
 
 // type: in 入库 / out 出库 / adj 盘点
 function promptMove(pid, name, type) {
-  const label = { in: '入库', out: '出库', adj: '盘点' }[type];
+  const label = FC.labelStockMovement(type);
   const qty = prompt(`${name}：输入${label}数量`, type === 'adj' ? '' : '1');
   if (qty === null) return;
   const n = parseFloat(qty);

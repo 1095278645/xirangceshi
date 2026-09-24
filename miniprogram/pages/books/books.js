@@ -1,5 +1,6 @@
 // pages/books/books.js 账本：流水 / 算税 / 科目 / 报表 / 现金流 / 库存 / 发票
 const api = require('../../utils/api')
+const FC = require('../../shared/frontend_contract.js')
 
 function pad(n) { return n < 10 ? '0' + n : '' + n }
 
@@ -200,7 +201,7 @@ Page({
   addDebt() {
     const amount = parseFloat(this.data.debtAmount)
     if (!this.data.debtParty.trim()) { wx.showToast({ title: '填一下对方是谁', icon: 'none' }); return }
-    if (!(amount > 0)) { wx.showToast({ title: '先填金额', icon: 'none' }); return }
+    if (!FC.isPositiveNumber(amount)) { wx.showToast({ title: '先填金额', icon: 'none' }); return }
     api.addDebt({ party: this.data.debtParty.trim(), kind: this.data.debtKind,
                   amount, due_date: this.data.debtDue || '', note: '' })
       .then(() => {
@@ -267,7 +268,7 @@ Page({
   // 入库(in)/出库(out)/盘点(adj)：小程序没有 prompt，用 modal 的 editable 输入
   promptMove(e) {
     const { id, name, act } = e.currentTarget.dataset
-    const label = { in: '入库', out: '出库', adj: '盘点' }[act]
+    const label = FC.labelStockMovement(act)
     wx.showModal({
       title: `${label}：${name}`,
       editable: true,
@@ -309,7 +310,7 @@ Page({
   saveInvoice() {
     const f = this.data
     const amount = parseFloat(f.invAmount)
-    if (!(amount > 0)) { wx.showToast({ title: '先填开票/收票金额', icon: 'none' }); return }
+    if (!FC.isPositiveNumber(amount)) { wx.showToast({ title: '先填开票/收票金额', icon: 'none' }); return }
     const ratePct = parseFloat(f.invRate)
     const rate = isNaN(ratePct) ? 0 : ratePct / 100     // 用户填 %，后端存小数
     api.saveInvoice({

@@ -167,6 +167,29 @@ try {
   problems.push(`renderCustDetail() 抛异常：${e.message}`);
 }
 
+// ---------- 共享契约自检（标签/谓词/错误归类） ----------
+try {
+  const FC = ctx.FRONTEND_CONTRACT;
+  const assert = (cond, msg) => { if (!cond) problems.push('契约自检失败：' + msg); };
+  assert(FC, 'FRONTEND_CONTRACT 未挂到全局（shared 脚本未加载？）');
+  if (FC) {
+    assert(FC.labelTransType('income') === '收入', "labelTransType('income')");
+    assert(FC.labelStockMovement('adj') === '盘点', "labelStockMovement('adj')");
+    assert(FC.labelStockMovement('zzz') === 'zzz', '未知枚举应原样回显');
+    assert(FC.isPositiveNumber(5) === true, 'isPositiveNumber(5)');
+    assert(FC.isPositiveNumber(0) === false, 'isPositiveNumber(0)');
+    assert(FC.isPositiveNumber('abc') === false, "isPositiveNumber('abc')");
+    assert(FC.isNonEmpty(' x ') === true && FC.isNonEmpty('   ') === false, 'isNonEmpty');
+    assert(FC.classifyHttp(401).kind === 'auth', 'classifyHttp(401)');
+    assert(FC.classifyHttp(200).ok === true, 'classifyHttp(200)');
+    const h = FC.buildAuthHeaders('tok', 2);
+    assert(h['X-Shop-Token'] === 'tok' && h['X-Shop-Id'] === '2', 'buildAuthHeaders');
+    if (!problems.length) console.log('✅ 共享契约自检通过（标签 / 谓词 / 错误归类 / 请求头）');
+  }
+} catch (e) {
+  problems.push('契约自检抛异常：' + e.message);
+}
+
 // ---------- 空数据下也应能渲染（真实的首屏就是空数据） ----------
 console.log('渲染通过：' + (ran.join(' ') || '（无）'));
 

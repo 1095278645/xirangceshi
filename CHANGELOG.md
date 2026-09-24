@@ -2,6 +2,30 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [1.1.8] - 2026-09-22
+
+双前端收敛（短期步）：**枚举标签**与**校验谓词**并入共享契约并接线。
+
+### 新增（`shared/frontend_contract.js`）
+- `LABELS` + `labelTransType / labelInvoiceKind / labelStockMovement`
+  （收入/支出、销项/进项、入库/出库/盘点；未知枚举原样回显）。
+- 校验谓词（只返回布尔，**不改各端文案**）：`isNonEmpty / isPositiveNumber / isNonNegativeNumber`。
+- 检查脚本新增：`LABELS` 键集必须与对应 `UI_ENUMS` 一致（`transType` 固定 `income/expense`）。
+- `check_web_render.js` 新增**契约运行时自检**（标签 / 谓词 / 错误归类 / 请求头），无浏览器也能在 CI 跑。
+
+### 接线
+| 端 | 文件 | 改动 |
+|---|---|---|
+| H5 | `pages/stock.js` | 库存动作标签改用 `FC.labelStockMovement`（原为内联 map） |
+| H5 | `pages/home.js` | 5 处"收入/支出"三元 → `FC.labelTransType`；金额校验 → `FC.isPositiveNumber` |
+| H5 | `pages/invoice.js` | 销项/进项标签 → `FC.labelInvoiceKind`；金额校验 → `FC.isPositiveNumber` |
+| H5 | `pages/collect.js`、`pages/finance.js` | 金额校验 → `FC.isPositiveNumber` |
+| 小程序 | `pages/books/books.js` | 库存动作标签 + 2 处金额校验改用契约（新增 `require`） |
+| 小程序 | `pages/index/index.js` | "收入/支出" → `FC.labelTransType`（新增 `require`） |
+
+### 兼容性
+- **行为与文案不变**（谓词仅在原本就是 `!(x > 0)` 的位置替换；`进账` 等各端有意的不同措辞未动）。
+
 ## [1.1.7] - 2026-09-22
 
 双前端收敛（Batch F）：把 H5 与小程序的**共享契约**收敛为单一真源 + 自动同步 + CI 防漂移。

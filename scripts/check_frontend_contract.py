@@ -65,6 +65,26 @@ else:
         elif fe != be:
             problems.append(f"枚举漂移 {name}：前端 {sorted(fe)} ≠ 后端 {sorted(be)}（{loc}）")
 
+    # LABELS 的键集必须与对应 UI_ENUMS 一致（transType 对应数据库的 income/expense）
+    def label_keys(name: str) -> set:
+        m = re.search(rf"{name}:\s*\{{([^}}]*)\}}", body)
+        if not m:
+            return set()
+        keys = set()
+        for entry in m.group(1).split(","):
+            entry = entry.strip()
+            if not entry:
+                continue
+            keys.add(entry.split(":", 1)[0].strip().strip("'\""))
+        return keys
+
+    for lab, enum_key in (("invoiceKind", "invoiceKind"), ("stockMovement", "stockMovement")):
+        lk, ek = label_keys(lab), enum_of(enum_key)
+        if lk != ek:
+            problems.append(f"标签键漂移 LABELS.{lab} {sorted(lk)} ≠ UI_ENUMS.{enum_key} {sorted(ek)}")
+    if label_keys("transType") != {"income", "expense"}:
+        problems.append(f"LABELS.transType 键应为 income/expense，实际 {sorted(label_keys('transType'))}")
+
 print(f"前端契约真源：{SRC.relative_to(ROOT)}")
 if problems:
     print("\n问题（必须修）：")

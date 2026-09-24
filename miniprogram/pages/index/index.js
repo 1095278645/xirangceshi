@@ -1,6 +1,7 @@
 // pages/index/index.js 语音记账
 const api = require('../../utils/api')
 const app = getApp()
+const FC = require('../../shared/frontend_contract.js')
 
 // 同声传译插件为可选能力：正式 AppID 授权后可用，否则降级为手动输入
 let manager = null
@@ -359,7 +360,7 @@ Page({
         } else if (res.tapIndex === 1 || res.tapIndex === 2) {
           const want = res.tapIndex === 1 ? 'expense' : 'income'
           if (want === r.trans_type) {
-            wx.showToast({ title: '本来就是' + (want === 'income' ? '收入' : '支出'),
+            wx.showToast({ title: '本来就是' + FC.labelTransType(want),
                            icon: 'none' })
             return
           }

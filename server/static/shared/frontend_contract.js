@@ -67,11 +67,44 @@
     insightScene: ['copy', 'monthly', 'tax', 'customer', 'store']  // UnifiedInsightIn.scene
   };
 
+  // ---- 枚举标签（两端同一套说法；键集须与 UI_ENUMS 对应）----
+  var LABELS = {
+    transType: { income: '收入', expense: '支出' },
+    invoiceKind: { out: '销项', in: '进项' },
+    stockMovement: { in: '入库', out: '出库', adj: '盘点' }
+  };
+
+  function labelTransType(v) { return LABELS.transType[v] || String(v == null ? '' : v); }
+  function labelInvoiceKind(v) { return LABELS.invoiceKind[v] || String(v == null ? '' : v); }
+  function labelStockMovement(v) { return LABELS.stockMovement[v] || String(v == null ? '' : v); }
+
+  // ---- 校验谓词（只返回布尔：两端共用同一"规则"，文案由各端自行保留，避免改 UX）----
+  function isNonEmpty(v) { return String(v == null ? '' : v).trim().length > 0; }
+
+  function isPositiveNumber(v) {
+    if (v === null || v === undefined || v === '') return false;
+    var n = Number(v);
+    return !isNaN(n) && n > 0;
+  }
+
+  function isNonNegativeNumber(v) {
+    if (v === null || v === undefined || v === '') return false;
+    var n = Number(v);
+    return !isNaN(n) && n >= 0;
+  }
+
   return {
     STORAGE_KEYS: STORAGE_KEYS,
     UI_ENUMS: UI_ENUMS,
+    LABELS: LABELS,
     normalizeBaseUrl: normalizeBaseUrl,
     buildAuthHeaders: buildAuthHeaders,
-    classifyHttp: classifyHttp
+    classifyHttp: classifyHttp,
+    labelTransType: labelTransType,
+    labelInvoiceKind: labelInvoiceKind,
+    labelStockMovement: labelStockMovement,
+    isNonEmpty: isNonEmpty,
+    isPositiveNumber: isPositiveNumber,
+    isNonNegativeNumber: isNonNegativeNumber
   };
 });

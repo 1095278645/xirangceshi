@@ -29,7 +29,7 @@ function _publicOrigin() {
 async function createCollection() {
   const c = state.collect;
   const amount = parseFloat(c.form.amount);
-  if (!(amount > 0)) { toast('请填写收款金额'); return; }
+  if (!FC.isPositiveNumber(amount)) { toast('请填写收款金额'); return; }
   try {
     const r = await api('/api/collect/create', 'POST', {
       amount, item: c.form.item.trim() || '现场收款',

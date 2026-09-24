@@ -91,7 +91,7 @@ async function loadDebts() {
 async function addDebt() {
   const f = state.finance.debtForm;
   const amount = parseFloat(f.amount);
-  if (!(amount > 0)) { toast('先填金额'); return; }
+  if (!FC.isPositiveNumber(amount)) { toast('先填金额'); return; }
   try {
     await api('/api/debts', 'POST', {
       party: f.party, kind: f.kind, amount,

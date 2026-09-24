@@ -14,7 +14,7 @@ async function loadInvoice() {
 async function saveInvoice() {
   const f = state.invoice.form;
   const amount = parseFloat(f.amount);
-  if (!(amount > 0)) { toast('先填开票/收票金额'); return; }
+  if (!FC.isPositiveNumber(amount)) { toast('先填开票/收票金额'); return; }
   const ratePct = parseFloat(f.rate);
   const rate = isNaN(ratePct) ? 0 : ratePct / 100;   // 用户填%，后端存小数
   try {
@@ -64,8 +64,8 @@ function renderInvoice() {
 
   ${iv.loading ? '<div class="card"><div class="card-title">加载中…</div></div>' : !s ? '' : `
   <div class="store-grid">
-    <div class="store-cell"><div class="store-cell-num income">${byKind('out').cnt || 0} 张</div><div class="store-cell-label">销项 ${fmt(byKind('out').total || 0)} 元</div></div>
-    <div class="store-cell"><div class="store-cell-num">${byKind('in').cnt || 0} 张</div><div class="store-cell-label">进项 ${fmt(byKind('in').total || 0)} 元</div></div>
+    <div class="store-cell"><div class="store-cell-num income">${byKind('out').cnt || 0} 张</div><div class="store-cell-label">${FC.labelInvoiceKind('out')} ${fmt(byKind('out').total || 0)} 元</div></div>
+    <div class="store-cell"><div class="store-cell-num">${byKind('in').cnt || 0} 张</div><div class="store-cell-label">${FC.labelInvoiceKind('in')} ${fmt(byKind('in').total || 0)} 元</div></div>
   </div>
   ${s.summary ? `<div class="card"><div class="review-box">${esc(s.summary)}</div></div>` : ''}`}
 

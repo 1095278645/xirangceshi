@@ -61,7 +61,7 @@ async function confirmAmount() {
   const d = state.amountDraft;
   if (!d) return;
   const amt = parseFloat(state.amountInput);
-  if (!(amt > 0)) { toast('填一个大于 0 的金额'); return; }
+  if (!FC.isPositiveNumber(amt)) { toast('填一个大于 0 的金额'); return; }
   // 把 AI 已解析好的字段原样带回去：后端不重解析，科目/熟客与草稿一致
   await submitOrder(d.text || d.item, {
     amount: amt, customer: d.customer, item: d.item,
@@ -117,7 +117,7 @@ async function fixRecorded(index) {
       merged = Object.assign({}, r, { amount: (res.transaction || {}).amount });
     } else if (choice === '2' || choice === '3') {
       const want = choice === '2' ? 'expense' : 'income';
-      if (want === r.trans_type) { toast('本来就是' + (want === 'income' ? '收入' : '支出')); return; }
+      if (want === r.trans_type) { toast('本来就是' + FC.labelTransType(want)); return; }
       const res = await api('/api/transactions/' + r.transaction_id, 'POST',
                             { trans_type: want, reason: '店主当场更正收支方向' });
       merged = Object.assign({}, r, { trans_type: (res.transaction || {}).trans_type });
@@ -290,7 +290,7 @@ function renderHome() {
     <div class="parsed-grid">
       <div class="parsed-item"><span class="parsed-label">事由</span><span class="parsed-value">${esc(state.checkDraft.item || '')}</span></div>
       <div class="parsed-item"><span class="parsed-label">金额</span><span class="parsed-value">${state.checkDraft.amount != null ? esc(state.checkDraft.amount) + ' 元' : '未提'}</span></div>
-      <div class="parsed-item"><span class="parsed-label">方向</span><span class="parsed-value">${state.checkDraft.trans_type === 'income' ? '收入' : '支出'}</span></div>
+      <div class="parsed-item"><span class="parsed-label">方向</span><span class="parsed-value">${FC.labelTransType(state.checkDraft.trans_type)}</span></div>
       <div class="parsed-item"><span class="parsed-label">分类</span><span class="parsed-value">${esc(state.checkDraft.category || '')}</span></div>
     </div>
     ${state.checkDraft.amount != null ? `
@@ -314,11 +314,11 @@ function renderHome() {
     ${(state.amountMissing || []).length ? `
       <div class="snap-box">${state.amountMissing.map(m =>
         `· ${esc(m.item || '')}（${esc(m.customer || '散客')}，`
-        + `${m.trans_type === 'income' ? '收入' : '支出'}）`).join('<br/>')}</div>` : ''}
+        + `${FC.labelTransType(m.trans_type)}）`).join('<br/>')}</div>` : ''}
     <div class="parsed-grid">
       <div class="parsed-item"><span class="parsed-label">顾客</span><span class="parsed-value">${esc(state.amountDraft.customer || '散客')}</span></div>
       <div class="parsed-item"><span class="parsed-label">事由</span><span class="parsed-value">${esc(state.amountDraft.item || '')}</span></div>
-      <div class="parsed-item"><span class="parsed-label">方向</span><span class="parsed-value">${state.amountDraft.trans_type === 'income' ? '收入' : '支出'}</span></div>
+      <div class="parsed-item"><span class="parsed-label">方向</span><span class="parsed-value">${FC.labelTransType(state.amountDraft.trans_type)}</span></div>
       <div class="parsed-item"><span class="parsed-label">分类</span><span class="parsed-value">${esc(state.amountDraft.category || '')}</span></div>
     </div>
     <div class="ask-row">
@@ -333,7 +333,7 @@ function renderHome() {
   ${p ? `
   <div class="card">
     <div class="card-title">${state.amountDraft ? '待补金额' : '已记下'}</div>
-    <div class="type-badge ${p.trans_type === 'income' ? 'badge-income' : 'badge-expense'}">${p.trans_type === 'income' ? '收入' : '支出'}</div>
+    <div class="type-badge ${p.trans_type === 'income' ? 'badge-income' : 'badge-expense'}">${FC.labelTransType(p.trans_type)}</div>
     <div class="parsed-grid">
       <div class="parsed-item"><span class="parsed-label">顾客</span><span class="parsed-value">${esc(p.customer || '散客')}</span></div>
       <div class="parsed-item"><span class="parsed-label">事由</span><span class="parsed-value">${esc(p.item || '')}</span></div>
