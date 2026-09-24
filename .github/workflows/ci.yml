@@ -50,6 +50,9 @@ jobs:
         working-directory: server
         run: python scripts/check_web_pages.py
 
+      - name: 双前端契约一致性（防漂移）
+        run: python scripts/check_frontend_contract.py
+
   web-render:
     name: 网页端渲染试跑（Node）
     runs-on: ubuntu-latest

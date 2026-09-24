@@ -46,6 +46,11 @@
 - **单文件尽量 ≤ 400 行**：超过时按**既有职责边界**外移（搬家，不新增抽象层）。
 - **注释与文档用中文**；接口、参数命名自描述（Agent 与人都要一眼看懂）。
 - **文档渐进披露**：低频内容（完整 API 表、目录树、深度排障）放 `docs/`，README 只留指针。
+- **双前端共享契约（H5 × 小程序）**：存储键、请求头、HTTP 错误文案、UI 枚举的**唯一真源**是
+  `shared/frontend_contract.js`。改这些内容**只改真源**，然后跑
+  `python scripts/sync_frontend_contract.py`；两处副本带 `AUTO-GENERATED` 标记、
+  **禁止手改**。CI 会跑 `python scripts/check_frontend_contract.py` 校验"副本与真源逐字节一致"
+  且"UI 枚举与 `server/schemas.py` 的 `Literal` 一致"，漂移即失败。
 - **护栏改动需带测试**：`safe_io`（受保护路径/原子写）、限流、备份恢复、进化验证门等，
   改动必须附单元或 HTTP 测试。
 - **多 agent 编排**：新增业务域遵循 `TEAM_DOMAINS` / `BUSINESS_DOMAINS` 声明式注册表，

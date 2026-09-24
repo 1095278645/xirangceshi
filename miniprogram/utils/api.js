@@ -1,8 +1,10 @@
 // utils/api.js 后端请求封装
+// 存储键 / 请求头 / 错误归类来自**双前端共享契约**（真源 shared/frontend_contract.js）
 const app = getApp()
+const FC = require('../../shared/frontend_contract.js')
 
-const TOKEN_KEY = 'shop_access_token'
-const BASEURL_KEY = 'shop_base_url'
+const TOKEN_KEY = FC.STORAGE_KEYS.token
+const BASEURL_KEY = FC.STORAGE_KEYS.baseUrl
 
 // ---------- 后端地址（真机演示必须可配置） ----------
 // 真机上 127.0.0.1 指向手机自己，连不到电脑上的后端；所以地址必须能在
@@ -16,7 +18,7 @@ function getBaseUrl() {
 }
 
 function setBaseUrl(url) {
-  const v = (url || '').trim().replace(/\/+$/, '')   // 去掉结尾斜杠，避免拼出 //
+  const v = FC.normalizeBaseUrl(url)   // 去空白与结尾斜杠，避免拼出 //
   try {
     if (v) wx.setStorageSync(BASEURL_KEY, v)
     else wx.removeStorageSync(BASEURL_KEY)
@@ -38,7 +40,7 @@ function setToken(t) {
 
 // 当前店铺：多店时后端按 X-Shop-Id 决定数据落哪家店。
 // 单店/演示环境不设置即可（后端会落到默认店），行为与改造前一致。
-const SHOP_KEY = 'shop_current_id'
+const SHOP_KEY = FC.STORAGE_KEYS.shop
 
 function getShopId() {
   try {
@@ -55,12 +57,7 @@ function setShopId(id) {
 }
 
 function authHeader() {
-  const h = {}
-  const t = getToken()
-  if (t) h['X-Shop-Token'] = t
-  const s = getShopId()
-  if (s !== null && !isNaN(s)) h['X-Shop-Id'] = String(s)
-  return h
+  return FC.buildAuthHeaders(getToken(), getShopId())
 }
 
 // 连接类错误在页面上只提示一次，避免 onShow + onLoad 重复弹一串 toast；
@@ -97,26 +94,13 @@ function request(path, method = 'GET', data = {}) {
       timeout: 20000,
       header: { 'content-type': 'application/json', ...authHeader() },
       success(res) {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(res.data)
-        } else if (res.statusCode === 401) {
-          const e = new Error('需要访问令牌：请到「设置」页填写访问令牌')
-          e.toast = true
-          reject(e)
-        } else if (res.statusCode === 403) {
-          // 403 是业务性拒绝（如"你不是这家店的成员"），必须把后端原话透出来，
-          // 否则演示时只看到"请求失败：403"，无从判断该切店还是该找店主开权限。
-          const d = res.data && res.data.detail
-          const e = new Error(d || '没有权限执行该操作')
-          e.toast = true
-          e.forbidden = true
-          reject(e)
-        } else {
-          const d = res.data && res.data.detail
-          const e = new Error(d || ('请求失败：' + res.statusCode))
-          e.toast = true
-          reject(e)
-        }
+        const info = FC.classifyHttp(res.statusCode, res.data)
+        if (info.ok) return resolve(res.data)
+        // 错误归类与文案来自共享契约：401 引导填令牌、403 透出后端原话、其余报详情
+        const e = new Error(info.message)
+        e.toast = true
+        if (info.kind === 'forbidden') e.forbidden = true
+        reject(e)
       },
       fail(err) {
         const e = new Error('连不上后端（' + base + '），请确认电脑已启动服务且与手机同一网络')

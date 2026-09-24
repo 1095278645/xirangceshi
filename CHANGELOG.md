@@ -2,6 +2,32 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [1.1.7] - 2026-09-22
+
+双前端收敛（Batch F）：把 H5 与小程序的**共享契约**收敛为单一真源 + 自动同步 + CI 防漂移。
+
+### 背景
+重复的并不是"页面逻辑"（两端运行时不兼容），而是**契约**：存储键、请求头、HTTP 错误文案、
+UI 枚举。此前它们被各写一份，靠人记着同步 —— 属于典型的"同一件事两处真相"。
+
+### 新增
+- `shared/frontend_contract.js`（**唯一真源**，UMD：小程序 `module.exports` / 浏览器全局）：
+  `STORAGE_KEYS`、`normalizeBaseUrl()`、`buildAuthHeaders()`、`classifyHttp()`、`UI_ENUMS`。
+- `scripts/sync_frontend_contract.py`：真源 → H5 / 小程序两处副本（带 `AUTO-GENERATED` 头）。
+- `scripts/check_frontend_contract.py`：**CI 防漂移** —— 校验副本与真源逐字节一致，
+  并校验 `UI_ENUMS` 与 `server/schemas.py` 的 `Literal` 一致。
+
+### 变更
+- 网页端 `static/js/core.js`：令牌/店铺键、请求头、401/403 文案改用共享契约
+  （`index.html` 增加 `shared/frontend_contract.js`，先于 core.js 加载）。
+- 小程序 `utils/api.js`：`require` 共享契约，存储键/地址归一/请求头/错误归类改用契约。
+- `scripts/check_web_render.js`：加载顺序加入共享脚本。
+- CI 新增步骤「双前端契约一致性（防漂移）」。
+- `AGENTS.md`：新增"双前端共享契约"约定（只改真源、副本禁手改）。
+
+### 兼容性
+- 行为不变（文案与请求头等价；网页端"请求失败 N"统一为"请求失败：N"）。
+
 ## [1.1.6] - 2026-09-22
 
 L2 单文件瘦身：服务端 5 个超长文件全部拆到 400 行以内（小程序两页列为已知例外）。

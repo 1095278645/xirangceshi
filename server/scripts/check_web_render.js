@@ -20,6 +20,7 @@ const STATIC = path.join(SERVER, 'static');
 
 // 与 index.html 的加载顺序保持一致（core 必须最先，页面文件随后）
 const ORDER = [
+  'shared/frontend_contract.js',
   'js/core.js',
   'js/speech.js',
   'js/pages/home.js',

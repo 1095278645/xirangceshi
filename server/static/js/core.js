@@ -4,7 +4,9 @@
 
 // ---------- 访问令牌（后端启用鉴权时必需） ----------
 // 后端设置了 SHOP_ACCESS_TOKEN 才校验；未设置时留空即可，行为与以前一致。
-const TOKEN_KEY = 'shop_access_token';
+// 键名、请求头、错误归类均来自**双前端共享契约**（真源 shared/frontend_contract.js）。
+const FC = window.FRONTEND_CONTRACT;
+const TOKEN_KEY = FC.STORAGE_KEYS.token;
 
 function getToken() {
   try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (_) { return ''; }
@@ -19,17 +21,11 @@ function setToken(t) {
 
 // 令牌统一由请求头携带（不用 ?token= 以免出现在日志/历史里）
 function authHeaders() {
-  const t = getToken();
-  const h = t ? { 'X-Shop-Token': t } : {};
-  // 多店：带当前店铺 id，后端据此切换账本。没设置时后端落到默认店，
-  // 单店行为完全不变。
-  const sid = getShopId();
-  if (sid !== null) h['X-Shop-Id'] = String(sid);
-  return h;
+  return FC.buildAuthHeaders(getToken(), getShopId());
 }
 
 // ---------- 当前店铺（多店） ----------
-const SHOP_KEY = 'shop_current_id';
+const SHOP_KEY = FC.STORAGE_KEYS.shop;
 
 function getShopId() {
   try {
@@ -57,15 +53,13 @@ async function api(path, method = 'GET', data = null) {
   } catch (e) {
     throw new Error('无法连接小店服务，请确认后端已启动');
   }
-  if (res.status === 401) {
-    // 引导用户去设置页填令牌，而不是只报「请求失败 401」
-    state.needToken = true;
-    throw new Error('需要访问令牌：请到「设置」页填写访问令牌');
-  }
   if (!res.ok) {
-    let msg = '请求失败 ' + res.status;
-    try { const e = await res.json(); msg = e.detail || msg; } catch (_) {}
-    throw new Error(msg);
+    // 错误归类来自共享契约：401 引导去设置页填令牌，403 透出后端原话
+    let body = null;
+    try { body = await res.json(); } catch (_) {}
+    const info = FC.classifyHttp(res.status, body);
+    if (info.kind === 'auth') state.needToken = true;
+    throw new Error(info.message);
   }
   return res.json();
 }
@@ -80,7 +74,7 @@ async function downloadFile(path, filename) {
   }
   if (res.status === 401) {
     state.needToken = true;
-    toast('需要访问令牌：请到「设置」页填写');
+    toast(FC.classifyHttp(401).message);
     render();
     return;
   }
