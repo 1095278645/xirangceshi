@@ -70,9 +70,10 @@ class TestUnifiedInsightAPI(unittest.TestCase):
         app.include_router(router)
         self.client = TestClient(app)
 
-    def test_unknown_scene_returns_400(self):
+    def test_unknown_scene_rejected_at_schema(self):
+        """Poka-yoke：非法 scene 在请求期即被 Pydantic 拒绝（422），不再落到运行期 400。"""
         response = self.client.post("/api/insights", json={"scene": "unknown", "payload": {}})
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 422)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,8 @@
 从 main.py 抽出：单一职责（L2）+ 渐进披露（L3），路由层只关心业务。
 所有模型均带默认值，前端不传即用业务兜底。
 """
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -49,8 +51,9 @@ class SettingsIn(BaseModel):
     base_url: str = ""
     model: str = ""
     language: str | None = None   # 口语/方言偏好（普通话/粤语/四川话/英语…），None=不改
-    ai_pipeline: str | None = None  # 不传=保留现值；fast=单次生成；team=多agent实验
-    api_profile: str | None = None  # 不传=保留现值；core=核心接口；full=完整接口
+    # 有限取值 → 用 Literal 强约束（Poka-yoke：错值在请求期即被拒，不落到运行期）
+    ai_pipeline: Literal["fast", "team"] | None = None  # 不传=保留现值；fast=单次生成；team=多agent实验
+    api_profile: Literal["core", "full"] | None = None  # 不传=保留现值；core=核心接口；full=完整接口
 
 
 class VatIn(BaseModel):
@@ -96,8 +99,10 @@ class StoreModelIn(BaseModel):
     utilities: float = Field(default=0, ge=0)          # 月水电杂费
     total_investment: float = Field(default=0, ge=0)   # 总投资
     cash_on_hand: float = Field(default=0, ge=0)       # 现有现金
-    traffic: str = "一般"              # 商圈客流：差/一般/好
-    competitor: str = "一般"           # 周边竞争：多/一般/少
+    traffic: Literal["差", "一般", "好"] = "一般"      # 商圈客流（Poka-yoke：有限取值）
+    competitor: Literal["多", "一般", "少"] = "一般"   # 周边竞争（Poka-yoke：有限取值）
+    # biz_type 保持自由文本：/api/store/benchmark 明确支持"未收录业态 → matched=false 回落默认"，
+    # 这是有意的开放行为，不收紧。
     biz_type: str = "餐饮"             # 业态：餐饮/饮品/零售/生鲜/服务/摆摊
 
 
@@ -123,7 +128,8 @@ class InsightIn(BaseModel):
 
 class UnifiedInsightIn(BaseModel):
     """统一 AI 洞察入口（copy / monthly / tax / customer / store）"""
-    scene: str
+    # 有限取值 → Literal：非法 scene 在请求期直接被拒（422），而不是落到运行期才 400
+    scene: Literal["copy", "monthly", "tax", "customer", "store"]
     payload: dict = {}
     refresh: bool = False
 
@@ -175,7 +181,7 @@ class CollectionConfirmIn(BaseModel):
 
 class NotifySubscriptionIn(BaseModel):
     """新增/更新推送订阅"""
-    channel: str
+    channel: Literal["mock", "webhook", "wecom_bot", "wecom_app", "wechat_subscribe"]
     target: str = ""
     events: list[str] = []
     enabled: bool = True
@@ -185,7 +191,7 @@ class NotifySubscriptionIn(BaseModel):
 
 class NotifyTestIn(BaseModel):
     """直接试发一条消息（不建订阅）"""
-    channel: str
+    channel: Literal["mock", "webhook", "wecom_bot", "wecom_app", "wechat_subscribe"]
     target: str = ""
     title: str = ""
     content: str = ""
@@ -275,14 +281,14 @@ class ProductIn(BaseModel):
 
 class StockMoveIn(BaseModel):
     """库存变动（入库/出库/盘点）"""
-    movement: str = "in"             # in 入库 / out 出库 / adj 盘点
+    movement: Literal["in", "out", "adj"] = "in"   # in 入库 / out 出库 / adj 盘点
     qty: float = Field(ge=0)         # 数量不允许为负
     note: str = ""
 
 
 class InvoiceIn(BaseModel):
     """发票台账"""
-    kind: str = "out"                # out 销项开票 / in 进项收票
+    kind: Literal["out", "in"] = "out"   # out 销项开票 / in 进项收票
     party: str = ""
     invoice_no: str = ""
     amount: float = Field(ge=0)

@@ -2,6 +2,26 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [1.1.4] - 2026-09-22
+
+按 Skill Optimizer 十一透镜对工程做一轮体检并落地修复（ACI 防呆 + 文档渐进披露）。
+
+### 变更
+- **ACI Poka-yoke（Lens 10）**：有限取值参数由自由文本改为 `Literal` 强约束 ——
+  `UnifiedInsightIn.scene`、`StoreModelIn.traffic/competitor`、
+  `NotifySubscriptionIn.channel`、`NotifyTestIn.channel`、
+  `StockMoveIn.movement`、`InvoiceIn.kind`、`SettingsIn.ai_pipeline/api_profile`。
+  非法值现在在**请求期 422**，不再运行期 400 或静默兜底（此前 `traffic/competitor`
+  未知值会静默取中间档）。
+- **文档渐进披露（Lens 1/3/8）**：README 由 557 行降到 **499 行** ——
+  把"完整 API 一览"外移到 `docs/api-reference.md`、"目录结构"外移到
+  `docs/project-structure.md`，README 只留一行指针。
+- 保留 `StoreModelIn.biz_type` 为自由文本：`/api/store/benchmark` 有意支持
+  "未收录业态 → matched=false 回落默认"（已在代码注释说明）。
+
+### 测试
+- `test_unified_insights`：非法 scene 的期望由 `400` 调整为 `422`（防呆前置）。
+
 ## [1.1.3] - 2026-09-22
 
 进化层补齐业界护栏（对照 GitHub 自进化项目调研）：**验证 / 审计 / 可回退**。
