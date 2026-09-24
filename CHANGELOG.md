@@ -2,6 +2,30 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [1.1.6] - 2026-09-22
+
+L2 单文件瘦身：服务端 5 个超长文件全部拆到 400 行以内（小程序两页列为已知例外）。
+
+### 变更（全部"搬家"式拆分，对外接口不变，均以 re-export 保持兼容）
+| 原文件 | 行数 | 拆出模块 | 现行数 |
+|---|---:|---|---:|
+| `notifications.py` | 467 | `notify_channels.py`（通道适配/注册表/本地收件箱） | 229 |
+| `accounting.py` | 507 | `accounting_close.py`（期末结转/反结转/原语下沉） | 344 |
+| `ai.py` | 525 | `ai_prompts.py`（提示词片段 + 4 个生成器） | 387 |
+| `qr.py` | 422 | `qr_matrix.py`（矩阵放置/掩码/罚分） | 258 |
+| `shops.py` | 559 | `shops_store.py`（店铺 CRUD + 成员/令牌管理） | 277 |
+
+- 依赖方向统一为**单向**：拆出模块不在顶层 import 原模块；需要时用"原语下沉"或
+  函数内延迟导入（`accounting_close`、`ai_prompts`、`qr_matrix`、`shops_store` 均如此）。
+- 测试随代码搬家调整打桩点（`test_notifications` 改 patch `notify_channels._post_json`）。
+
+### 已知例外（未拆，说明理由）
+- `miniprogram/pages/books/books.js`（595）、`miniprogram/pages/index/index.js`（422）：
+  主体是 `Page({...})` 方法（依赖 `this.setData/this.data`），拆分属侵入式改动，
+  而小程序端**没有运行时自动化测试**（仅 `check_mp_pages` 绑定检查），
+  强拆会危及现场演示动线 → **列为已知例外，建议不动演示动线的前提下单独排期**。
+  因此 `arch_check` 的 L1 仍会因这两个文件报 FAIL（可解释、已知）。
+
 ## [1.1.5] - 2026-09-22
 
 补齐 Skill Optimizer 诊断的两条 P1：提示词预算护栏 + 开发约定（铁律）。

@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config
 import db
 import notifications
+import notify_channels
 
 
 class _FakeHandler(BaseHTTPRequestHandler):
@@ -129,7 +130,7 @@ class TestNotifications(unittest.TestCase):
             captured["payload"] = payload
             return {"errcode": 0}
 
-        with mock.patch.object(notifications, "_post_json", fake_post):
+        with mock.patch.object(notify_channels, "_post_json", fake_post):
             r = notifications.notify("wecom_bot", "MYKEY123", "T", "C")
         self.assertTrue(r["ok"])
         self.assertIn("qyapi.weixin.qq.com/cgi-bin/webhook/send", captured["url"])
