@@ -97,6 +97,7 @@ const state = {
   tokenInput: '',
   summary: { income: 0, expense: 0, balance: 0, cnt: 0 },
   month: { period: '', income: 0, expense: 0, balance: 0 },
+  breakeven: null,         // 统一保本线输出口径（/api/breakeven/today）
   recognizing: false,
   result: '',
   submitting: false,

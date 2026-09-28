@@ -158,10 +158,12 @@ async function fixRecorded(index) {
 
 async function loadHome() {
   try {
-    const [s, m, hb] = await Promise.all([
-      api('/api/orders/today'), api('/api/orders/monthly'), api('/api/heartbeat')]);
+    const [s, m, hb, be] = await Promise.all([
+      api('/api/orders/today'), api('/api/orders/monthly'), api('/api/heartbeat'),
+      api('/api/breakeven/today').catch(() => null)]);
     state.summary = s;
     state.month = m;
+    state.breakeven = be;
     state.review = (hb.review || '');
     _applyHeartbeat(hb);
     state.snapshot = (hb.snapshot || '');
@@ -218,6 +220,13 @@ function submitManual() {
   const t = state.manualText.trim();
   if (!t) { toast('说点啥呢'); return; }
   submitOrder(t);
+}
+
+// 快捷短语：语音不方便时也要「一点就记」
+function quickManual(text) {
+  if (state.submitting) return;
+  state.manualText = text;
+  submitManual();
 }
 
 // ---------- 渲染 ----------
@@ -426,6 +435,11 @@ function renderHome() {
       <button class="manual-btn ${state.submitting ? 'disabled' : ''}" onclick="submitManual()">
         ${state.submitting ? '记账中…' : '记一笔'}</button>
     </div>
+    <div class="quick-phrases" aria-label="快捷记账短语">
+      <button type="button" onclick="quickManual('今天收了 6 块')">收了 6 块</button>
+      <button type="button" onclick="quickManual('进货花了 200')">进货 200</button>
+      <button type="button" onclick="quickManual('付房租 6000')">付房租</button>
+    </div>
   </div>
 
   ${state.checkDraft ? `
@@ -524,6 +538,12 @@ function renderHome() {
       <div class="summary-item"><div class="summary-num expense">${fmt(state.month.expense)}</div><div class="summary-label">本月支出</div></div>
       <div class="summary-item"><div class="summary-num">${fmt(state.month.balance)}</div><div class="summary-label">本月结余</div></div>
     </div>
+    ${state.breakeven ? `
+    <div class="be-chip be-${esc(state.breakeven.level || 'none')}" onclick="go('store')" role="button" tabindex="0">
+      <span class="be-chip-title">保本线</span>
+      <span class="be-chip-text">${esc(state.breakeven.text || '')}</span>
+      ${state.breakeven.configured === false ? '<span class="be-chip-cta">去算一次 →</span>' : ''}
+    </div>` : ''}
   </div>
 
   ${(state.review || state.reviewBusy) ? `
@@ -533,14 +553,15 @@ function renderHome() {
       <button class="btn-mini ${state.reviewBusy ? 'disabled' : ''}" onclick="reviewNow()">
         ${state.reviewBusy ? '掌柜在看账…' : '让掌柜再看一遍'}</button>
     </div>
+    <div class="review-team">账房 / 熟客 / 采买 / 税务 / 监察已看账 · 掌柜只挑今天最该做的一件</div>
     ${(state.layer1 || state.review)
-      ? `<div class="review-box">${esc(state.layer1 || state.review)}</div>`
+      ? `<div class="review-box today-action">${esc(state.layer1 || state.review)}</div>`
       : '<div class="acct-note">五位伙计正在各自看账（账目·熟客·库存·票税·监察），约 10 秒…</div>'}
     <div class="feedback-row">
       <button class="btn-mini" onclick="reviewFeedback(true)">有用</button>
       <button class="btn-mini" onclick="reviewFeedback(false)">没用</button>
     </div>
-    ${(state.skills || []).length ? `
+    ${state.detailOpen && (state.skills || []).length ? `
       <div class="skill-list">
         ${(state.skills || []).map(skill => `
           <div class="skill-card skill-${esc(skill.severity || 'low')}">

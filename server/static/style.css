@@ -978,3 +978,39 @@ button { font: inherit; }
 /* 抽屉关闭时连"一条边"都不露（ transform 在不同 DPR/缩放场景下可能露缝） */
 .more-drawer { visibility: hidden; }
 .more-drawer.open { visibility: visible; }
+
+/* 快捷短语 / 保本线闭环 / 复盘压缩 */
+.quick-phrases { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.quick-phrases button {
+  border: 1px solid var(--border); background: #fffaf0; color: #7c3f21;
+  border-radius: 999px; padding: 7px 12px; font-size: 12px; cursor: pointer;
+}
+.quick-phrases button:active { transform: translateY(1px); }
+
+.be-chip {
+  margin-top: 10px; display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px;
+  background: #fffaf0; cursor: pointer; font-size: 13px; line-height: 1.5;
+}
+.be-chip-title {
+  flex: none; font-weight: 800; color: #7c3f21; background: #f6e2c4;
+  border-radius: 999px; padding: 2px 8px; font-size: 12px;
+}
+.be-chip-text { flex: 1; min-width: 0; color: #5b4634; }
+.be-chip-cta { flex: none; color: var(--orange-dark); font-weight: 800; }
+.be-chip.be-danger { border-color: #efc4c4; background: #fff6f4; }
+.be-chip.be-danger .be-chip-title { color: var(--red); background: #fbe4e0; }
+.be-chip.be-warn { border-color: #ecd2a6; background: #fff8e9; }
+.be-chip.be-ok { border-color: #bfe0cb; background: #f1f9f3; }
+.be-chip.be-ok .be-chip-title { color: var(--green); background: #dff2e5; }
+.be-today {
+  margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);
+  color: #5b4634; font-size: 13px; font-weight: 700;
+}
+.review-team { font-size: 12px; color: #97816b; margin: 2px 0 8px; }
+.today-action { font-size: 16px; font-weight: 700; color: #4a3a2c; }
+
+@media (max-width: 420px) {
+  .be-chip { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .be-chip-cta { margin-left: auto; }
+}

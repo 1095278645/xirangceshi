@@ -35,6 +35,8 @@ function renderStore() {
       <div class="breakeven-label">保本线 · 店的命线</div>
       <div class="breakeven-main">每天至少要卖 <b>${fmt(be)}</b> 元才不亏</div>
       <div class="breakeven-sub">固定支出 ${fmt(r.model.fixed_month)} 元/月 ÷ 毛利率 ${(Number(r.inputs.gross_margin || 0) * 100).toFixed(0)}% 算出来。现在日销 ${fmt(actual)} 元：${beState}</div>
+      ${state.breakeven && state.breakeven.configured ? `
+      <div class="be-today">今天已卖 ${fmt(state.breakeven.today_income)} 元｜此刻还差 ${fmt(Math.max(be - Number(state.breakeven.today_income || 0), 0))} 元保本；本月日均 ${fmt(state.breakeven.month_daily_avg)} 元。</div>` : ''}
       <div class="be-track" aria-hidden="true"><div class="be-fill" style="width:${pct}%"></div><span class="be-mark" style="left:${bePct}%"></span></div>
       <div class="be-legend"><span>保本 ${fmt(be)}</span><span>舒服点 ${fmt(target)}（保本 × 1.3）</span></div>
     </div>

@@ -111,7 +111,7 @@ function renderAccounting() {
 
   ${bs ? `
   <div class="card">
-    <div class="card-title">🏦 家底表（截至 ${esc(bs.as_of)}）</div>
+    <div class="card-title">🏦 家底表（资产负债表，截至 ${esc(bs.as_of)}）</div>
     <div class="acct-sub">手里的/能变现的</div>
     ${_acRows(bs.assets, 'account_name') || '<div class="empty">暂无资产科目</div>'}
     <div class="txn-row acct-total"><div class="txn-main"><div class="txn-item">资产一共</div></div>
@@ -124,7 +124,7 @@ function renderAccounting() {
     ${_acRows(bs.equity, 'account_name') || '<div class="empty">暂无权益</div>'}
     <div class="txn-row acct-total"><div class="txn-main"><div class="txn-item">欠款 + 自己的</div></div>
       <div class="txn-amount">${fmt(bs.liabilities_and_equity)}</div></div>
-    ${balBadge(bs.balanced, '对上了：资产 = 欠款 + 自己的', '没对上，请检查凭证')}
+    ${balBadge(bs.balanced, '对上了（已平衡）：资产 = 欠款 + 自己的', '没对上，请检查凭证')}
     <div class="acct-note">${esc(bs.note || '')}</div>
   </div>` : ''}
 

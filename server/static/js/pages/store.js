@@ -4,9 +4,12 @@
 // ---------- 单店模型（勇哥方法论泛化：保本线先行） ----------
 async function loadStore() {
   try {
-    const [r, p] = await Promise.all([api('/api/store/presets'), api('/api/profiles')]);
+    const [r, p, be] = await Promise.all([
+      api('/api/store/presets'), api('/api/profiles'),
+      api('/api/breakeven/today').catch(() => null)]);
     state.store.presets = r.presets || [];
     state.store.profiles = p.items || [];
+    state.breakeven = be;
   } catch (_) {}
   render();
 }

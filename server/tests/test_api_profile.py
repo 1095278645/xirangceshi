@@ -23,7 +23,7 @@ class TestAPIProfile(unittest.TestCase):
     def test_core_profile_keeps_main_path_and_evolution(self):
         paths = _paths("core")
         for path in ("/api/orders", "/api/customers", "/api/insights",
-                     "/api/store/model", "/api/collect/create",
+                     "/api/store/model", "/api/breakeven/today", "/api/collect/create",
                      "/api/backup/list", "/api/shops", "/api/evolution/summary"):
             self.assertIn(path, paths)
 
@@ -37,9 +37,9 @@ class TestAPIProfile(unittest.TestCase):
     def test_profile_counts(self):
         core = sum(len(router.routes) for router in registry.get_routers("core"))
         full = sum(len(router.routes) for router in registry.get_routers("full"))
-        # 基线：撤旧/收敛(A/C/B) → 候选处理/提醒投递/进化真值 → 连锁总部视图
-        self.assertEqual(core, 77)
-        self.assertEqual(full, 125)
+        # 基线：撤旧/收敛(A/C/B) → 候选处理/提醒投递/进化真值 → 连锁总部视图 → 统一保本线
+        self.assertEqual(core, 78)
+        self.assertEqual(full, 126)
 
     def test_invalid_profile_rejected(self):
         with self.assertRaises(ValueError):
