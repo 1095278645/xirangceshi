@@ -1,0 +1,37 @@
+# 云化第一步：应用 + Litestream 异地复制（与 docker-compose.yml 叠加使用）
+#
+# 用法：
+#   export LITESTREAM_BUCKET=your-bucket
+#   export LITESTREAM_ENDPOINT=https://s3.your-region.amazonaws.com
+#   export LITESTREAM_REGION=your-region
+#   export LITESTREAM_ACCESS_KEY_ID=xxx
+#   export LITESTREAM_SECRET_ACCESS_KEY=xxx
+#   docker compose -f docker-compose.yml -f docker-compose.litestream.yml up -d --build
+#
+# 恢复（灾难演练；请先 docker compose stop shopkeeper 再恢复）：
+#   docker compose -f docker-compose.yml -f docker-compose.litestream.yml run --rm litestream \
+#     restore -o /app/server/data/ai_shopkeeper.db s3://$LITESTREAM_BUCKET/ai-shopkeeper
+#
+# 说明：litestream 与应用共享同一个数据卷，因此它复制的是**正在被应用写入的那个库**。
+services:
+  shopkeeper:
+    # 依赖复制先起（不强制健康门，避免阻塞演示）
+    depends_on:
+      - litestream
+
+  litestream:
+    image: litestream/litestream:latest
+    container_name: ai-shopkeeper-litestream
+    restart: unless-stopped
+    command: ["replicate", "-config", "/etc/litestream.yml"]
+    environment:
+      LITESTREAM_DB_PATH: /app/server/data/ai_shopkeeper.db
+      LITESTREAM_BUCKET: "${LITESTREAM_BUCKET:?need LITESTREAM_BUCKET}"
+      LITESTREAM_ENDPOINT: "${LITESTREAM_ENDPOINT:?need LITESTREAM_ENDPOINT}"
+      LITESTREAM_REGION: "${LITESTREAM_REGION:?need LITESTREAM_REGION}"
+      LITESTREAM_ACCESS_KEY_ID: "${LITESTREAM_ACCESS_KEY_ID:?need access key}"
+      LITESTREAM_SECRET_ACCESS_KEY: "${LITESTREAM_SECRET_ACCESS_KEY:?need secret key}"
+    volumes:
+      # 与 shopkeeper 挂到**同一路径**，保证复制的是被应用写入的那个库
+      - ./server/data:/app/server/data
+      - ./ops/litestream.yml:/etc/litestream.yml:ro
