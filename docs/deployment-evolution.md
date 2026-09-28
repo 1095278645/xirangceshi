@@ -17,19 +17,34 @@
     当前              第 1 步（半天）             第 2 步（数天）        第 3 步（产品化）
 ```
 
-### 第 1 步：单机 + 实时异地备份（推荐先做，风险最低）
+### 第 1 步：单机 + 实时异地备份（**已实装**）
 
-用 **Litestream** 把 SQLite 持续复制到对象存储（S3/OSS/COS），实现"本机挂了也能从云上恢复"。
-样例配置见 [`ops/litestream.yml`](../ops/litestream.yml)。
+用 **Litestream** 把 SQLite 持续复制到对象存储（S3/OSS/COS/MinIO），实现"本机挂了也能从云上恢复"。
+
+| 交付物 | 位置 | 说明 |
+|---|---|---|
+| 复制配置 | [`ops/litestream.yml`](../ops/litestream.yml) | 全部凭据走环境变量；`sync-interval=10s`（RPO≈10秒） |
+| 容器编排 | [`docker-compose.litestream.yml`](../docker-compose.litestream.yml) | 与 `docker-compose.yml` 叠加，litestream 与应用共用数据卷 |
+| **恢复演练** | [`scripts/restore_drill.py`](../scripts/restore_drill.py) | 不依赖云服务即可验证"灾难→恢复"：建快照 → 删库 → 恢复 → 计数一致 |
 
 ```bash
-# 本机安装 litestream 后：
+# 本机常驻复制
+export LITESTREAM_ACCESS_KEY_ID=xxx LITESTREAM_SECRET_ACCESS_KEY=xxx
+export LITESTREAM_BUCKET=your-bucket LITESTREAM_ENDPOINT=https://s3... LITESTREAM_REGION=...
+export LITESTREAM_DB_PATH=./server/data/ai_shopkeeper.db
 litestream replicate -config ops/litestream.yml
-# 恢复：litestream restore -o server/data/ai_shopkeeper.db s3://your-bucket/ai-shopkeeper
+
+# 灾难恢复
+litestream restore -o server/data/ai_shopkeeper.db s3://$LITESTREAM_BUCKET/ai-shopkeeper
+
+# 容器方式（含恢复）
+docker compose -f docker-compose.yml -f docker-compose.litestream.yml up -d --build
+
+# 不装 litestream 也能自检恢复链路（推荐评审现场跑）
+cd server && python ../scripts/restore_drill.py     # 期望：✅ 恢复演练通过
 ```
 
-项目本身已有的一致性快照（`VACUUM INTO`）与导出/恢复接口与此互补：
-快照用于**本地可回退**，Litestream 用于**异地容灾**。
+> 实测（演示库）：灾难前 29 张表 / 4,490 笔流水 / 10 位熟客 → 删库 → 从快照恢复 → **计数完全一致**。
 
 ### 第 2 步：Postgres 多实例
 

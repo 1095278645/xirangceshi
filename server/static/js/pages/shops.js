@@ -16,6 +16,9 @@ async function loadShops() {
   s.ctx = ctx || {};
   s.list = (list && list.shops) || [];
   s.users = (users && users.users) || [];
+  const ov = await q('/api/shops/overview');
+  s.overview = (ov && ov.shops) || [];
+  s.overviewTotal = (ov && ov.total) || null;
   s.currentId = (ctx && ctx.shop_id) || (s.list[0] && s.list[0].id) || null;
   s.canManage = true;   // 具体权限由后端判定，越权会返回 403 并在页面上提示
   const target = s.memberShopId || s.currentId;
@@ -133,6 +136,26 @@ const ROLE_LABEL = { owner: '店主', admin: '店长', staff: '店员' };
 function renderShops() {
   const s = state.shops;
 
+  const ov = s.overviewTotal;
+  const ovRows = (s.overview || []).map(r => `
+    <div class="pay-row">
+      <div class="pay-row-main">
+        <div class="pay-type-badge">${r.shop_id === s.currentId ? '当前' : '#' + r.shop_id}</div>
+        <div class="txn-sub">${esc(r.name)}</div>
+        <div class="pay-mchid">收入 ${fmt(r.income)} · 支出 ${fmt(r.expense)} · 结余 ${fmt(r.balance)}</div>
+        <div class="pay-mchid">日销 ${r.daily_revenue == null ? '—' : fmt(r.daily_revenue)}
+          · 毛利率 ${r.gross_margin == null ? '—' : Math.round(r.gross_margin * 100) + '%'}
+          ${r.above_break_even === false ? ' · <span style="color:#c0392b">低于保本线</span>' : (r.above_break_even ? ' · 高于保本线' : '')}</div>
+      </div>
+    </div>`).join('');
+  const overviewCard = `
+  <div class="card">
+    <div class="card-title">总部视图 · 跨店汇总${ov && ov.warning && ov.warning.length ? `（<span style="color:#c0392b">${ov.warning.length} 家低于保本线</span>）` : ''}</div>
+    ${ov ? `<div class="status-detail">共 ${ov.shops} 家店：收入 ${fmt(ov.income)} · 支出 ${fmt(ov.expense)} · 结余 ${fmt(ov.balance)}</div>` : ''}
+    ${ovRows || '<div class="howto-text">还没有店铺数据</div>'}
+    <div class="howto-text">每家店一个独立库（一店一库），这里在各自店上下文内取数，不会混库。</div>
+  </div>`;
+
   const shopRows = s.list.map(x => `
     <div class="pay-row ${x.id === s.currentId ? 'shop-current' : ''}">
       <div class="pay-row-main">
@@ -180,7 +203,7 @@ function renderShops() {
   return `
   <div class="hero"><div class="hero-title">多店 / 成员</div>
     <div class="hero-sub">一家店一个独立账本，数据互不串；成员按角色分工</div></div>
-
+  ${overviewCard}
   <div class="card">
     <div class="card-title">🏪 我的店铺（${s.list.length}）</div>
     ${s.loading ? '<div class="empty">加载中…</div>' : (shopRows || '<div class="empty">没有店铺</div>')}

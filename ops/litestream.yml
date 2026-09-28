@@ -1,23 +1,38 @@
-# Litestream 样例配置：把 SQLite 持续复制到对象存储（异地容灾）
-# 文档：https://litestream.io
+# Litestream 配置：把 SQLite 持续复制到对象存储（异地容灾）
 #
-# 用法：
-#   litestream replicate -config ops/litestream.yml
-#   恢复：litestream restore -o server/data/ai_shopkeeper.db s3://your-bucket/ai-shopkeeper
+# 为什么用它：本项目的账本是单机 SQLite。一旦机器故障，"数据丢了怎么办"就是
+# 最尖锐的问题。Litestream 常驻复制到对象存储，可把 RPO 压到秒级。
 #
-# 环境变量（示例用 S3 兼容对象存储；OSS/COS 走各自的 S3 兼容端点）：
-#   LITESTREAM_ACCESS_KEY_ID / LITESTREAM_SECRET_ACCESS_KEY
+# ── 用法（三条命令）───────────────────────────────────────────────
+#   1) 装好 litestream 与对象存储凭据（环境变量注入，勿写进文件）：
+#        export LITESTREAM_ACCESS_KEY_ID=xxx
+#        export LITESTREAM_SECRET_ACCESS_KEY=xxx
+#   2) 持续复制（本机常驻；建议交给 systemd/supervisor 托管）：
+#        litestream replicate -config ops/litestream.yml
+#   3) 灾难恢复（把云端副本拉回本地）：
+#        litestream restore -o server/data/ai_shopkeeper.db \
+#          s3://$LITESTREAM_BUCKET/ai-shopkeeper
 #
-# 注意：本文件不含任何真实密钥，请用环境变量注入。
+# ── 与本项目既有能力的关系 ──────────────────────────────────────
+#   本机一致性快照（VACUUM INTO，每 6 小时，滚动保留）→ 解决"改错了能退回"；
+#   Litestream → 解决"机器没了也能回来"。两者互补，互为兜底。
+#
+# ── 校验（不依赖云服务也能验）────────────────────────────────────
+#   python scripts/restore_drill.py     # 用本项目自己的快照做"灾难→恢复"演练
+#
+# 说明：本文件不含任何真实密钥，全部由环境变量注入；请勿把凭据写进仓库。
 
 dbs:
-  - path: ./server/data/ai_shopkeeper.db
+  - path: ${LITESTREAM_DB_PATH}
+    # 本机运行：  LITESTREAM_DB_PATH=./server/data/ai_shopkeeper.db
+    # 容器运行：  LITESTREAM_DB_PATH=/app/server/data/ai_shopkeeper.db（与 app 共用卷）
     replicas:
       - type: s3
-        bucket: your-bucket
+        # 全部走环境变量占位，实际部署时替换（或用 litestream 的 env 展开）
+        bucket: ${LITESTREAM_BUCKET}
         path: ai-shopkeeper
-        endpoint: https://s3.your-region.amazonaws.com   # 换成本地/云对象存储端点
-        region: your-region
-        sync-interval: 10s        # 至少每 10 秒同步一次
-        retention: 168h           # 保留 7 天
-        snapshot-interval: 24h    # 每 24 小时做一次全量快照
+        endpoint: ${LITESTREAM_ENDPOINT}      # S3 兼容端点（OSS/COS/MinIO 均可）
+        region: ${LITESTREAM_REGION}
+        sync-interval: 10s                     # 至少每 10 秒同步一次（RPO≈10s）
+        snapshot-interval: 24h                 # 每 24 小时一份全量快照
+        retention: 168h                        # 保留 7 天

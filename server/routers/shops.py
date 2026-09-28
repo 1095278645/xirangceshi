@@ -245,3 +245,66 @@ def api_revoke(shop_id: int, user_id: int,
 def api_shop_members(shop_id: int,
                      identity: dict = Depends(require_perm("manage_user"))):
     return {"shop_id": shop_id, "members": shops.shop_users(shop_id)}
+
+
+# ---------------- 连锁总部视图（OPC：一个人也能管多家店） ----------------
+
+@router.get("/shops/overview")
+def shops_overview():
+    """跨店汇总：逐店取关键指标并汇总（**在店上下文内取数，绝不混库**）。
+
+    每家店一个独立库（一店一库）。这里用 `shops.use_shop(sid)` 逐店切换上下文，
+    再调用既有统计函数，因此每行的数字都只来自那一家店。
+    """
+    import db
+    import store as storelib
+
+    rows = []
+    for s in shops.list_shops():
+        sid = s["id"]
+        with shops.use_shop(sid):
+            monthly = db.monthly_summary()
+            try:
+                stats = db.store_ledger_stats()
+            except Exception:  # noqa: BLE001
+                stats = {}
+            break_even, above = None, None
+            try:
+                prof = (db.list_store_profiles() or [None])[0]
+                gm = stats.get("gross_margin")
+                if prof and gm:
+                    model = storelib.calc_store_model(
+                        daily_revenue=stats.get("daily_revenue") or 0,
+                        gross_margin=gm,
+                        rent=prof.get("rent") or 0, salary=prof.get("salary") or 0,
+                        utilities=prof.get("utilities") or 0,
+                        total_investment=prof.get("total_investment") or 0,
+                        cash_on_hand=prof.get("cash_on_hand") or 0,
+                        biz_type=prof.get("biz_type") or "餐饮")
+                    break_even = (model.get("model") or {}).get("break_even_day")
+                    if break_even and stats.get("daily_revenue"):
+                        above = stats["daily_revenue"] >= break_even
+            except Exception:  # noqa: BLE001  单店取数失败不影响其它店
+                pass
+        rows.append({
+            "shop_id": sid,
+            "name": s.get("name") or f"店铺{sid}",
+            "period": monthly.get("period"),
+            "income": monthly.get("income") or 0,
+            "expense": monthly.get("expense") or 0,
+            "balance": monthly.get("balance") or 0,
+            "daily_revenue": stats.get("daily_revenue"),
+            "gross_margin": stats.get("gross_margin"),
+            "active_days": stats.get("active_days"),
+            "break_even_day": break_even,
+            "above_break_even": above,
+        })
+
+    total = {
+        "shops": len(rows),
+        "income": round(sum(r["income"] for r in rows), 2),
+        "expense": round(sum(r["expense"] for r in rows), 2),
+        "balance": round(sum(r["balance"] for r in rows), 2),
+        "warning": [r["name"] for r in rows if r["above_break_even"] is False],
+    }
+    return {"shops": rows, "total": total}

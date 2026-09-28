@@ -448,7 +448,7 @@ get_conn() → shops.resolve_db_path() or db.DB_PATH
 > 所以顾客扫二号店的码，打开的是二号店的数据 —— 顾客手机上没有任何令牌。
 
 > 🔌 **API 一览**已外移到 [`docs/api-reference.md`](docs/api-reference.md)（含鉴权/公开收款页等说明）。
-> 🏮 **OPC（一人公司）视角**：AI 员工编制表、执行闭环、ROI 与定价见 [`docs/opc-ai-team.md`](docs/opc-ai-team.md)；**合规与数据安全**见 [`docs/compliance.md`](docs/compliance.md)。
+> 🏮 **OPC（一人公司）视角**：AI 员工编制表、执行闭环、ROI 与定价见 [`docs/opc-ai-team.md`](docs/opc-ai-team.md)；**合规与数据安全**见 [`docs/compliance.md`](docs/compliance.md)；**真实用户验证方案**见 [`docs/user-validation-plan.md`](docs/user-validation-plan.md)。
 > 🧭 **参与开发/贡献**：请先读 [`AGENTS.md`](AGENTS.md)（必守铁律与开发约定：密钥不入库、危险操作需 `confirm`、有限取值用枚举、变更必过验收）。
 ## Docker 一键部署
 
