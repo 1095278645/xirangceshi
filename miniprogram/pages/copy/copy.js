@@ -10,6 +10,7 @@ Page({
     extra: '',
     customerName: '',
     result: '',
+    geneId: '',
     generating: false
   },
 
@@ -45,7 +46,7 @@ Page({
       extra: this.data.extra,
       customer_name: this.data.customerName
     }).then(res => {
-      this.setData({ result: res.text, generating: false })
+      this.setData({ result: res.text, geneId: res.gene_id || '', generating: false })
     }).catch(err => {
       this.setData({ generating: false })
       wx.showToast({ title: err.message, icon: 'none' })
@@ -56,7 +57,16 @@ Page({
     if (!this.data.result) return
     wx.setClipboardData({
       data: this.data.result,
-      success: () => wx.showToast({ title: '已复制，去发朋友圈吧', icon: 'none' })
+      success: () => {
+        wx.showToast({ title: '已复制，去发朋友圈吧', icon: 'none' })
+        // 真实反馈（进化真值）：店主采用了这条 → 上报，供采纳率/基因转正使用
+        if (this.data.geneId) {
+          api.reportOutcome({
+            domain: 'copy', gene_id: this.data.geneId, content: this.data.result,
+            user_adopted: true, user_edited: false
+          }).catch(() => {})
+        }
+      }
     })
   }
 })

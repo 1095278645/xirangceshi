@@ -148,6 +148,7 @@ module.exports = {
 
   // 文案
   generateCopy: (data) => request('/api/insights', 'POST', { scene: 'copy', payload: data }),
+  reportOutcome: (d) => request('/api/evolution/outcome', 'POST', d),
 
   // 提醒
   generateReminders: () => request('/api/reminders/generate', 'POST'),

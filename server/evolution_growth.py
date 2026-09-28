@@ -63,7 +63,7 @@ def distill_skill(domain):
     失败归因过滤：仅统计非 env_instability 的结果（环境异常不算基因成败），
     蒸馏目标基因需满足保守编辑约束，防止 LLM 过度改写。
     """
-    recent = dbe.get_recent_capsules(domain, limit=10)
+    recent = dbe.get_recent_capsules(domain, limit=max(10, config.EVOLUTION_MIN_SAMPLES))
     if len(recent) < 10:
         return None
 

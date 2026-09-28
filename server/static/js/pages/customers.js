@@ -31,6 +31,18 @@ async function doneReminder(rid) {
   } catch (e) { toast(e.message); }
 }
 
+// 增长动作（攻）：拉新 / 复购 / 选品提价
+let _growth = { text: '', loading: false, aiUsed: false };
+async function genGrowth() {
+  _growth.loading = true; render();
+  try {
+    const r = await api('/api/insights', 'POST', { scene: 'growth', payload: {} });
+    _growth.text = r.actions || '';
+    _growth.aiUsed = !!r.ai_used;
+  } catch (e) { toast(e.message); }
+  _growth.loading = false; render();
+}
+
 async function viewCustomer(id) {
   try {
     state.custDetail = await api('/api/customers/' + id);
@@ -78,6 +90,15 @@ function renderCustomers() {
   const cs = state.customers;
   return `
   <div class="hero"><div class="hero-title">熟客记忆</div><div class="hero-sub">老主顾的脸和事，帮你记着</div></div>
+  <div class="card">
+    <div class="card-title">增长动作 · 拉新 / 复购 / 选品</div>
+    ${_growth.loading ? '<div class="howto-text">生成中…（多 agent 会并行出稿，约 5~10 秒）</div>'
+      : (_growth.text
+        ? `<div class="review-box">${esc(_growth.text).replace(/\n/g, '<br/>')}</div>`
+        : '<div class="howto-text">让 AI 结合熟客消费与库存，给出今天就能做的三条动作（无 Key 也能给规则化建议）。</div>')}
+    <button class="btn-primary" onclick="genGrowth()">${_growth.text ? '重新生成' : '生成增长动作'}</button>
+    ${_growth.text ? `<span class="howto-text">${_growth.aiUsed ? '✨ 真实 AI' : '📝 规则兜底'}</span>` : ''}
+  </div>
   <div class="card">
     <div class="card-title">今日提醒（${_reminders.length}）<span class="howto-text" style="font-weight:400"> · AI 生成后会自动送达，未送达的次日自动重试</span></div>
     ${_reminders.length === 0 ? '<div class="empty">暂无待办：生成提醒或记账后，AI 会在这里排好今天该做的事</div>' :

@@ -129,7 +129,7 @@ class InsightIn(BaseModel):
 class UnifiedInsightIn(BaseModel):
     """统一 AI 洞察入口（copy / monthly / tax / customer / store）"""
     # 有限取值 → Literal：非法 scene 在请求期直接被拒（422），而不是落到运行期才 400
-    scene: Literal["copy", "monthly", "tax", "customer", "store"]
+    scene: Literal["copy", "monthly", "tax", "customer", "store", "growth"]
     payload: dict = {}
     refresh: bool = False
 

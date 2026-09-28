@@ -224,7 +224,7 @@ def _extract_json(text):
 
 from ai_prompts import (  # noqa: F401  L1 外移后 re-export，保持对外接口
     _language_hint, generate_reminders, generate_insights,
-    generate_customer_insight, generate_tax_advice,
+    generate_customer_insight, generate_tax_advice, generate_growth_actions,
 )
 
 def parse_transaction(text: str) -> dict:

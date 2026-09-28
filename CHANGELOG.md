@@ -2,6 +2,34 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [1.1.10] - 2026-09-22
+
+OPC 补齐 P1/P2：**增长动作（攻）+ 接通进化真值 + 合规页 + 小程序运行时测试 + 「24 小时」演示动线**。
+
+### 新增 · P1-4 增长动作（拉新 / 复购 / 选品提价）
+- 统一洞察入口新增 `scene=growth`（`insight_service._growth`）：结合**熟客消费/沉睡**与**库存**产出
+  三条可执行动作；**无 Key 走规则化兜底**（同样点名对象与做法，不是空话）。
+- `ai_prompts.generate_growth_actions()`；`UnifiedInsightIn.scene` 与共享契约 `UI_ENUMS.insightScene`
+  同步加入 `growth`（CI 防漂移继续生效）。
+- 网页端「熟客」页新增「增长动作」卡片（一键生成 / 重新生成）。
+
+### 新增 · P1-5 接通进化真值（人类信号）
+- 新增 `POST /api/evolution/outcome`：店主**采纳/修改** AI 产出 → 记胶囊（真值来源）。
+- 小程序：文案页「复制去发朋友圈」时上报采纳（`api.reportOutcome`）；网页端 `copy.js` 恢复采纳上报。
+- 演示/自检脚本 `scripts/demo_evolution_loop.py`：一条命令跑通 **候选 → 验证门 → 转正 → 账本**
+  （纯本地、不调模型、`--temp` 可用临时库）。
+- 修复：`distill_skill` 原先只取 10 条胶囊却要求 `EVOLUTION_MIN_SAMPLES(20)` 样本 → **门槛不可达**；
+  现按 `max(10, MIN_SAMPLES)` 取数，验证门才真正可用。
+
+### 新增 · P2
+- **合规页** `docs/compliance.md`：数据主权 / 不碰资金 / AI 传输边界 / 税务口径与免责 / 红线。
+- **小程序运行时测试** `server/scripts/check_mp_runtime.js`（Node 桩加载全部页面 + Page 结构断言 +
+  共享契约可用性），并接入 CI。
+- **演示动线** `docs/demo-guide.md` 增加开场「一人店主的 24 小时」（按一天讲，而不是按功能点讲）。
+
+### 测试
+- 新增 `tests/test_growth_scene.py`（规则兜底三条动作 / 未知场景拒绝 / HTTP 接受 growth）。
+
 ## [1.1.9] - 2026-09-22
 
 按 OPC（一人公司）视角补齐短板：**执行闭环 + ROI 数字 + AI 员工编制表**。

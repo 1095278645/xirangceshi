@@ -63,7 +63,7 @@
     competitor: ['多', '一般', '少'],                 // StoreModelIn.competitor
     invoiceKind: ['out', 'in'],                       // InvoiceIn.kind
     stockMovement: ['in', 'out', 'adj'],              // StockMoveIn.movement
-    insightScene: ['copy', 'monthly', 'tax', 'customer', 'store']  // UnifiedInsightIn.scene
+    insightScene: ['copy', 'monthly', 'tax', 'customer', 'store', 'growth']  // UnifiedInsightIn.scene
   };
 
   // ---- 枚举标签（两端同一套说法；键集须与 UI_ENUMS 对应）----

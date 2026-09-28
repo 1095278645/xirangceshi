@@ -28,6 +28,8 @@
    python scripts/check_mp_pages.py                      # 小程序页面绑定
    python scripts/check_web_pages.py                     # 网页端事件/路由
    node   scripts/check_web_render.js                    # 网页端渲染试跑
+   node   scripts/check_mp_runtime.js                     # 小程序运行时冒烟
+   python scripts/check_frontend_contract.py              # 双前端契约防漂移
    ```
    改前端必须加跑对应检查；改文档/配置至少要跑测试。
 

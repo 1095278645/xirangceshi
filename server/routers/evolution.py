@@ -11,9 +11,27 @@ import config
 import evolution_growth as growth
 import team_domains
 import team_evolution
-from schemas import EvolutionCandidateIn
+from schemas import EvolutionCandidateIn, OutcomeIn
 
 router = APIRouter(prefix="/api", tags=["evolution"])
+
+
+@router.post("/evolution/outcome")
+def evolution_outcome(data: OutcomeIn):
+    """**真实反馈入口**（进化真值）：店主采纳/修改了 AI 产出 → 记胶囊。
+
+    为什么单独开这个写入口：进化层的"真值"必须来自人（采纳/修改），而不是模型自评。
+    无论进化层是否开启，这里都会记录（数据先攒起来）；基因注入与成长仍由
+    `config.evolution_enabled()` 控制，避免"没数据就调权"。
+    """
+    try:
+        cap_id = team_evolution.record_outcome(
+            domain=data.domain, gene_id=data.gene_id, content=data.content,
+            user_adopted=data.user_adopted, user_edited=data.user_edited,
+            edit_diff=data.edit_diff or None, task_context=data.task_context)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(400, f"记录失败：{e}") from e
+    return {"ok": True, "capsule_id": cap_id}
 
 
 @router.get("/evolution/summary")

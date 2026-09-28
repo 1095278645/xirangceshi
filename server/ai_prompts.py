@@ -175,3 +175,17 @@ def generate_tax_advice(quarterly_revenue: float, vat_result: dict, prev_advice:
     # 默认走轻量推理：税务计算已由本地规则完成，AI 只负责解释和提醒。
     return _chat([{"role": "user", "content": prompt}], temperature=0.3,
                 max_tokens=300, reasoning_effort="low", domain="报税建议").strip()
+
+
+def generate_growth_actions(brief: str) -> str:
+    """增长动作（拉新 / 复购 / 选品提价）—— 把"守"扩展到"攻"（OPC：帮一人公司多赚钱）。"""
+    prompt = (
+        "你是一家街边小店的经营参谋。小店近况：\n"
+        f"{brief}\n\n"
+        "请给出**今天就能做的 3 条增长动作**，分别覆盖：\n"
+        "① 拉新（让没来过的人来）；② 复购（让来过的人再来）；③ 选品/提价（卖得更值）。\n"
+        "每条都要具体到**对象与话术/做法**（点名某位熟客、某个商品怎么搭售），口语化，不要空话。\n"
+        "直接输出三行，以 ①②③ 开头，不要标题、不要解释。"
+    )
+    return _chat([{"role": "user", "content": prompt}], temperature=0.6,
+                 max_tokens=400, domain="增长动作").strip()
