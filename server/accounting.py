@@ -292,12 +292,17 @@ def balance_sheet(as_of: str | None = None) -> dict:
     liabilities = _rows_for("liability")
     equity = _rows_for("equity")
     # 未结转的当期损益也要算进权益，否则等式不平。
-    # 收入类期末净额为负（贷方），费用类为正（借方），所以
-    # 当期利润 = -Σ收入净额 - Σ费用净额
-    tb = trial_balance(None)
-    pl_profit = round(
-        -sum(x["closing"] for x in tb["lines"] if x["category"] == "income")
-        - sum(x["closing"] for x in tb["lines"] if x["category"] == "expense"), 2)
+    # 关键：这里的利润必须和上面的资产负债同一个 cutoff；早前误用 trial_balance(None)
+    # 会把 as_of 之后的利润也包进来，导致"看上个月资产负债表"反而带着本月利润。
+    # 收入类期末净额为负（贷方），费用类为正（借方）：利润 = -Σ收入净额 - Σ费用净额
+    pl_profit = 0.0
+    for code, info in _BY_CODE.items():
+        if info["category"] not in PL_CATEGORIES:
+            continue
+        c = acc.get(code, {"debit": 0.0, "credit": 0.0})
+        net = c["debit"] - c["credit"]
+        pl_profit -= net
+    pl_profit = round(pl_profit, 2)
 
     # 期初权益调整：期初余额是按「正常余额方向」录入的。若只录了期初资产
     # （现金/存款）而没有对应的权益分录，产权一侧就缺一块，会计等式不成立。

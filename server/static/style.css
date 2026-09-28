@@ -822,3 +822,111 @@ button { font: inherit; }
   }
   .voice-btn.recording { animation: none; }
 }
+
+/* ================= PC 端增强 =================
+   手机仍是单列小店柜台；PC 不再只是"放大的手机"，而是铺开成经营台：
+   招牌通栏、卡片双列、长列表/票据通栏，超宽屏把底部导航收成左侧功能轨。 */
+@media (min-width: 900px) {
+  #page-wrap {
+    max-width: 1160px;
+    margin: 28px 0;
+    border-radius: 30px;
+  }
+  #app {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+    align-content: start;   /* grid 容器仍有 min-height:100vh，不拉开短页的行距 */
+    min-height: auto;
+    padding: 18px 22px 112px;
+  }
+  #app > .hero { grid-column: 1 / -1; margin: 0; }
+  #app > .seg { grid-column: 1 / -1; margin: 0; }
+  #app > .voice-card { grid-column: span 5; margin: 0; }
+  #app > .card { grid-column: span 6; margin: 0; }
+  /* 长列表、票据复盘、收款码、文本录入在 PC 上通栏，避免被挤成窄条 */
+  #app > .review-card,
+  #app > .recorded-card,
+  #app > .howto-text,
+  #app > .card:has(.txn-row),
+  #app > .card:has(.pay-row),
+  #app > .card:has(.log-row),
+  #app > .card:has(.qr-holder),
+  #app > .card:has(.form-textarea) { grid-column: 1 / -1; }
+  .hero { min-height: 168px; padding: 34px 36px 64px; }
+  .hero-title { font-size: 34px; }
+  .hero-sub { font-size: 14px; }
+  .summary-num { font-size: 30px; }
+  .card { padding: 20px; }
+}
+
+@media (min-width: 1180px) {
+  #page-wrap { max-width: 1220px; }
+  #app { padding-bottom: 44px; }
+  /* 左侧功能轨：PC 上不和内容抢底部一行 */
+  .tabbar {
+    left: calc(50% - 610px - 104px);
+    right: auto;
+    top: 132px;
+    bottom: auto;
+    transform: none;
+    width: 88px;
+    max-width: none;
+    height: auto;
+    flex-direction: column;
+    padding: 10px 8px;
+    border-radius: 26px;
+  }
+  .tab-item { width: 100%; height: 64px; }
+  .a11y-bar { right: calc(50% - 610px + 18px); bottom: 28px; }
+  /* PC 的"更多"改成右侧滑出面板，而不是手机底部 sheet */
+  .more-drawer {
+    left: auto;
+    right: calc(50% - 610px);
+    bottom: 24px;
+    width: 430px;
+    max-width: calc(100vw - 48px);
+    transform: translateX(calc(100% + 620px));
+    border-radius: 24px;
+  }
+  .more-drawer.open { transform: translate(0, 0); }
+}
+
+/* ================= 首页极简入口 =================
+   功能不变，但首屏只强调一个动作：把这笔账记了。复盘与账本速览往后站。 */
+.hero-home { padding-bottom: 42px; }
+.voice-primary { padding-top: 26px; }
+.voice-primary .voice-hint { font-size: 15px; font-weight: 800; color: #7c3f21; }
+.voice-primary .voice-btn { width: 112px; height: 112px; font-size: 42px; }
+.manual-line { display: flex; gap: 10px; margin-top: 14px; }
+.manual-input {
+  flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: 999px;
+  background: #fffdf8; padding: 13px 16px; font: inherit; color: var(--ink);
+}
+.manual-input:focus { border-color: var(--orange); outline: 3px solid rgba(201, 112, 50, .18); }
+.manual-btn {
+  border: 1px solid rgba(117, 49, 22, .45); border-radius: 999px; padding: 0 22px;
+  background: linear-gradient(150deg, #d57f3f, var(--orange-dark)); color: #fff;
+  font-weight: 800; cursor: pointer; box-shadow: 0 10px 20px rgba(143, 63, 31, .22);
+}
+.manual-btn.disabled { pointer-events: none; opacity: .55; }
+.ledger-glance .summary-item { padding: 8px 4px; }
+.ledger-glance .summary-num { font-size: 20px; }
+.ledger-glance .month-row {
+  margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border);
+}
+.review-secondary { background: linear-gradient(180deg, #fffdf9, #fff7ea); }
+
+@media (min-width: 900px) {
+  .hero-home { min-height: 150px; }
+  #app > .voice-card { grid-column: span 7; }
+  #app > .ledger-glance { grid-column: span 5; }
+  #app > .ask-card { grid-column: 1 / -1; }
+  .voice-primary .voice-btn { width: 124px; height: 124px; }
+}
+
+@media (max-width: 420px) {
+  .manual-line { gap: 8px; }
+  .manual-btn { padding: 0 16px; }
+}

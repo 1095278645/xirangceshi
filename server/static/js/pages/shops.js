@@ -16,10 +16,12 @@ async function loadShops() {
   s.ctx = ctx || {};
   s.list = (list && list.shops) || [];
   s.users = (users && users.users) || [];
+  // currentId 先落地：总部汇总接口在六个月数据下会慢一拍，
+  // 不能因为等 overview 就让页面短暂出现"当前店=null"。
+  s.currentId = (ctx && ctx.shop_id) || (s.list[0] && s.list[0].id) || null;
   const ov = await q('/api/shops/overview');
   s.overview = (ov && ov.shops) || [];
   s.overviewTotal = (ov && ov.total) || null;
-  s.currentId = (ctx && ctx.shop_id) || (s.list[0] && s.list[0].id) || null;
   s.canManage = true;   // 具体权限由后端判定，越权会返回 403 并在页面上提示
   const target = s.memberShopId || s.currentId;
   if (target) {

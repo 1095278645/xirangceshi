@@ -13,7 +13,7 @@
 import sys
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -204,6 +204,17 @@ class TestAccounting(unittest.TestCase):
                         f"负债+权益 {bs['liabilities_and_equity']}")
         self.assertAlmostEqual(bs["total_assets"],
                                bs["liabilities_and_equity"], places=2)
+
+    def test_balance_sheet_as_of_before_any_voucher(self):
+        """as_of 还没到有凭证的日子时，不能把后面的利润提前塞进权益。"""
+        self._seed()
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        bs = accounting.balance_sheet(yesterday)
+        self.assertTrue(bs["balanced"],
+                        f"截至昨天的空报表也应平衡：{bs['total_assets']} vs "
+                        f"{bs['liabilities_and_equity']}")
+        self.assertAlmostEqual(bs["total_assets"], 0, places=2)
+        self.assertAlmostEqual(bs["unclosed_profit"], 0, places=2)
 
     def test_balance_sheet_with_opening_balance(self):
         """录了期初现金后等式仍成立。"""

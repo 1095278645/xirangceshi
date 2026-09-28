@@ -393,3 +393,175 @@ function renderHome() {
     <button class="btn-primary ${state.submitting ? 'disabled' : ''}" onclick="submitManual()">${state.submitting ? '记账中…' : '记一笔'}</button>
   </div>`;
 }
+
+// ---------- 首页极简重排（后置覆盖旧 renderHome） ----------
+// 原则：记账入口第一屏最大；复核/追问/记错更正紧跟在录音卡后面；
+// 账本与掌柜复盘往后放，功能不少，但第一眼看得到的动作只有「说话/打字，记一笔」。
+function renderHome() {
+  const p = state.parsed;
+  const hasRecorded = state.recordedList && state.recordedList.length;
+  return `
+  <div class="hero hero-home">
+    <div class="hero-title">老板，今天辛苦啦！</div>
+    <div class="hero-sub">按住说话，剩下的交给掌柜</div>
+  </div>
+
+  <div class="voice-card voice-primary">
+    <div class="voice-hint ${state.recognizing ? 'recording' : ''}">
+      ${state.voiceSupported
+        ? (state.recognizing ? '正在听…说完了松手' : '按住说话，记一笔')
+        : '语音需 HTTPS 或 localhost，请用下方手动输入'}
+    </div>
+    <button class="voice-btn ${state.recognizing ? 'recording' : ''} ${state.voiceSupported ? '' : 'disabled'}"
+      aria-label="按住说话记账"
+      ontouchstart="startRecord()" onmousedown="startRecord()"
+      ontouchend="stopRecord()" onmouseup="stopRecord()" onmouseleave="stopRecord()">
+      ${state.recognizing ? '🔴' : '🎤'}
+    </button>
+    <div class="voice-result">${esc(state.result)}</div>
+    <div class="manual-line">
+      <input class="manual-input" placeholder="不方便说话？直接打字：李师傅拿了两斤排骨，38块"
+        value="${esc(state.manualText)}" oninput="state.manualText=this.value"
+        onkeydown="if(event.key==='Enter')submitManual()" />
+      <button class="manual-btn ${state.submitting ? 'disabled' : ''}" onclick="submitManual()">
+        ${state.submitting ? '记账中…' : '记一笔'}</button>
+    </div>
+  </div>
+
+  ${state.checkDraft ? `
+  <div class="card ask-card">
+    <div class="card-title">我先核对一下</div>
+    <div class="acct-note">${esc(state.checkQuestion || '这笔账我还没完全听准，先核对再记。')}</div>
+    <div class="parsed-grid">
+      <div class="parsed-item"><span class="parsed-label">事由</span><span class="parsed-value">${esc(state.checkDraft.item || '')}</span></div>
+      <div class="parsed-item"><span class="parsed-label">金额</span><span class="parsed-value">${state.checkDraft.amount != null ? esc(state.checkDraft.amount) + ' 元' : '未提'}</span></div>
+      <div class="parsed-item"><span class="parsed-label">方向</span><span class="parsed-value">${FC.labelTransType(state.checkDraft.trans_type)}</span></div>
+      <div class="parsed-item"><span class="parsed-label">分类</span><span class="parsed-value">${esc(state.checkDraft.category || '')}</span></div>
+    </div>
+    ${state.checkDraft.amount != null ? `
+    <div class="ask-row">
+      <button class="ask-btn" onclick="confirmChecked()">对，记下</button>
+      <button class="btn-mini" onclick="cancelChecked()">不记</button>
+    </div>` : ''}
+  </div>` : ''}
+
+  ${state.amountDraft ? `
+  <div class="card ask-card">
+    <div class="card-title">${(state.amountMissing || []).length > 1
+      ? `有 ${state.amountMissing.length} 笔没说金额`
+      : '这笔多少钱？'}</div>
+    <div class="acct-note">
+      ${(state.amountMissing || []).length
+        ? '这句话里听出好几笔，其中以下几笔没听出金额，<strong>一笔都没记</strong>——'
+        : '这句话里没听出金额，<strong>没有记进账本</strong>——'}
+      补上我就记。
+    </div>
+    ${(state.amountMissing || []).length ? `
+      <div class="snap-box">${state.amountMissing.map(m =>
+        `· ${esc(m.item || '')}（${esc(m.customer || '散客')}，`
+        + `${FC.labelTransType(m.trans_type)}）`).join('<br/>')}</div>` : ''}
+    <div class="parsed-grid">
+      <div class="parsed-item"><span class="parsed-label">顾客</span><span class="parsed-value">${esc(state.amountDraft.customer || '散客')}</span></div>
+      <div class="parsed-item"><span class="parsed-label">事由</span><span class="parsed-value">${esc(state.amountDraft.item || '')}</span></div>
+      <div class="parsed-item"><span class="parsed-label">方向</span><span class="parsed-value">${FC.labelTransType(state.amountDraft.trans_type)}</span></div>
+      <div class="parsed-item"><span class="parsed-label">分类</span><span class="parsed-value">${esc(state.amountDraft.category || '')}</span></div>
+    </div>
+    <div class="ask-row">
+      <input class="ask-input" type="number" inputmode="decimal" placeholder="填金额，如 12.5"
+             value="${esc(state.amountInput)}" oninput="onAmountInput(this.value)"
+             onkeydown="if(event.key==='Enter')confirmAmount()" />
+      <button class="ask-btn" onclick="confirmAmount()">记下</button>
+    </div>
+    <div class="ask-cancel" onclick="cancelAmount()">这次不记了</div>
+  </div>` : ''}
+
+  ${p && !state.amountDraft ? `
+  <div class="card">
+    <div class="card-title">已记下</div>
+    <div class="type-badge ${p.trans_type === 'income' ? 'badge-income' : 'badge-expense'}">${FC.labelTransType(p.trans_type)}</div>
+    <div class="parsed-grid">
+      <div class="parsed-item"><span class="parsed-label">顾客</span><span class="parsed-value">${esc(p.customer || '散客')}</span></div>
+      <div class="parsed-item"><span class="parsed-label">事由</span><span class="parsed-value">${esc(p.item || '')}</span></div>
+      <div class="parsed-item"><span class="parsed-label">金额</span><span class="parsed-value">${p.amount != null ? esc(p.amount) + ' 元' : '未提'}</span></div>
+      <div class="parsed-item"><span class="parsed-label">分类</span><span class="parsed-value">${esc(state.friendlyCategory || p.category)}</span></div>
+      ${state.voucher ? `<div class="parsed-item"><span class="parsed-label">凭证</span><span class="parsed-value voucher-no">${esc(state.voucher.voucher_no)}（借:${esc(state.voucher.debit)} / 贷:${esc(state.voucher.credit)}）</span></div>` : ''}
+    </div>
+  </div>` : ''}
+
+  ${hasRecorded ? `
+  <div class="card recorded-card">
+    <div class="card-title">${state.multi
+      ? `这句话我听出 ${state.recordedList.length} 笔，对吗？`
+      : '我这么记的，对吗？'}</div>
+    ${state.recordedList.map((r, i) => `
+      <div class="rec-item-row">
+        <div class="rec-line">
+          <span class="rec-amount ${r.trans_type === 'income' ? 'in' : 'out'}">
+            ${r.trans_type === 'income' ? '+' : '-'}${fmt(r.amount)}</span>
+          <span class="rec-item">${esc(r.item || '')}</span>
+        </div>
+        <div class="rec-meta">
+          ${esc(r.customer || '散客')} · ${esc(r.friendly_category || r.category || '')}
+          ${r.category_normalized
+            ? `<span class="rec-note">（原话是「${esc(r.raw_category)}」，已归到「${esc(r.category)}」）</span>`
+            : ''}
+        </div>
+        <div class="rec-actions">
+          <button class="btn-mini" onclick="fixRecorded(${i})">这条记错了？改</button></div>
+      </div>`).join('')}
+  </div>` : ''}
+
+  <div class="card ledger-glance">
+    <div class="card-title">账本速览</div>
+    <div class="summary-row">
+      <div class="summary-item"><div class="summary-num income">${fmt(state.summary.income)}</div><div class="summary-label">今日收入</div></div>
+      <div class="summary-item"><div class="summary-num expense">${fmt(state.summary.expense)}</div><div class="summary-label">今日支出</div></div>
+      <div class="summary-item"><div class="summary-num">${fmt(state.summary.balance)}</div><div class="summary-label">今日结余</div></div>
+      <div class="summary-item"><div class="summary-num">${state.summary.cnt}</div><div class="summary-label">今日笔数</div></div>
+    </div>
+    <div class="summary-row month-row">
+      <div class="summary-item"><div class="summary-num income">${fmt(state.month.income)}</div><div class="summary-label">本月收入</div></div>
+      <div class="summary-item"><div class="summary-num expense">${fmt(state.month.expense)}</div><div class="summary-label">本月支出</div></div>
+      <div class="summary-item"><div class="summary-num">${fmt(state.month.balance)}</div><div class="summary-label">本月结余</div></div>
+    </div>
+  </div>
+
+  ${(state.review || state.reviewBusy) ? `
+  <div class="card review-card review-secondary">
+    <div class="review-head">
+      <div class="card-title">🏮 掌柜今日复盘</div>
+      <button class="btn-mini ${state.reviewBusy ? 'disabled' : ''}" onclick="reviewNow()">
+        ${state.reviewBusy ? '掌柜在看账…' : '让掌柜再看一遍'}</button>
+    </div>
+    ${(state.layer1 || state.review)
+      ? `<div class="review-box">${esc(state.layer1 || state.review)}</div>`
+      : '<div class="acct-note">五位伙计正在各自看账（账目·熟客·库存·票税·监察），约 10 秒…</div>'}
+    <div class="feedback-row">
+      <button class="btn-mini" onclick="reviewFeedback(true)">有用</button>
+      <button class="btn-mini" onclick="reviewFeedback(false)">没用</button>
+    </div>
+    ${(state.skills || []).length ? `
+      <div class="skill-list">
+        ${(state.skills || []).map(skill => `
+          <div class="skill-card skill-${esc(skill.severity || 'low')}">
+            <div class="skill-name">${esc(skill.name || '')}</div>
+            <div class="skill-summary">${esc(skill.summary || '')}</div>
+          </div>`).join('')}
+      </div>` : ''}
+    ${(state.layer2 || state.review) ? `
+      <div class="snap-toggle" onclick="toggleDetail()">
+        ${state.detailOpen ? '收起' : '展开看为什么'} ▾</div>` : ''}
+    ${state.detailOpen && (state.layer2 || state.review) ? `
+      <div class="snap-box">${esc(state.layer2 || state.review)}
+        ${(state.judgeEvidence || []).length ? `
+          <div class="acct-note">掌柜依据：${state.judgeEvidence.map(esc).join('；')}。</div>` : ''}
+      </div>` : ''}
+    ${state.snapshot ? `
+      <div class="snap-toggle" onclick="toggleSnap()">
+        ${state.snapOpen ? '收起' : '掌柜看到的原始事实'} ▾</div>` : ''}
+    ${state.snapOpen && state.snapshot ? `
+      <div class="snap-box">${esc(state.snapshot).replace(/\n/g, '<br/>')}
+        <div class="acct-note">结论都是从这些事实里挑出来的；没记的经营动作也会出现在这里。</div>
+      </div>` : ''}
+  </div>` : ''}`;
+}

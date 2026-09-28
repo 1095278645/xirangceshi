@@ -3,7 +3,7 @@
 // 说明：不预缓存太多资源，避免开发时拿到旧文件；版本号变化时清理旧缓存。
 'use strict';
 
-const CACHE = 'shopkeeper-shell-v5';
+const CACHE = 'shopkeeper-shell-v13';
 const SHELL = ['/', '/static/style.css', '/static/js/core.js', '/static/js/init.js'];
 
 self.addEventListener('install', (event) => {
