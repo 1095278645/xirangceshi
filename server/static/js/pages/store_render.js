@@ -16,7 +16,28 @@ function renderStore() {
     const r = s.result;
     const dim = r.dimensions;
     const levelIcon = { ok: '🟢', warn: '🟡', danger: '🔴' }[r.overall.key] || '⚪';
+    const actual = Number(r.inputs.daily_revenue || 0);
+    const be = Number(r.model.break_even_day || 0);
+    const target = Number(r.model.target_day || 0);
+    const beGap = Math.max(be - actual, 0);
+    const targetGap = Math.max(target - actual, 0);
+    const beState = actual <= 0
+      ? '先把日销填上（或从账本带入），才知道今天开门是赚是亏。'
+      : (actual < be
+        ? `按这个口径，今天还差 ${fmt(beGap)} 元才保本；开门一天亏一天。`
+        : (actual < target
+          ? `已保本，但只是不亏；离「舒服点」还差 ${fmt(targetGap)} 元/天。`
+          : '已过目标线。别松劲，先把现金垫备厚。'));
+    const pct = target > 0 ? Math.max(0, Math.min(100, actual / target * 100)) : 0;
+    const bePct = target > 0 ? Math.max(0, Math.min(100, be / target * 100)) : 0;
     resultHtml = `
+    <div class="card breakeven-card ${actual < be ? 'is-danger' : (actual < target ? 'is-warn' : 'is-ok')}">
+      <div class="breakeven-label">保本线 · 店的命线</div>
+      <div class="breakeven-main">每天至少要卖 <b>${fmt(be)}</b> 元才不亏</div>
+      <div class="breakeven-sub">固定支出 ${fmt(r.model.fixed_month)} 元/月 ÷ 毛利率 ${(Number(r.inputs.gross_margin || 0) * 100).toFixed(0)}% 算出来。现在日销 ${fmt(actual)} 元：${beState}</div>
+      <div class="be-track" aria-hidden="true"><div class="be-fill" style="width:${pct}%"></div><span class="be-mark" style="left:${bePct}%"></span></div>
+      <div class="be-legend"><span>保本 ${fmt(be)}</span><span>舒服点 ${fmt(target)}（保本 × 1.3）</span></div>
+    </div>
     <div class="card">
       <div class="card-title">诊断结论：${levelIcon} ${esc(r.overall.level)}
         <span class="store-score">综合分 ${r.overall.score}</span></div>
@@ -27,15 +48,14 @@ function renderStore() {
       <div class="note">${esc(r.biz_rule)}</div>
     </div>
     <div class="card">
-      <div class="card-title">保本线（这是你店的命线）</div>
+      <div class="card-title">算式与现金垫</div>
       <div class="store-grid">
-        <div class="store-cell"><div class="store-cell-num">${fmt(r.model.break_even_day)}</div><div class="store-cell-label">保本日销（元/天）</div></div>
-        <div class="store-cell"><div class="store-cell-num">${fmt(r.model.target_day)}</div><div class="store-cell-label">目标日销 ×1.3（元/天）</div></div>
-        <div class="store-cell"><div class="store-cell-num">${fmt(r.model.fixed_month)}</div><div class="store-cell-label">月固定支出（元）</div></div>
-        <div class="store-cell"><div class="store-cell-num">${r.model.payback_months == null ? '∞' : r.model.payback_months}</div><div class="store-cell-label">回本周期（月）</div></div>
+        <div class="store-cell"><div class="store-cell-num">${fmt(r.model.month_profit)}</div><div class="store-cell-label">这个月大概净赚（元）</div></div>
+        <div class="store-cell"><div class="store-cell-num">${r.model.payback_months == null ? '∞' : r.model.payback_months}</div><div class="store-cell-label">回本要几个月</div></div>
+        <div class="store-cell"><div class="store-cell-num">${r.model.cash_months == null ? '∞' : r.model.cash_months}</div><div class="store-cell-label">现金能扛几个月</div></div>
+        <div class="store-cell"><div class="store-cell-num">${fmt(r.model.fixed_month)}</div><div class="store-cell-label">每月固定要出去（元）</div></div>
       </div>
-      <div class="note">月毛利${fmt(r.model.month_revenue * r.inputs.gross_margin)}元 − 固定支出${fmt(r.model.fixed_month)}元 = 月利润${fmt(r.model.month_profit)}元</div>
-      <div class="note">现金流：现有现金可扛 ${r.model.cash_months == null ? '∞' : r.model.cash_months} 个月</div>
+      <div class="note">月毛利 ${fmt(r.model.month_revenue * r.inputs.gross_margin)} 元 − 固定支出 ${fmt(r.model.fixed_month)} 元 = 月利润 ${fmt(r.model.month_profit)} 元</div>
     </div>
     <div class="card">
       <div class="card-title">三维交叉验证</div>
@@ -53,7 +73,8 @@ function renderStore() {
   }
 
   return `
-  <div class="hero"><div class="hero-title">单店模型</div><div class="hero-sub">保本线先行，赚不赚钱心里有数</div></div>
+  <div class="hero"><div class="hero-title">单店模型</div><div class="hero-sub">先算保本线：每天至少要卖多少才不亏</div></div>
+  ${resultHtml}
   <div class="card">
     <div class="card-title">你的店，如实填</div>
     <div class="form-item">
@@ -115,7 +136,6 @@ function renderStore() {
     </div>
     <button class="btn-secondary ${s.savingProfile ? 'disabled' : ''}" onclick="saveStoreProfile()">${s.savingProfile ? '保存中…' : '💾 存为档案'}</button>
   </div>
-  ${resultHtml}
   ${(s.profiles && s.profiles.length) ? `
   <div class="card">
     <div class="card-title">已存档案（${s.profiles.length}）</div>

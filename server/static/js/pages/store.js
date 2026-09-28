@@ -116,6 +116,9 @@ async function calcStoreModel() {
   }
   state.store.loading = false;
   render();
+  // 结果已置顶到 hero 后面；点完「算账」把保本线大卡滚动到眼前，不让它埋在长表单下面。
+  const be = document.querySelector('.breakeven-card');
+  if (be && be.scrollIntoView) be.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
 async function loadStoreLedger() {
