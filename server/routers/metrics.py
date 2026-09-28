@@ -21,6 +21,7 @@ def ai_metrics(days: int = Query(default=7, ge=1, le=90)):
     """
     out = metrics.summarize(days)
     out["evolution"] = _evolution_block()
+    out["roi"] = metrics.roi_summary(days)     # OPC：人力替代与净收益（参考估算）
     return out
 
 

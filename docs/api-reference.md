@@ -15,7 +15,8 @@
 | `POST /api/insights` | **统一 AI 洞察入口**（`scene`：copy / monthly / tax / customer / store；同日缓存 + 失败本地兜底） |
 | `POST /api/reminders/generate` | 生成今日熟客提醒 |
 | `GET /api/reminders` | 提醒列表 |
-| `POST /api/reminders/{id}/done` | 完成提醒 |
+| `POST /api/reminders/{id}/done` | 完成提醒（完成后不再自动补发） |
+| `POST /api/reminders/{id}/send` | **提醒投递**（执行闭环）：通道留空=自动（已订阅通道 > 本地收件箱），成功/失败均留痕 |
 | `GET /api/account-titles` | 66 科目表（按类别分组） |
 | `GET /api/transactions` | 交易流水列表（按年月筛选） |
 | `POST /api/tax/vat` | 增值税计算（小规模，30 万免征） |

@@ -64,6 +64,11 @@ def init_schema(conn) -> None:
         customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
         content     TEXT NOT NULL,
         done        INTEGER DEFAULT 0,
+        -- 投递留痕（OPC「执行闭环」：提醒要能送达并记录，而不只是躺在列表里）
+        sent_at     TEXT DEFAULT '',
+        send_channel TEXT DEFAULT '',
+        send_ok     INTEGER DEFAULT 0,
+        send_error  TEXT DEFAULT '',
         created_at  TEXT DEFAULT (datetime('now','localtime'))
     );
 
@@ -221,6 +226,15 @@ def init_schema(conn) -> None:
                      "ADD COLUMN voided_reason TEXT DEFAULT ''")
     if "parent_id" not in cols:
         conn.execute("ALTER TABLE transactions ADD COLUMN parent_id INTEGER")
+
+    # ===== 提醒投递留痕（老库升级；OPC「执行闭环」需要）=====
+    rcols = [r["name"] for r in conn.execute("PRAGMA table_info(reminders)").fetchall()]
+    for col, ddl in (("sent_at", "TEXT DEFAULT ''"),
+                     ("send_channel", "TEXT DEFAULT ''"),
+                     ("send_ok", "INTEGER DEFAULT 0"),
+                     ("send_error", "TEXT DEFAULT ''")):
+        if col not in rcols:
+            conn.execute(f"ALTER TABLE reminders ADD COLUMN {col} {ddl}")
 
     # ===== 更正审计（谁在什么时候把什么改成了什么）=====
     # 财务数据必须留痕：作废/编辑不能是"悄悄消失"，否则对不上账时无从追查。

@@ -105,6 +105,11 @@ async def _heartbeat_loop():
                     "今日经营复盘", text or "",
                     business_key=_today_key(), dedup_days=1)
                 await asyncio.to_thread(_maybe_warn_revenue)
+                # 执行闭环：把"未完成且未送达"的熟客提醒自动补发一次（幂等）
+                pr = await asyncio.to_thread(heartbeat.push_pending_reminders)
+                if pr.get("sent") or pr.get("failed"):
+                    log.info("熟客提醒自动投递：成功 %s 条 / 失败 %s 条",
+                             len(pr.get("sent") or []), len(pr.get("failed") or []))
             except Exception as e:  # noqa: BLE001
                 log.error("heartbeat loop error: %s", e)
         try:

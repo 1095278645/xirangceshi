@@ -29,7 +29,7 @@ log = logging.getLogger("heartbeat")
 
 __all__ = ["generate_daily_review", "daily_review_text", "daily_snapshot_text",
            "daily_review_layers", "evolution_daily_check", "record_review_feedback",
-           "latest_review_feedback"]
+           "latest_review_feedback", "push_pending_reminders"]
 
 
 def _latest_profile():
@@ -227,6 +227,25 @@ def latest_review_feedback(limit: int = 3) -> str:
         else:
             parts.append("店主上次认为复盘没用，要更具体、更能当天动手。")
     return "；".join(parts)
+
+
+def push_pending_reminders() -> dict:
+    """每日自动补发"未完成且未送达"的熟客提醒（OPC 执行闭环：提醒必须送达）。
+
+    幂等：已成功送达（send_ok=1）不再重发；失败的下次会重试并更新失败原因。
+    通道由 `notifications.auto_channel()` 决定（优先已订阅通道，否则本地记录）。
+    """
+    import notifications
+    from db import list_unsent_reminders, mark_reminder_sent
+    sent, failed = [], []
+    for r in list_unsent_reminders():
+        ch, target = notifications.auto_channel()
+        who = r.get("customer_name") or "熟客"
+        res = notifications.notify(ch, target, f"熟客提醒：{who}", r["content"],
+                                   event="customer_reminder")
+        mark_reminder_sent(r["id"], ch, bool(res.get("ok")), res.get("error", ""))
+        (sent if res.get("ok") else failed).append(r["id"])
+    return {"sent": sent, "failed": failed}
 
 
 def evolution_daily_check():

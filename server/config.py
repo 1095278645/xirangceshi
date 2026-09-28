@@ -56,11 +56,23 @@ EVOLUTION_VERIFY_MIN_TASKS = int(os.environ.get("SHOP_EVOLUTION_VERIFY_TASKS", "
 EVOLUTION_VERIFY_CMD = os.environ.get("SHOP_EVOLUTION_VERIFY_CMD", "")
 EVOLUTION_VERIFY_TIMEOUT = int(os.environ.get("SHOP_EVOLUTION_VERIFY_TIMEOUT", "300") or "300")
 
-# ---- 提示词预算（L11 速度硬约束）----
-# 进入模型前，提示词过长先告警；超过上限则截断（保留 system，其余截尾）。
+# ---- 提示词预算（L11 速度硬约束）----# 进入模型前，提示词过长先告警；超过上限则截断（保留 system，其余截尾）。
 # 目的：任何"脚本原始大输出"都不应未经摘要直接喂给模型。
 AI_PROMPT_WARN_CHARS = int(os.environ.get("SHOP_AI_PROMPT_WARN", "8000") or "8000")
 AI_PROMPT_MAX_CHARS = int(os.environ.get("SHOP_AI_PROMPT_MAX", "24000") or "24000")
+
+# ---- OPC：人力替代与定价（**参考估算值**，各地差异大；可在 config.local.json 覆盖）----
+# roi_labor: [{"role": "代账会计", "monthly_yuan": 500, "replaced_ratio": 0.6}, ...]
+# roi_price: 建议月订阅价（元）
+ROI_LABOR = [
+    {"role": "代账会计", "monthly_yuan": 500, "replaced_ratio": 0.6},
+    {"role": "朋友圈文案", "monthly_yuan": 300, "replaced_ratio": 0.8},
+    {"role": "熟客维系/客服", "monthly_yuan": 1500, "replaced_ratio": 0.3},
+    {"role": "经营参谋/店长助理", "monthly_yuan": 4000, "replaced_ratio": 0.2},
+]
+ROI_SUGGESTED_PRICE_YUAN = float(os.environ.get("SHOP_ROI_PRICE", "99") or "99")
+ROI_NOTE = ("人力市场价为**参考区间**（地区/城市差异大），替代比例为保守估计；"
+            "AI 成本按本机实际用量计算。可在 config.local.json 用 roi_labor / roi_price 覆盖。")
 
 
 def evolution_enabled() -> bool:

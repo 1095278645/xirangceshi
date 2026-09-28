@@ -70,6 +70,21 @@ function renderMetrics() {
 
   return head + picker + `
   <div class="card">
+    <div class="card-title">OPC · 人力替代与净收益（近 ${d.window_days} 天口径，按月折算）</div>
+    ${(() => {
+      const roi = d.roi || {};
+      const rows = (roi.labor || []).map(x =>
+        `<div class="status-detail">${esc(x.role)}：约 ${x.monthly_yuan} 元/月 × 替代 ${Math.round((x.replaced_ratio || 0) * 100)}% = 省 ${x.saved_yuan} 元/月</div>`).join('');
+      const price = (roi.pricing || {}).suggested_price_yuan;
+      const margin = (roi.pricing || {}).gross_margin;
+      return rows
+        + `<div class="status-detail">算力成本（本机真实用量）：约 ${roi.ai_cost_month_est_yuan} 元/月</div>`
+        + `<div class="status-detail"><b>合计：每月省约 ${roi.labor_saved_month_yuan} 元，净省约 ${roi.net_saved_month_yuan} 元</b></div>`
+        + `<div class="status-detail">按建议定价 ${price} 元/月，毛利约 ${margin == null ? '—' : Math.round(margin * 100) + '%'}</div>`
+        + `<div class="howto-text">${esc(roi.note || '')}</div>`;
+    })()}
+  </div>
+  <div class="card">
     <div class="card-title">总览（近 ${d.window_days} 天）</div>
     <div class="status-detail">调用次数：${d.calls}　成功：${d.ok}　失败：${d.failed}　成功率：${rate}</div>
     <div class="status-detail">Token：输入 ${tk.prompt || 0} / 输出 ${tk.completion || 0} / 合计 ${tk.total || 0}</div>

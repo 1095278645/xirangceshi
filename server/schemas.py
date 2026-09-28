@@ -351,3 +351,10 @@ class EvolutionCandidateIn(BaseModel):
     action: str = "verify"          # verify / approve / reject
     confirm: bool = False           # approve 必须 confirm=true（与项目危险操作一致）
     reason: str = ""
+
+
+class ReminderSendIn(BaseModel):
+    """提醒投递（OPC 执行闭环）：channel 留空=自动（优先已订阅通道，否则本地记录）"""
+    channel: Literal["", "mock", "webhook", "wecom_bot", "wecom_app", "wechat_subscribe"] = ""
+    target: str = ""
+    content: str = ""               # 可覆盖话术；留空则用提醒原文

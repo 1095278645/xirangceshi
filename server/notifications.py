@@ -15,7 +15,7 @@ log = logging.getLogger("notifications")
 __all__ = [
     "EVENTS", "list_events", "notify", "dispatch_event", "dispatch_event_async",
     "list_subscriptions", "save_subscription", "delete_subscription",
-    "list_logs", "recent_mock_messages", "PROVIDER_NAMES",
+    "list_logs", "recent_mock_messages", "PROVIDER_NAMES", "auto_channel",
 ]
 
 EVENTS = {
@@ -199,6 +199,17 @@ def dispatch_event_async(event: str, title: str, content: str,
             log.warning("异步事件分发失败 %s：%s", event, e)
 
     threading.Thread(target=_run, name=f"dispatch-{event}", daemon=True).start()
+
+
+def auto_channel() -> tuple[str, str]:
+    """自动投递通道：优先第一个已启用订阅；否则本地记录（mock）——保证零配置也能"送出去"。
+
+    OPC「执行闭环」用：没有配置企业微信/Webhook 的店主，提醒也会落到本地收件箱
+    （`server/data/notifications.jsonl`），可查可验证，而不是"生成完就躺着"。
+    """
+    for s in list_subscriptions(enabled_only=True):
+        return s["channel"], s["target"]
+    return "mock", ""
 
 
 def _already_sent(event: str, business_key: str, days: int) -> bool:

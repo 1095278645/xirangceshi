@@ -167,6 +167,24 @@ try {
   problems.push(`renderCustDetail() 抛异常：${e.message}`);
 }
 
+// ---------- 渲染函数（有数据）抽检：metrics 页的 ROI/进化分块 ----------
+try {
+  evalInCtx(`_mxData = {window_days:7,calls:1,ok:1,failed:0,success_rate:1,
+    tokens:{prompt:1,completion:1,total:2},latency_ms:{avg:1,p50:1,p95:1,max:1},
+    cost_est_yuan:0.01,orders_in_window:1,per_order_cost_est_yuan:0.01,
+    by_domain:[{name:'记账解析',calls:1,cost_yuan:0.01,avg_latency_ms:1}],
+    by_model:[{name:'m',calls:1,cost_yuan:0.01,avg_latency_ms:1}],note:'n',
+    unknown_priced_models:[],evolution:{enabled:false},
+    roi:{labor:[{role:'代账会计',monthly_yuan:500,replaced_ratio:0.6,saved_yuan:300}],
+      labor_saved_month_yuan:300,ai_cost_month_est_yuan:0.1,
+      net_saved_month_yuan:299.9,pricing:{suggested_price_yuan:99,gross_margin:0.99},note:'x'}}`);
+  const h = evalInCtx('renderMetrics()');
+  if (typeof h !== 'string' || !/<\w+/.test(h)) problems.push('renderMetrics() 有数据时未产出 HTML');
+  else ran.push(`renderMetrics(有数据,${h.length})`);
+} catch (e) {
+  problems.push('renderMetrics 有数据渲染异常：' + e.message);
+}
+
 // ---------- 共享契约自检（标签/谓词/错误归类） ----------
 try {
   const FC = ctx.FRONTEND_CONTRACT;

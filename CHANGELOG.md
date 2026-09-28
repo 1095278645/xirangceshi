@@ -2,6 +2,33 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [1.1.9] - 2026-09-22
+
+按 OPC（一人公司）视角补齐短板：**执行闭环 + ROI 数字 + AI 员工编制表**。
+
+### 新增 · 执行闭环（P0-1：AI 不只出建议，要送达并留痕）
+- `POST /api/reminders/{rid}/send`：投递熟客提醒。**通道留空=自动**（优先已启用订阅，
+  否则本地收件箱 `notifications.jsonl`）→ **零配置也能送达**。
+- 投递结果回写 `reminders.sent_at / send_channel / send_ok / send_error`（失败原因入库）。
+- `heartbeat.push_pending_reminders()`：每日把"未完成且未送达"的提醒**自动补发**（成功即不再重发）。
+- `notifications.auto_channel()`：统一的自动通道解析。
+- 网页端「熟客」页新增**今日提醒**区块：显示送达状态 + `发送` / `完成`。
+- 迁移：`reminders` 增 4 列（`SCHEMA_VERSION` 3 → 4，老库自动升级）。
+
+### 新增 · ROI（P0-2：给"省了多少钱"的数字）
+- `metrics.roi_summary()`：人力替代对照（可配置）+ 本机真实 AI 成本 + 净收益 + 定价毛利，
+  并入既有 `GET /api/metrics/ai` 的 `roi` 分块（**不新增端点**）。
+- `config.ROI_LABOR` / `ROI_SUGGESTED_PRICE_YUAN` / `ROI_NOTE`（可在 `config.local.json` 覆盖）。
+- 运行指标页新增「OPC · 人力替代与净收益」卡片。
+
+### 新增 · 文档（P0-3）
+- `docs/opc-ai-team.md`：**AI 员工编制表（7 岗位 + 自动化程度）**、执行闭环说明、ROI 与定价草案、诚实边界。
+
+### 测试
+- 新增 `tests/test_reminder_send.py`（6 项）：mock 送达留痕 / 自动通道回落 / 失败入库并 502 /
+  404 / 自动补发幂等 / 完成的不再补发。
+- `check_web_render.js` 新增"有数据"渲染抽检（覆盖 metrics 页 ROI/进化分块）。
+
 ## [1.1.8] - 2026-09-22
 
 双前端收敛（短期步）：**枚举标签**与**校验谓词**并入共享契约并接线。

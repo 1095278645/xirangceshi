@@ -87,6 +87,64 @@ def _orders_in_window(days: int) -> int:
         return 0
 
 
+def _roi_config() -> tuple[list, float]:
+    """ROI 参数：默认取 config，允许 config.local.json 覆盖 roi_labor / roi_price。"""
+    import config
+    roles = [dict(x) for x in config.ROI_LABOR]
+    price = float(config.ROI_SUGGESTED_PRICE_YUAN)
+    try:
+        from config import _LOCAL_CONFIG  # noqa: PLC0415
+        if _LOCAL_CONFIG.exists():
+            with open(_LOCAL_CONFIG, encoding="utf-8") as f:
+                cfg = json.load(f)
+            if isinstance(cfg.get("roi_labor"), list) and cfg["roi_labor"]:
+                roles = [dict(x) for x in cfg["roi_labor"]]
+            if cfg.get("roi_price"):
+                price = float(cfg["roi_price"])
+    except Exception:  # noqa: BLE001
+        pass
+    return roles, price
+
+
+def roi_summary(days: int = 30) -> dict:
+    """OPC 视角：AI 替代了多少人力、净省多少钱、按建议定价的毛利。
+
+    诚实边界：人力市场价与替代比例是**可配置的参考估算**（非实测），
+    AI 成本是本机真实用量；结论按"量级参考"使用。
+    """
+    import config
+    from db_metrics import metrics_window_stats
+    days = max(1, int(days))
+    cost = 0.0
+    for r in metrics_window_stats(days):
+        price, _known = price_for(r.get("model") or "")
+        cost += (int(r.get("prompt_tokens") or 0) / 1e6 * price["in"]
+                 + int(r.get("completion_tokens") or 0) / 1e6 * price["out"])
+    monthly_ai = cost / days * 30
+
+    roles, suggested = _roi_config()
+    items = []
+    for x in roles:
+        saved = float(x.get("monthly_yuan") or 0) * float(x.get("replaced_ratio") or 0)
+        items.append({"role": x.get("role", ""),
+                      "monthly_yuan": x.get("monthly_yuan"),
+                      "replaced_ratio": x.get("replaced_ratio"),
+                      "saved_yuan": round(saved, 2)})
+    labor_saved = sum(i["saved_yuan"] for i in items)
+    return {
+        "window_days": days,
+        "ai_cost_yuan": round(cost, 4),
+        "ai_cost_month_est_yuan": round(monthly_ai, 2),
+        "labor": items,
+        "labor_saved_month_yuan": round(labor_saved, 2),
+        "net_saved_month_yuan": round(labor_saved - monthly_ai, 2),
+        "pricing": {"suggested_price_yuan": suggested,
+                    "gross_margin": (round((suggested - monthly_ai) / suggested, 3)
+                                     if suggested else None)},
+        "note": config.ROI_NOTE,
+    }
+
+
 def summarize(days: int = 7) -> dict:
     from db_metrics import metrics_window_stats  # 延迟导入，避免环
     rows = metrics_window_stats(days)

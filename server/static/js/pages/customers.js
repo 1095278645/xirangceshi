@@ -2,9 +2,33 @@
 'use strict';
 
 // ---------- 熟客 ----------
+let _reminders = [];   // 今日待办（OPC 执行闭环：生成 → 送达 → 完成，都能在这里看到）
+
 async function loadCustomers() {
   try { state.customers = await api('/api/customers'); } catch (_) {}
+  try {
+    const r = await api('/api/reminders?done=0');
+    _reminders = Array.isArray(r) ? r : (r.reminders || []);
+  } catch (_) { _reminders = []; }
   render();
+}
+
+// 执行闭环：把提醒真的送出去（后端自动选通道：已订阅通道 > 本地记录）
+async function sendReminder(rid) {
+  try {
+    const r = await api('/api/reminders/' + rid + '/send', 'POST', {});
+    toast('已送达（' + (r.channel || '') + '）');
+    await loadCustomers();
+  } catch (e) { toast(e.message); await loadCustomers(); }
+}
+
+// 执行闭环：办完了就回填（完成态不再补发）
+async function doneReminder(rid) {
+  try {
+    await api('/api/reminders/' + rid + '/done', 'POST', {});
+    toast('已标记完成');
+    await loadCustomers();
+  } catch (e) { toast(e.message); }
 }
 
 async function viewCustomer(id) {
@@ -54,6 +78,24 @@ function renderCustomers() {
   const cs = state.customers;
   return `
   <div class="hero"><div class="hero-title">熟客记忆</div><div class="hero-sub">老主顾的脸和事，帮你记着</div></div>
+  <div class="card">
+    <div class="card-title">今日提醒（${_reminders.length}）<span class="howto-text" style="font-weight:400"> · AI 生成后会自动送达，未送达的次日自动重试</span></div>
+    ${_reminders.length === 0 ? '<div class="empty">暂无待办：生成提醒或记账后，AI 会在这里排好今天该做的事</div>' :
+      _reminders.map(r => `
+      <div class="cust-item">
+        <div>
+          <div class="cust-name">${esc(r.customer_name || '熟客')}</div>
+          <div class="cust-meta">${esc(r.content || '')}</div>
+          <div class="cust-meta">${r.send_ok
+            ? '✅ 已送达（' + esc(r.send_channel || '') + '）'
+            : (r.send_error ? '⚠️ 上次投递失败：' + esc(r.send_error) : '尚未送达')}</div>
+        </div>
+        <div>
+          <button class="btn-mini" onclick="sendReminder(${r.id})">发送</button>
+          <button class="btn-mini" onclick="doneReminder(${r.id})">完成</button>
+        </div>
+      </div>`).join('')}
+  </div>
   <div class="card">
     <div class="card-title">熟客列表（${cs.length}）</div>
     ${cs.length === 0 ? '<div class="empty">记账时提到称呼会自动建档</div>' :

@@ -8,6 +8,7 @@ __all__ = [
     "list_customers", "get_customer", "find_or_create_customer", "update_customer",
     "add_memory", "recent_memories",
     "add_reminder", "list_reminders", "mark_reminder_done",
+    "mark_reminder_sent", "list_unsent_reminders",
 ]
 
 
@@ -143,3 +144,25 @@ def list_reminders(done=None):
 def mark_reminder_done(rid, done=1):
     with _conn() as conn:
         conn.execute("UPDATE reminders SET done=? WHERE id=?", (done, rid))
+
+
+# ---------------- 提醒"执行闭环"（OPC：AI 不只出建议，要送达并留痕）----------------
+
+def mark_reminder_sent(rid, channel, ok, error=""):
+    """记录一次投递结果（成功与否都留痕，便于次日重试与追查）。"""
+    with _conn() as conn:
+        conn.execute(
+            "UPDATE reminders SET sent_at=datetime('now','localtime'), "
+            "send_channel=?, send_ok=?, send_error=? WHERE id=?",
+            (channel or "", 1 if ok else 0, (error or "")[:200], rid))
+
+
+def list_unsent_reminders():
+    """未完成且尚未成功送达的提醒（供每日自动补发）。"""
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT r.*, c.name AS customer_name FROM reminders r "
+            "JOIN customers c ON c.id=r.customer_id "
+            "WHERE r.done=0 AND COALESCE(r.send_ok,0)=0 "
+            "ORDER BY r.created_at").fetchall()
+        return [dict(r) for r in rows]
