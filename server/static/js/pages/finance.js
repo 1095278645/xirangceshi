@@ -57,19 +57,19 @@ async function loadBudgets() {
 async function saveBudget() {
   const f = state.finance.budForm;
   const amount = parseFloat(f.amount);
-  if (!(amount >= 0)) { toast('先填预算金额'); return; }
+  if (!(amount >= 0)) { toast('先填计划金额'); return; }
   try {
     await api('/api/budgets', 'POST', {
       month: f.month || state.finance.month, scope: f.scope, amount,
       category: f.category, note: f.note });
     f.amount = ''; f.category = ''; f.note = '';
-    toast('预算已保存');
+    toast('计划已存下');
     await loadBudgets();
   } catch (e) { toast(e.message); }
 }
 
 async function deleteBudget(id) {
-  if (!confirm('删除这条预算？')) return;
+  if (!confirm('删除这条计划？')) return;
   try { await api(`/api/budgets/${id}`, 'DELETE'); await loadBudgets(); }
   catch (e) { toast(e.message); }
 }
@@ -103,13 +103,13 @@ async function addDebt() {
 }
 
 async function settleDebt(id) {
-  if (!confirm('结清这笔账（全部）？')) return;
+  if (!confirm('这笔欠账全部结清？')) return;
   try { await api(`/api/debts/${id}/settle`, 'POST', {}); await loadDebts(); }
   catch (e) { toast(e.message); }
 }
 
 async function deleteDebt(id) {
-  if (!confirm('删除这笔账？')) return;
+  if (!confirm('删除这笔欠账？')) return;
   try { await api(`/api/debts/${id}`, 'DELETE'); await loadDebts(); }
   catch (e) { toast(e.message); }
 }
