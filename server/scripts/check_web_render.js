@@ -141,9 +141,8 @@ for (const fn of RENDERS) {
   }
 }
 
-// renderCustDetail 在没有选中熟客时**故意**返回空串（`if (!c) return ''`），
-// 所以不能按"必须产出 HTML"来断言；这里给它塞一份数据再试一次，
-// 才能真正覆盖这个页面的渲染路径。
+// renderCustDetail 在没有选中熟客时会返回"返回列表"提示卡（刷新/直达 hash 不白屏），
+// 这里再塞一份数据，覆盖真正的详情渲染路径。
 //
 // 注意：core.js 里是 `const state = {...}`，顶层 const 不会挂到 sandbox 上，
 // 所以不能写 ctx.state —— 必须把代码放进同一个 context 里执行。

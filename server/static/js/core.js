@@ -251,7 +251,11 @@ const A11Y_FONT_KEY = 'shop_font_scale';
 
 function a11yApply(scale) {
   if (!document.documentElement || !document.documentElement.style) return;   // Node 试跑环境
-  document.documentElement.style.fontSize = (scale * 100) + '%';
+  const wrap = document.getElementById('page-wrap');
+  // 页面字号目前以 px 为主：优先用 zoom 做整体缩放（Chromium/新 WebKit 支持），
+  // 不支持时退回根字号百分比，至少保证未来的 rem/em 组件能跟随。
+  if (wrap && 'zoom' in wrap.style) wrap.style.zoom = scale === 1 ? '' : String(scale);
+  else document.documentElement.style.fontSize = (scale * 100) + '%';
 }
 
 function a11yInit() {
@@ -306,7 +310,9 @@ function render() {
   const inMore = MORE_ROUTES.includes(r);
   document.querySelectorAll('.tab-item').forEach(t => {
     const r2 = t.dataset.route;
-    t.classList.toggle('active', inMore ? (r2 === 'more') : (r2 === r));
+    const active = inMore ? (r2 === 'more') : (r2 === r);
+    t.classList.toggle('active', active);
+    if (t.setAttribute) t.setAttribute('aria-current', active ? 'page' : 'false');
     t.style.display = (r === 'custDetail' && r2 !== 'customers') ? 'none' : 'flex';
   });
   updateMoreMenu();
@@ -316,11 +322,17 @@ function render() {
 function openMore() {
   document.getElementById('moreMask').classList.add('show');
   document.getElementById('moreDrawer').classList.add('open');
+  const mask = document.getElementById('moreMask');
+  if (mask && mask.setAttribute) mask.setAttribute('aria-hidden', 'false');
+  const first = document.querySelector('#moreDrawer .more-item:not([style*="display: none"])');
+  if (first && first.focus) first.focus();
 }
 
 function closeMore() {
   document.getElementById('moreMask').classList.remove('show');
   document.getElementById('moreDrawer').classList.remove('open');
+  const mask = document.getElementById('moreMask');
+  if (mask && mask.setAttribute) mask.setAttribute('aria-hidden', 'true');
 }
 
 // ---------- 路由 ----------

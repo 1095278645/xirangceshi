@@ -65,6 +65,41 @@ class MultiOrderTest(unittest.TestCase):
         total = sum(r["amount"] for r in rows)
         self.assertEqual(total, 1570.0, "两笔各自入账，不能被合并成一条")
 
+    def test_multi_with_low_confidence_still_records_when_subs_complete(self):
+        """多笔且每笔金额/方向都齐时，不被顶层一句"没说明项目"拦成单笔复核。"""
+        subs = [
+            {"customer": "", "item": "", "amount": 1250,
+             "trans_type": "income", "category": "主营业务收入"},
+            {"customer": "", "item": "", "amount": 320,
+             "trans_type": "expense", "category": "进货"},
+        ]
+        with mock.patch("ai.parse_transaction", return_value=self._stub(
+                subs, needs_check=True, confidence=0.6,
+                ambiguity="未说明具体项目", question="未说明具体项目")):
+            with self._client() as c:
+                j = c.post("/api/orders", json={"text": "今天收入1250，支出320"}).json()
+        self.assertTrue(j.get("multi"))
+        self.assertEqual(len(j["recorded_list"]), 2)
+        self.assertEqual(sorted(x["amount"] for x in j["recorded_list"]), [320, 1250])
+
+    def test_multi_needs_check_still_returns_missing_list(self):
+        """多笔里有缺金额时，即使解析层标了 needs_check，也要返回 missing 列表。"""
+        subs = [
+            {"customer": "", "item": "有金额", "amount": 30,
+             "trans_type": "income", "category": "主营业务收入"},
+            {"customer": "张叔", "item": "没金额", "amount": None,
+             "trans_type": "income", "category": "主营业务收入"},
+        ]
+        with mock.patch("ai.parse_transaction", return_value=self._stub(
+                subs, needs_check=True, confidence=0.0,
+                ambiguity="有一笔没听清金额", question="有一笔没听清金额")):
+            with self._client() as c:
+                j = c.post("/api/orders", json={"text": "卖了30，张叔还拿了点别的"}).json()
+        self.assertTrue(j["amount_missing"])
+        self.assertTrue(j["multi"])
+        self.assertEqual(len(j["missing"]), 1)
+        self.assertIsNone(j["order_id"])
+
     def test_total_is_not_summed_into_one(self):
         """反向守卫：绝不能把 50 和 80 合成 130 一条。"""
         subs = [{"customer": "", "item": "收款", "amount": 50,

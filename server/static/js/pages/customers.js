@@ -133,7 +133,10 @@ function renderCustomers() {
 
 function renderCustDetail() {
   const c = state.custDetail;
-  if (!c) return '';
+  if (!c) return `
+  <div class="hero"><div class="hero-title">熟客详情</div><div class="hero-sub">没有找到这位熟客</div></div>
+  <div class="card"><div class="empty">可能是页面刷新后数据还没回来。</div>
+  <button class="btn-primary" onclick="go('customers')">返回熟客列表</button></div>`;
   return `
   <div class="hero"><div class="hero-title">${esc(c.name)}</div><div class="hero-sub">常点：${esc(c.favorite || '未知')}</div></div>
   <div class="card">

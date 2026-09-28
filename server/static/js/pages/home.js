@@ -3,6 +3,7 @@
 
 // ---------- 记账 ----------
 async function submitOrder(text, extra) {
+  if (state.submitting) return;   // 防双击/重复提交：旧版只靠 .disabled 视觉类，按钮仍可点
   state.submitting = true;
   state.result = text;
   state.manualText = '';
@@ -14,15 +15,21 @@ async function submitOrder(text, extra) {
     state.friendlyCategory = res.friendly_category;
     state.summary = res.summary;
     if (res.needs_check) {
-      state.checkQuestion = res.check_question || '这笔账我先核对一下';
-      state.checkDraft = res.draft || null;
+      // 低把握复核与缺金额追问可能同时返回；金额不合法时优先进补金额流程，
+      // 否则界面会摆出一张"金额 0 元，对，记下"的核对卡（真实模型偶发 amount=0）。
+      const amountMissing = !!res.amount_missing;
+      state.checkQuestion = amountMissing ? '' : (res.check_question || '这笔账我先核对一下');
+      state.checkDraft = amountMissing ? null : (res.draft || null);
       state.recorded = null;
       state.recordedList = [];
       state.voucher = null;
-      if (res.amount_missing) {
+      if (amountMissing) {
         state.amountDraft = res.draft || null;
         state.amountMissing = res.missing || [];
         state.amountInput = '';
+      } else {
+        state.amountDraft = null;
+        state.amountMissing = [];
       }
       return;
     }
@@ -62,11 +69,17 @@ async function confirmAmount() {
   if (!d) return;
   const amt = parseFloat(state.amountInput);
   if (!FC.isPositiveNumber(amt)) { toast('填一个大于 0 的金额'); return; }
-  // 把 AI 已解析好的字段原样带回去：后端不重解析，科目/熟客与草稿一致
-  await submitOrder(d.text || d.item, {
+  // 把 AI 已解析好的字段原样带回去：后端不重解析，科目/熟客与草稿一致。
+  // 注意：草稿里可能有 null（模型连方向都没把握时），null 会被 Pydantic 的
+  // str 字段直接 422；这里只把"有值"的字段带上，空字段让后端走业务兜底。
+  const extra = {
     amount: amt, customer: d.customer, item: d.item,
     category: d.category, trans_type: d.trans_type, note: d.note,
+  };
+  Object.keys(extra).forEach(k => {
+    if (extra[k] === null || extra[k] === undefined || extra[k] === '') delete extra[k];
   });
+  await submitOrder(d.text || d.item, extra);
   if (state.recorded) toast('已补记 ' + amt + ' 元');
 }
 
@@ -80,10 +93,14 @@ function cancelAmount() {
 async function confirmChecked() {
   const draft = state.checkDraft;
   if (!draft) return;
-  await submitOrder(draft.text || draft.item, {
+  const extra = {
     amount: draft.amount, customer: draft.customer, item: draft.item,
     category: draft.category, trans_type: draft.trans_type, note: draft.note,
+  };
+  Object.keys(extra).forEach(k => {
+    if (extra[k] === null || extra[k] === undefined || extra[k] === '') delete extra[k];
   });
+  await submitOrder(draft.text || draft.item, extra);
   state.checkQuestion = '';
   state.checkDraft = null;
   render();
@@ -197,6 +214,7 @@ async function loadMonth() {
 }
 
 function submitManual() {
+  if (state.submitting) return;
   const t = state.manualText.trim();
   if (!t) { toast('说点啥呢'); return; }
   submitOrder(t);

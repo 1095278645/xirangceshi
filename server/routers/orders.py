@@ -45,15 +45,25 @@ def create_order(data: OrderIn):
     else:
         parsed = ai.parse_transaction(data.text)
 
+    # 一句话多笔：优先于单笔 needs_check 处理。
+    # 原因：多笔解析层只要有一笔缺金额就会置 needs_check；若先走单笔复核，
+    # 会丢掉"哪几笔缺金额"的 missing 列表，界面无法一次问全。完整多笔也不该
+    # 被顶层一句"没说明具体项目"拦住 —— 每笔自己的金额/方向才是记账依据。
+    subs = parsed.get("transactions") or []
+    if len(subs) >= 2:
+        return _record_multi(parsed, subs, data.text)
+
     # 入口防呆：方向、分类或多笔笔数低把握时，不急着落库。
     # 金额缺失已有追问机制；这里处理的是更隐蔽的“听懂了但可能听错了”。
     if not explicit and parsed.get("needs_check"):
+        _amt = parsed.get("amount")
+        amount_missing = _amt is None or not isinstance(_amt, (int, float)) or float(_amt) <= 0
         return {
             "order_id": None,
             "parsed": parsed,
             "customer_id": None,
             "customer_new": False,
-            "amount_missing": parsed.get("amount") is None,
+            "amount_missing": amount_missing,
             "needs_check": True,
             "check_question": parsed.get("question") or "这笔账我先核对一下再记",
             "draft": {
@@ -68,11 +78,6 @@ def create_order(data: OrderIn):
             "voucher": None,
             "summary": db.today_summary(),
         }
-
-    # 一句话多笔：逐笔记账（见函数 docstring）
-    subs = parsed.get("transactions") or []
-    if len(subs) >= 2:
-        return _record_multi(parsed, subs, data.text)
 
     customer = data.customer or parsed.get("customer", "")
     cid = None

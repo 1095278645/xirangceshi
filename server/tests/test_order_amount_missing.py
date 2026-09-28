@@ -94,6 +94,20 @@ class OrderAmountMissingTest(unittest.TestCase):
             n = conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
         self.assertEqual(n, 0)
 
+    def test_low_confidence_zero_amount_goes_to_amount_followup(self):
+        """低把握且金额被模型错给成 0 时，也要走"补金额"，不能摆 0 元核对卡。"""
+        with mock.patch("ai.parse_transaction", return_value=self._parse_stub(
+                amount=0, item="随便记一笔", confidence=0.3,
+                ambiguity="缺少金额", needs_check=True, question="缺少金额")):
+            with self._client() as c:
+                j = c.post("/api/orders", json={"text": "随便记一笔"}).json()
+        self.assertTrue(j["needs_check"])
+        self.assertTrue(j["amount_missing"], "0 元在会计上无意义，应视为缺金额")
+        self.assertIsNone(j["order_id"])
+        with db.get_conn() as conn:
+            n = conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
+        self.assertEqual(n, 0)
+
     def test_missing_amount_reports_draft_fields_for_followup(self):
         """要返回"草稿"信息，界面才能追问"这笔多少钱"并把其它字段续上。"""
         with mock.patch("ai.parse_transaction",

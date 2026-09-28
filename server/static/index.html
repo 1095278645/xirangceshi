@@ -2,85 +2,85 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="AI掌柜" />
-  <meta name="theme-color" content="#b4532a" />
+  <meta name="theme-color" content="#8f3f1f" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏮</text></svg>" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/static/icon-192.svg" />
   <title>巷子里的AI掌柜</title>
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/style.css?v=13" />
 </head>
 <body>
   <div id="page-wrap">
     <div id="app"></div>
 
-    <nav class="tabbar">
-      <a class="tab-item" data-route="home">
+    <nav class="tabbar" aria-label="主导航">
+      <button type="button" class="tab-item" data-route="home" aria-label="记账">
         <span class="tab-icon">🗣️</span><span class="tab-label">记账</span>
-      </a>
-      <a class="tab-item" data-route="customers">
+      </button>
+      <button type="button" class="tab-item" data-route="customers" aria-label="熟客">
         <span class="tab-icon">❤️</span><span class="tab-label">熟客</span>
-      </a>
-      <a class="tab-item" data-route="copy">
+      </button>
+      <button type="button" class="tab-item" data-route="copy" aria-label="文案">
         <span class="tab-icon">✍️</span><span class="tab-label">文案</span>
-      </a>
-      <a class="tab-item" data-route="books">
+      </button>
+      <button type="button" class="tab-item" data-route="books" aria-label="账本">
         <span class="tab-icon">📒</span><span class="tab-label">账本</span>
-      </a>
-      <a class="tab-item" data-route="store">
+      </button>
+      <button type="button" class="tab-item" data-route="store" aria-label="单店">
         <span class="tab-icon">🏪</span><span class="tab-label">单店</span>
-      </a>
-      <a class="tab-item" data-route="more">
+      </button>
+      <button type="button" class="tab-item" data-route="more" aria-label="更多功能">
         <span class="tab-icon">☰</span><span class="tab-label">更多</span>
-      </a>
+      </button>
     </nav>
 
-    <div class="more-mask" id="moreMask"></div>
-    <div class="more-drawer" id="moreDrawer">
-      <div class="more-title">更多功能</div>
-      <div class="more-item" data-route="collect"><span class="more-icon">💴</span><span>收款</span><span class="more-sub">收款码 · 一键入账</span></div>
-      <div class="more-item" data-route="accounting"><span class="more-icon">📊</span><span>会计报表</span><span class="more-sub">利润表 · 资产负债表 · 结转</span></div>
-      <div class="more-item" data-route="backup"><span class="more-icon">🛡</span><span>数据备份</span><span class="more-sub">备份 · 导出 · 恢复</span></div>
-      <div class="more-item" data-route="notify"><span class="more-icon">🔔</span><span>主动触达</span><span class="more-sub">推送复盘与提醒</span></div>
-      <div class="more-item" data-route="shops"><span class="more-icon">🏬</span><span>多店 / 成员</span><span class="more-sub">开店 · 切店 · 角色令牌</span></div>
-      <div class="more-item" data-route="finance"><span class="more-icon">💰</span><span>财务</span><span class="more-sub">现金流 · 预算 · 赊账</span></div>
-      <div class="more-item" data-route="stock"><span class="more-icon">📦</span><span>库存</span><span class="more-sub">进销存 · 补货预警</span></div>
-      <div class="more-item" data-route="invoice"><span class="more-icon">🧾</span><span>发票</span><span class="more-sub">销项进项台账</span></div>
-      <div class="more-item" data-route="metrics"><span class="more-icon">📈</span><span>运行指标</span><span class="more-sub">AI 成本 · 延迟看板</span></div>
-      <div class="more-item" data-route="settings"><span class="more-icon">⚙️</span><span>设置</span><span class="more-sub">支付账户 · 数据同步</span></div>
+    <div class="more-mask" id="moreMask" aria-hidden="true"></div>
+    <div class="more-drawer" id="moreDrawer" role="dialog" aria-modal="true" aria-labelledby="moreTitle">
+      <div class="more-title" id="moreTitle">更多功能</div>
+      <button type="button" class="more-item" data-route="collect"><span class="more-icon">💴</span><span>收款</span><span class="more-sub">收款码 · 一键入账</span></button>
+      <button type="button" class="more-item" data-route="accounting"><span class="more-icon">📊</span><span>会计报表</span><span class="more-sub">利润表 · 资产负债表 · 结转</span></button>
+      <button type="button" class="more-item" data-route="backup"><span class="more-icon">🛡</span><span>数据备份</span><span class="more-sub">备份 · 导出 · 恢复</span></button>
+      <button type="button" class="more-item" data-route="notify"><span class="more-icon">🔔</span><span>主动触达</span><span class="more-sub">推送复盘与提醒</span></button>
+      <button type="button" class="more-item" data-route="shops"><span class="more-icon">🏬</span><span>多店 / 成员</span><span class="more-sub">开店 · 切店 · 角色令牌</span></button>
+      <button type="button" class="more-item" data-route="finance"><span class="more-icon">💰</span><span>财务</span><span class="more-sub">现金流 · 预算 · 赊账</span></button>
+      <button type="button" class="more-item" data-route="stock"><span class="more-icon">📦</span><span>库存</span><span class="more-sub">进销存 · 补货预警</span></button>
+      <button type="button" class="more-item" data-route="invoice"><span class="more-icon">🧾</span><span>发票</span><span class="more-sub">销项进项台账</span></button>
+      <button type="button" class="more-item" data-route="metrics"><span class="more-icon">📈</span><span>运行指标</span><span class="more-sub">AI 成本 · 延迟看板</span></button>
+      <button type="button" class="more-item" data-route="settings"><span class="more-icon">⚙️</span><span>设置</span><span class="more-sub">支付账户 · 数据同步</span></button>
     </div>
 
-    <div class="a11y-bar">
-      <button class="a11y-btn" onclick="a11yFont(-1)" title="缩小字号">A-</button>
-      <button class="a11y-btn" onclick="a11yFont(1)" title="放大字号">A+</button>
-      <button class="a11y-btn" onclick="a11yRead()" title="朗读当前页面要点">🔊</button>
+    <div class="a11y-bar" aria-label="无障碍工具">
+      <button type="button" class="a11y-btn" onclick="a11yFont(-1)" title="缩小字号" aria-label="缩小字号">A-</button>
+      <button type="button" class="a11y-btn" onclick="a11yFont(1)" title="放大字号" aria-label="放大字号">A+</button>
+      <button type="button" class="a11y-btn" onclick="a11yRead()" title="朗读当前页面要点" aria-label="朗读当前页面要点">🔊</button>
     </div>
   </div>
 
   <script src="/static/shared/frontend_contract.js?v=1"></script>
-  <script src="/static/js/core.js?v=8"></script>
-  <script src="/static/js/speech.js?v=8"></script>
-  <script src="/static/js/pages/home.js?v=8"></script>
-  <script src="/static/js/pages/customers.js?v=8"></script>
-  <script src="/static/js/pages/copy.js?v=8"></script>
-  <script src="/static/js/pages/books.js?v=8"></script>
-  <script src="/static/js/pages/store.js?v=8"></script>
-  <script src="/static/js/pages/store_render.js?v=8"></script>
-  <script src="/static/js/pages/finance.js?v=8"></script>
-  <script src="/static/js/pages/finance_render.js?v=8"></script>
-  <script src="/static/js/pages/stock.js?v=8"></script>
-  <script src="/static/js/pages/invoice.js?v=8"></script>
-  <script src="/static/js/pages/metrics.js?v=8"></script>
-  <script src="/static/js/pages/accounting.js?v=8"></script>
-  <script src="/static/js/pages/backup.js?v=8"></script>
-  <script src="/static/js/pages/notify.js?v=8"></script>
-  <script src="/static/js/pages/collect.js?v=8"></script>
-  <script src="/static/js/pages/shops.js?v=8"></script>
-  <script src="/static/js/pages/settings.js?v=8"></script>
-  <script src="/static/js/pages/settings_pay.js?v=8"></script>
-  <script src="/static/js/init.js?v=8"></script>
+  <script src="/static/js/core.js?v=13"></script>
+  <script src="/static/js/speech.js?v=13"></script>
+  <script src="/static/js/pages/home.js?v=13"></script>
+  <script src="/static/js/pages/customers.js?v=13"></script>
+  <script src="/static/js/pages/copy.js?v=13"></script>
+  <script src="/static/js/pages/books.js?v=13"></script>
+  <script src="/static/js/pages/store.js?v=13"></script>
+  <script src="/static/js/pages/store_render.js?v=13"></script>
+  <script src="/static/js/pages/finance.js?v=13"></script>
+  <script src="/static/js/pages/finance_render.js?v=13"></script>
+  <script src="/static/js/pages/stock.js?v=13"></script>
+  <script src="/static/js/pages/invoice.js?v=13"></script>
+  <script src="/static/js/pages/metrics.js?v=13"></script>
+  <script src="/static/js/pages/accounting.js?v=13"></script>
+  <script src="/static/js/pages/backup.js?v=13"></script>
+  <script src="/static/js/pages/notify.js?v=13"></script>
+  <script src="/static/js/pages/collect.js?v=13"></script>
+  <script src="/static/js/pages/shops.js?v=13"></script>
+  <script src="/static/js/pages/settings.js?v=13"></script>
+  <script src="/static/js/pages/settings_pay.js?v=13"></script>
+  <script src="/static/js/init.js?v=13"></script>
   <script>
     // PWA：注册 Service Worker（离线可开，可"添加到主屏幕"）
     if ('serviceWorker' in navigator) {

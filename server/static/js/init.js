@@ -12,8 +12,11 @@ document.querySelectorAll('.tab-item').forEach(t => {
   t.addEventListener('click', (e) => { e.preventDefault(); go(t.dataset.route); });
 });
 
-// 更多抽屉：遮罩点击关闭，功能项点击跳转并关闭
+// 更多抽屉：遮罩点击关闭，功能项点击跳转并关闭；Esc 也能关（键盘/读屏友好）
 document.getElementById('moreMask').addEventListener('click', closeMore);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('moreDrawer').classList.contains('open')) closeMore();
+});
 document.querySelectorAll('.more-item').forEach(it => {
   it.addEventListener('click', () => { closeMore(); go(it.dataset.route); });
 });
