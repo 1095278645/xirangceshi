@@ -467,6 +467,11 @@ docker compose down
 > 镜像基于 `server/requirements.lock` 安装依赖（确定性、可复现）；
 > `.dockerignore` 已排除 `server/data`、`server/config.local.json`，**密钥与账本不会进镜像**。
 
+> ☁️ **要让外网直接访问（腾讯云轻量等服务器）**：见
+> [`docs/deploy-tencent-lighthouse.md`](docs/deploy-tencent-lighthouse.md) ——
+> 本机一条 `scripts\upload_to_server.ps1` 上传，服务器一条 `bash deploy/up.sh`
+> （自动装 Docker、生成访问令牌、起 Caddy 自动 HTTPS，并自检鉴权）。
+
 ## 依赖与可复现构建
 
 | 文件 | 用途 |

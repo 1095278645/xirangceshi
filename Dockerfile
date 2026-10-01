@@ -7,13 +7,26 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    TZ=Asia/Shanghai
+    TZ=Asia/Shanghai \
+    DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /app/server
 
+# 时区数据：slim 镜像不含 tzdata，缺它时 TZ 不生效，容器会按 UTC 算「今天」——
+# 北京时间 00:00~08:00 之间记账/复盘/报税日历会落到前一天（本地 Windows 跑不出来）。
+# 部署后可用 `docker exec ai-shopkeeper date +%z` 复核，应为 +0800。
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tzdata \
+    && ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime \
+    && printf '%s\n' "$TZ" > /etc/timezone \
+    && rm -rf /var/lib/apt/lists/*
+
 # 先装依赖，利用镜像层缓存（改代码不会重装依赖）
+# 依赖源可覆盖（默认官方 PyPI；国内服务器构建时传
+#   --build-arg PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple 可显著加速）
+ARG PIP_INDEX_URL=https://pypi.org/simple
 COPY server/requirements.lock ./requirements.lock
-RUN pip install --no-cache-dir -r requirements.lock
+RUN pip install --no-cache-dir -i "${PIP_INDEX_URL}" -r requirements.lock
 
 # 再拷贝应用代码
 COPY server/ ./

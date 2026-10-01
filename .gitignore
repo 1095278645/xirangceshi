@@ -13,6 +13,10 @@ server/data/
 server/config.local.json
 *.db
 
+# 部署环境变量（含访问令牌 SHOP_ACCESS_TOKEN 与 AI Key）
+.env
+deploy/.env
+
 # 本地语音识别模型（~50MB，不入库，部署时下载）
 server/models/
 

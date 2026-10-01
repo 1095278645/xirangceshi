@@ -1,0 +1,61 @@
+# 巷子里的 AI 掌柜 · 公网部署编排（应用 + Caddy 自动 HTTPS）
+#
+# 用法（仓库根目录）：
+#   bash deploy/up.sh                                  # 一键：装 Docker → 生成 .env → 起服务
+#   docker compose --env-file .env -f deploy/docker-compose.public.yml up -d --build
+#
+# 与根目录 docker-compose.yml 的差别（别混用）：
+#   1. 8000 端口只绑定到 127.0.0.1（排障用），对外只暴露 80/443，由 Caddy 转发；
+#   2. 增加 Caddy 服务：有域名时自动申请/续期 HTTPS 证书；
+#   3. 构建参数支持国内 PyPI 镜像（.env 的 PIP_INDEX_URL），国内服务器构建快很多。
+#
+# 注意：本文件里的相对路径（..）是相对 deploy/ 解析的，所以必须在仓库里保持这个位置。
+services:
+  shopkeeper:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        PIP_INDEX_URL: "${PIP_INDEX_URL:-https://pypi.org/simple}"
+    image: ai-shopkeeper:1.0.0
+    container_name: ai-shopkeeper
+    restart: unless-stopped
+    environment:
+      # AI 网关（留空则走规则降级；也可部署后在网页端「设置」页填写）
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+      DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com}"
+      DEEPSEEK_MODEL: "${DEEPSEEK_MODEL:-deepseek-chat}"
+      # 能力档：core（默认，成本低）/ full（演示前建议切到 full）
+      SHOP_API_PROFILE: "${SHOP_API_PROFILE:-core}"
+      # 公网部署必须设置：不设置则任何人拿到地址就能读写账本（见 server/auth.py）
+      SHOP_ACCESS_TOKEN: "${SHOP_ACCESS_TOKEN:?公网部署必须设置 SHOP_ACCESS_TOKEN，见 deploy/.env.example}"
+    volumes:
+      # 账本与备份：SQLite 文件，必须持久化（一店一库，多店就是多个 .db）
+      - ../server/data:/app/server/data
+    ports:
+      # 只对本机开放，方便 curl 127.0.0.1:8000/api/health 排障；不要改成 0.0.0.0
+      - "127.0.0.1:8000:8000"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: ai-shopkeeper-caddy
+    restart: unless-stopped
+    depends_on:
+      shopkeeper:
+        condition: service_healthy
+    environment:
+      # 有已备案域名 → SITE_ADDRESS=shop.example.com（自动 HTTPS）
+      # 只有公网 IP   → SITE_ADDRESS=:80（仅 HTTP，语音功能需要 HTTPS 才能用）
+      SITE_ADDRESS: "${SITE_ADDRESS:-:80}"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # 证书与自动续期状态，务必持久化
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

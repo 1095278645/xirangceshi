@@ -1,0 +1,33 @@
+# 巷子里的 AI 掌柜 · 反向代理配置（Caddy 2）
+#
+# SITE_ADDRESS 由 deploy/.env 提供：
+#   有已备案域名 → shop.example.com   → 自动申请并续期 Let's Encrypt 证书，HTTP 自动跳 HTTPS
+#   只有公网 IP   → :80               → 仅 HTTP（浏览器语音需 HTTPS，见部署文档「免备案」分支）
+#
+# 想让 Let's Encrypt 在证书到期前发提醒邮件，把下面两行的注释去掉并改成你的邮箱
+# （注意：不能写成空值，否则 Caddy 会因为 email 缺参数而启动失败）：
+# {
+# 	email you@example.com
+# }
+
+{$SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	# 覆盖客户端自带的 X-Forwarded-For。
+	# 服务端按该头取客户端 IP 做限流（server/ratelimit.py 取最左侧值），
+	# 若沿用客户端传入的值，任何人都能换个头绕过限流，所以这里强制改写。
+	reverse_proxy shopkeeper:8000 {
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Real-IP {remote_host}
+	}
+
+	# 语音上传与 Excel 导出都比普通请求慢/大，放宽读体超时
+	timeouts {
+		read_body 120s
+	}
+
+	# 不向外泄露服务端软件版本
+	header {
+		-Server
+	}
+}
