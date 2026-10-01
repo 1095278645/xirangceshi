@@ -22,6 +22,10 @@
     cd server
     Remove-Item data\\ai_shopkeeper.db -ErrorAction SilentlyContinue
     python ..\\scripts\\seed_demo_data.py
+
+跨月续用（演示库已有熟客/记忆/提醒，只想补当月流水）：
+    cd server
+    python ..\\scripts\\seed_demo_data.py --current-only
 """
 import random
 import sys
@@ -56,6 +60,10 @@ DIRECT_COST_RATIO = 0.38
 MISC_COST_RATIO = 0.05
 RENT = 6000               # 月房租
 UTILITIES = 2000          # 月水电
+# 固定成本是**整月**开支（房租月初交、水电月中交）。当月只过了一两天时把它灌进
+# 当月，会让"当月现金"瞬间变成大额赤字 —— 一天背整月房租，经营洞察会说
+# "白忙活"，与单店模型的月利润口径打架。所以当月不足这个天数时不摊固定成本。
+FIXED_COST_MIN_DAYS = 15
 
 # ---------------- 10 位熟客（演示叙事的数据源） ----------------
 CUSTOMERS = [
@@ -250,20 +258,33 @@ def seed_transactions(ids):
         created += 1
 
     # ---- 固定成本：房租月初、水电月中（都落在当月内）----
-    mid = MONTH_START + timedelta(days=min(14, max(DAYS - 1, 0)))
-    for (item, cat), day in zip(FIXED_ITEMS, (MONTH_START, mid)):
-        amt = RENT if day == MONTH_START else UTILITIES
-        txn_id, _ = db.add_transaction(None, item, amt, "expense", cat,
-                                       note="[演示] 固定成本")
-        _backdate(txn_id, day, 9, 0)
-        created += 1
+    # 当月不足 FIXED_COST_MIN_DAYS 天时不摊（见常量处的说明）。
+    if DAYS >= FIXED_COST_MIN_DAYS:
+        mid = MONTH_START + timedelta(days=min(14, max(DAYS - 1, 0)))
+        for (item, cat), day in zip(FIXED_ITEMS, (MONTH_START, mid)):
+            amt = RENT if day == MONTH_START else UTILITIES
+            txn_id, _ = db.add_transaction(None, item, amt, "expense", cat,
+                                           note="[演示] 固定成本")
+            _backdate(txn_id, day, 9, 0)
+            created += 1
+    else:
+        print(f"  跳过整月固定成本（当月仅 {DAYS} 天，"
+              f"一天背整月房租会让现金视角失真）")
 
     # ---- 回填 last_visit（列表按它排序）----
+    # 只在**本次窗口里真的到过店**时改写；没到店就保留原值 ——
+    # 否则「补当月流水」会把"两个月没来了"改成"昨天来过"，熟客回访的
+    # 叙事（以及基于它的增长动作）就废了。库里从没记过的才补一个兜底值。
     with db.get_conn() as conn:
         for name, d in last_visit.items():
-            fallback = TODAY - timedelta(days=(len(name) % 5) + 1)
+            if d is None:
+                row = conn.execute("SELECT last_visit FROM customers WHERE id=?",
+                                   (ids[name],)).fetchone()
+                if row and row["last_visit"]:
+                    continue
+                d = TODAY - timedelta(days=(len(name) % 5) + 1)
             conn.execute("UPDATE customers SET last_visit=? WHERE id=?",
-                         ((d or fallback).isoformat() + " 08:30:00", ids[name]))
+                         (d.isoformat() + " 08:30:00", ids[name]))
 
     print(f"  流水 {created} 笔")
     return created
@@ -284,6 +305,7 @@ def report():
     """核验：演示现场会用到的每个数字都检查一遍，不自洽就报出来。"""
     import store
 
+    fixed_seeded = DAYS >= FIXED_COST_MIN_DAYS
     stats = db.store_ledger_stats(TODAY.year, TODAY.month)
     monthly = db.monthly_summary()
     customers = db.list_customers()
@@ -327,7 +349,10 @@ def report():
     # --- 现金口径 vs 利润口径 ---
     print(f"  月度现金流：收入 {monthly['income']:,.0f} / 支出 {monthly['expense']:,.0f} "
           f"/ 结余 {monthly['balance']:,.0f}")
-    if m:
+    if m and not fixed_seeded:
+        print(f"    ⓘ 当月只有 {DAYS} 天、未摊整月固定成本，"
+              f"现金口径与月利润本就不在一个量级，不做一致性判定")
+    elif m:
         profit = m["month_profit"]
         if monthly["balance"] < profit * 0.3:
             print(f"    ❌ 现金结余远低于模型月利润（{profit:,.0f}），"
@@ -378,7 +403,32 @@ def report():
         print("  ❌ 熟客过少，第 2 站（熟客记忆）撑不起来")
 
 
+def seed_current_month_only() -> int:
+    """只补「当月 1 日 ~ 今天」的流水，不动熟客 / 记忆点 / 提醒。
+
+    为什么单开这个入口：演示库是**跨月长期用**的。到了新月份，账本默认期间是
+    当月，而库里只有上个月的账 —— 首页「今日/本月」、掌柜复盘（读的正是当月）
+    全都会是空的。重跑完整灌数会把记忆点和提醒**再插一遍**（重复数据），
+    所以补当月必须是一条只写 transactions 的窄路径。
+    """
+    db.init_db()
+    if not _guard_repeat():
+        return 1
+    have = {c["name"]: c["id"] for c in db.list_customers()
+            if c["name"] in CUSTOMER_BASKET}
+    if not have:
+        print("❌ 库里没有熟客档案，请先跑一次完整灌数（不加 --current-only）")
+        return 1
+    print(f"补当月流水（{MONTH_START} ~ {TODAY}，共 {DAYS} 天）：")
+    _assert_categories_valid()
+    seed_transactions(have)
+    report()
+    return 0
+
+
 if __name__ == "__main__":
+    if "--current-only" in sys.argv:
+        sys.exit(seed_current_month_only())
     if "--force" in sys.argv:
         # --force 的语义是"重灌"：先清空旧库，否则是往旧数据上追加（流水/提醒翻倍）。
         db_file = Path(db.DB_PATH)

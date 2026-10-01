@@ -1,6 +1,6 @@
 [project]
 name = "ai-shopkeeper"
-version = "1.0.0"
+version = "1.1.12"
 description = "巷子里的 AI 掌柜 —— 面向小微实体店的人情味熟客维系与经营减负助手"
 requires-python = ">=3.11"
 

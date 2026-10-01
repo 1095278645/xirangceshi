@@ -122,15 +122,25 @@ class TestInputGuards(unittest.TestCase):
 class TestLedgerReverseDerive(unittest.TestCase):
     """从账本真实流水反推日销/毛利率（临时库）"""
 
+    #: 断言所用的 (年, 月)：保证该月里能放下「连续 3 天营业」
+    period: tuple
+
     @classmethod
     def setUpClass(cls):
         cls._tmp = tempfile.TemporaryDirectory()
         db.DB_PATH = Path(cls._tmp.name) / "test.db"
         db.init_db()
         today = date.today()
-        d1 = today.isoformat()
-        d2 = (today - timedelta(days=1)).isoformat()
-        d3 = (today - timedelta(days=2)).isoformat()
+        # 回归：原先直接用「今天 / 昨天 / 前天」并断言当月 active_days == 3，
+        # 于是每月 1~2 号（当天所在月不足 3 天）必然失败 —— 跨月会把前两天
+        # 算到上个月。这里显式挑一个放得下三天的月份，并把该月作为断言期间。
+        if today.day >= 3:
+            days = [today - timedelta(days=i) for i in range(3)]
+        else:
+            first_of_month = today.replace(day=1)
+            days = [first_of_month - timedelta(days=1 + i) for i in range(3)]
+        cls.period = (days[0].year, days[0].month)
+        d1, d2, d3 = (d.isoformat() for d in days)
         with db.get_conn() as conn:
             conn.executemany(
                 "INSERT INTO transactions(trans_type, category, item, amount, created_at) "
@@ -149,7 +159,7 @@ class TestLedgerReverseDerive(unittest.TestCase):
         cls._tmp.cleanup()
 
     def test_daily_revenue_and_margin(self):
-        s = db.store_ledger_stats(date.today().year, date.today().month)
+        s = db.store_ledger_stats(*self.period)
         self.assertEqual(s["income_total"], 3000)
         self.assertEqual(s["active_days"], 3)
         self.assertAlmostEqual(s["daily_revenue"], 1000.0, places=1)
@@ -166,7 +176,8 @@ class TestLedgerReverseDerive(unittest.TestCase):
 
     def test_auto_locate_latest_month(self):
         s = db.store_ledger_stats()   # 不传参数 → 自动定位最近有收入的月份
-        self.assertEqual(s["period"][:7], date.today().isoformat()[:7])
+        self.assertEqual(s["period"][:7],
+                         f"{self.period[0]}-{self.period[1]:02d}")
         self.assertGreater(s["income_total"], 0)
 
 

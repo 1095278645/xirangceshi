@@ -284,6 +284,16 @@ def orders_today():
 def orders_monthly(year: int | None = None, month: int | None = None):
     return db.monthly_summary(year, month)
 
+
+@router.get("/ledger/periods")
+def ledger_periods(limit: int = 12):
+    """最近有流水的月份清单（前端用来把默认期间落到「最近有账的月份」）。
+
+    月初当月往往只有一两天流水，账本页默认打开会是空白 —— 这条接口让前端
+    能在**不猜**的前提下换个有账的月份，并如实告诉店主看的是哪个月。
+    """
+    return db.list_active_periods(limit)
+
 @router.get("/vouchers")
 def vouchers(limit: int = 50):
     return db.list_vouchers(limit)

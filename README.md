@@ -12,7 +12,7 @@ AIGC:
 # 巷子里的AI掌柜
 
 [![CI](https://github.com/1095278645/xirangceshi/actions/workflows/ci.yml/badge.svg)](https://github.com/1095278645/xirangceshi/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-575%20passed-brightgreen.svg)](#测试与验证)
+[![Tests](https://img.shields.io/badge/tests-617%20passed-brightgreen.svg)](#测试与验证)
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](#快速开始)
 [![License](https://img.shields.io/badge/license-MulanPSL--2.0-blue.svg)](LICENSE)
 
@@ -289,7 +289,7 @@ python ../scripts/prewarm_cache.py
 
 两道关口，用途不同：
 
-**1. 单元/集成测试（517 项，随时可跑，不联网）**
+**1. 单元/集成测试（617 项，随时可跑，不联网）**
 
 ```bash
 cd server
@@ -480,7 +480,7 @@ docker compose down
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 在 push / PR 时执行：
 
-1. **517 项**单元/集成测试（`pytest -q`，全程不联网，真实 `ai.chat` 被 `tests/conftest.py` 闸门拦截）
+1. **617 项**单元/集成测试（`pytest -q`，全程不联网，真实 `ai.chat` 被 `tests/conftest.py` 闸门拦截）
 2. 灌演示数据 + 演示前自检（接口契约 / 页面一致性 / 演示数据 / 演示配置）
 3. 小程序接口契约、小程序页面静态检查、网页端页面静态检查
 4. Node 中试跑网页端全部渲染函数

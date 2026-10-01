@@ -266,6 +266,35 @@ class TestVoucherConcurrency(unittest.TestCase):
             logger.removeHandler(handler)
             logger.setLevel(old_level)
 
+    def test_accounting_synonym_lands_on_right_account(self):
+        """回归：「主营业务成本」是 5401 的会计口径名，必须落到 5401。
+
+        原先它不在分类映射表里 → 凭证被兜底成「管理费用-办公费」：
+        账本品类写着"主营业务成本"，凭证却是办公费，成本结构整个错位。
+        """
+        import logging
+        records = []
+
+        class _Cap(logging.Handler):
+            def emit(self, record):
+                records.append(record.getMessage())
+
+        logger = logging.getLogger("db_ledger")
+        handler = _Cap()
+        logger.addHandler(handler)
+        old_level = logger.level
+        logger.setLevel(logging.WARNING)
+        try:
+            with db.get_conn() as conn:
+                _tid, voucher = db.add_transaction(
+                    None, "买面粉", 300, "expense", "主营业务成本")
+            self.assertEqual(records, [], f"已登记的同义词不该告警：{records}")
+            self.assertEqual(voucher["debit"], "主营业务成本",
+                             "应按 5401 主营业务成本入账，而不是兜底到办公费")
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(old_level)
+
     def test_monthly_friendly_names(self):
         m = db.monthly_summary()
         for c in m["categories"]:

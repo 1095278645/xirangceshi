@@ -194,7 +194,7 @@ async def lifespan(_: FastAPI):
     backup_task.cancel()
 
 
-app = FastAPI(title="巷子里的AI掌柜", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="巷子里的AI掌柜", version="1.1.12", lifespan=lifespan)
 
 _STATIC_DIR = config.BASE_DIR / "static"
 

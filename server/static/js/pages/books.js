@@ -7,6 +7,15 @@ async function loadBooks() {
   if (!state.books.year) {
     state.books.year = now.getFullYear();
     state.books.month = now.getMonth() + 1;
+    // 当月还没账（典型场景：每月 1~2 号）→ 默认落到最近有账的月份，
+    // 否则打开账本就是一片空白。页面上会写明"看的是哪个月"。
+    const cur = `${state.books.year}-${pad2(state.books.month)}`;
+    const latest = await preferLatestActivePeriod(cur);
+    if (latest) {
+      state.books.autoFrom = cur;
+      state.books.year = Number(latest.slice(0, 4));
+      state.books.month = Number(latest.slice(5, 7));
+    }
   }
   await loadTxnList();
   try {
@@ -73,6 +82,7 @@ function setBooksMonth(v) {
   const [y, m] = v.split('-').map(Number);
   state.books.year = y;
   state.books.month = m;
+  state.books.autoFrom = null;   // 店主自己选了月份，不再提示"自动换月"
   loadTxnList();
 }
 
@@ -173,8 +183,8 @@ function renderBooks() {
       <div class="card-title">📅 ${y}年${m}月流水
         <input type="month" value="${monthVal}" class="month-input" onchange="setBooksMonth(this.value)" />
       </div>
-      ${b.txns.length === 0 ? '<div class="empty">本月还没有记账，去首页说一笔吧</div>' : b.txns.map(t => `
-      <div class="txn-row">
+      ${b.autoFrom ? `<div class="note">${esc(b.autoFrom)} 还没有流水，下面显示的是最近有账的 ${y}年${m}月。</div>` : ''}
+      ${b.txns.length === 0 ? '<div class="empty">本月还没有记账，去首页说一笔吧</div>' : b.txns.map(t => `      <div class="txn-row">
         <div class="txn-main">
           <div class="txn-item">${esc(t.item)}</div>
           <div class="txn-sub">${esc(t.customer_name || '散客')} · ${esc(t.friendly)}${t.counterparty ? ' · ' + esc(t.counterparty) : ''}</div>

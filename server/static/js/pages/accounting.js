@@ -7,6 +7,12 @@
 
 async function loadAccounting() {
   const ac = state.accounting;
+  // 首次进入：当月还没账（月初）就落到最近有账的月份，避免三张表全是 0。
+  // 之后店主手动选过期间就不再自动跳，尊重人的选择。
+  if (!ac.periodTouched) {
+    const latest = await preferLatestActivePeriod(ac.period);
+    if (latest) ac.period = latest;
+  }
   ac.loading = true;
   render();
   // 三张表各自独立取，任何一张失败不影响其它两张显示
@@ -29,6 +35,7 @@ async function loadAccounting() {
 function onAccountingPeriod(v) {
   if (!v) return;
   state.accounting.period = v;
+  state.accounting.periodTouched = true;   // 手动选过，不再自动换月
   loadAccounting();
 }
 

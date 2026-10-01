@@ -113,6 +113,9 @@ CATEGORY_ALIASES = {
     # 成本 / 进货
     "采购": "进货", "拿货": "进货", "批发": "进货", "补货": "进货",
     "原材料": "进货", "成本": "进货", "商品成本": "进货",
+    # 会计口径的直接成本名：5401「主营业务成本」与「进货」是同一笔经济业务，
+    # 不归一的话会走"未映射 → 兜底到办公费"，凭证科目直接记错。
+    "主营业务成本": "进货", "主营成本": "进货",
     # 人工
     "工资": "职工薪酬", "发工资": "职工薪酬", "人工": "职工薪酬",
     "劳务费": "职工薪酬", "社保": "职工薪酬",
@@ -176,6 +179,21 @@ ACCOUNT_CATEGORY_NAMES = {
 def is_known_category(category: str) -> bool:
     """AI 可能输出任意分类，落凭证前必须校验，否则会落到错误科目"""
     return category in CATEGORY_TO_ACCOUNTS
+
+
+def resolve_accounts(category: str | None, trans_type: str = "expense") -> tuple:
+    """分类 → (借方科目, 贷方科目, 口语名)，并给出是否走了兜底。
+
+    先做同义词归一（"主营业务成本" → "进货"），归一后仍认不出来才兜底。
+    返回 ``(mapping, canonical)``：``canonical`` 为空串表示**走了兜底**，
+    调用方必须据此留痕 —— 静默换科目会让账本品类与凭证对不上，是本项目
+    明确禁止的行为（见 db_ledger / db_corrections 的告警）。
+    """
+    canonical = normalize_category(category)
+    if canonical in CATEGORY_TO_ACCOUNTS:
+        return CATEGORY_TO_ACCOUNTS[canonical], canonical
+    fallback = "主营业务收入" if trans_type == "income" else "办公费"
+    return CATEGORY_TO_ACCOUNTS[fallback], ""
 
 
 def detect_category(text: str) -> tuple:

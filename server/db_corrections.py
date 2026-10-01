@@ -21,7 +21,7 @@ import json
 import logging
 from datetime import date
 
-from categories import ACCOUNT_NAMES, CATEGORY_TO_ACCOUNTS, FRIENDLY_NAMES
+from categories import ACCOUNT_NAMES, CATEGORY_TO_ACCOUNTS, FRIENDLY_NAMES, resolve_accounts
 
 log = logging.getLogger("db_corrections")
 
@@ -67,11 +67,9 @@ def _make_voucher(conn, txn_id: int, amount: float, trans_type: str,
     会与凭证（按分录求和）口径不一致，抵消会翻倍 —— 实测全额退货后
     收入变成 -50 而不是 50。
     """
-    mapping = CATEGORY_TO_ACCOUNTS.get(category)
-    if not mapping:
+    mapping, canonical = resolve_accounts(category, trans_type)
+    if not canonical:
         log.warning("分类 %r 无科目映射，凭证兜底", category)
-        mapping = (CATEGORY_TO_ACCOUNTS["主营业务收入"] if trans_type == "income"
-                   else CATEGORY_TO_ACCOUNTS["办公费"])
     # CATEGORY_TO_ACCOUNTS 的约定是 (借方科目, 贷方科目)
     dr_code, cr_code = mapping[0], mapping[1]
     if reversal:

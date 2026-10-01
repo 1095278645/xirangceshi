@@ -205,6 +205,24 @@ const state = {
   state.accounting.period = n.getFullYear() + '-' + pad2(n.getMonth() + 1);
 })();
 
+/**
+ * 当月没账时，退回「最近有账的月份」。
+ *
+ * 为什么必须兜这一下：账本/会计报表默认期间是「当月」，而**月初（1~2 号）
+ * 当月往往只有一两天流水**，页面第一眼是空白 —— 店主以为数据丢了，
+ * 评审打开演示链接看到的也是空账本。后端 /api/ledger/periods 给出真实有账的
+ * 月份，这里只做「当月为空则换月」，并在页面上写明看的是哪个月，不静默糊弄。
+ *
+ * @returns {Promise<string|null>} 应切换到的期间（YYYY-MM）；null 表示维持原样
+ */
+async function preferLatestActivePeriod(current) {
+  try {
+    const r = await api('/api/ledger/periods');
+    if (r && r.latest && r.latest !== current && !r.has_current) return r.latest;
+  } catch (_) {}
+  return null;
+}
+
 // ---------- 辅助 ----------
 function fmt(n) { return Number(n || 0).toFixed(0); }
 function pad2(n) { return n < 10 ? '0' + n : '' + n; }

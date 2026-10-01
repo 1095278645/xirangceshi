@@ -250,6 +250,15 @@ class CategoryNormalizeTest(unittest.TestCase):
             with self.subTest(alias=alias):
                 self.assertIn(got, categories.CATEGORY_TO_ACCOUNTS)
 
+    def test_resolve_accounts_flags_fallback(self):
+        """resolve_accounts 必须把「归一成功」与「走了兜底」区分开。"""
+        mapping, canonical = categories.resolve_accounts("主营业务成本", "expense")
+        self.assertEqual(canonical, "进货")
+        self.assertEqual(mapping[0], "5401")          # 借方：主营业务成本
+        # 认不出来的分类：canonical 为空串，调用方据此留痕
+        _m, unknown = categories.resolve_accounts("给猫买罐头", "expense")
+        self.assertEqual(unknown, "")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -7,14 +7,14 @@ import logging
 import sqlite3
 from datetime import date
 
-from categories import CATEGORY_TO_ACCOUNTS, ACCOUNT_NAMES, FRIENDLY_NAMES
+from categories import ACCOUNT_NAMES, FRIENDLY_NAMES, resolve_accounts
 
 log = logging.getLogger("db_ledger")
 
 __all__ = [
     "add_transaction", "_auto_voucher", "list_vouchers",
     "today_summary", "monthly_summary", "list_transactions",
-    "store_ledger_stats",
+    "store_ledger_stats", "list_active_periods",
 ]
 
 
@@ -45,15 +45,14 @@ def add_transaction(customer_id, item, amount, trans_type="income", category="�
 
 def _auto_voucher(conn, txn_id, amount, trans_type, category, summary, counterparty=""):
     """自动生成借贷凭证：借/贷两条分录，保证借贷平衡"""
-    mapping = CATEGORY_TO_ACCOUNTS.get(category)
-    if not mapping:
+    mapping, canonical = resolve_accounts(category, trans_type)
+    if not canonical:
         # 未知分类：兜底走主营业务收入或办公费，但**必须留痕** ——
         # 静默兜底会让账本品类与凭证科目对不上（实测「房租」被记成
         # 管理费用-办公费，店主自己看不出错）。记账接口有 is_known_category
         # 做前置校验，能走到这里的是直接写库或历史数据，点名报出来便于排查。
         log.warning("分类 %r 无科目映射，凭证已兜底到 %s（账本品类与科目可能不符）",
                     category, "主营业务收入" if trans_type == "income" else "办公费")
-        mapping = CATEGORY_TO_ACCOUNTS["主营业务收入"] if trans_type == "income" else CATEGORY_TO_ACCOUNTS["办公费"]
     debit_code, credit_code, _friendly = mapping
 
     today = date.today().isoformat()
@@ -128,6 +127,30 @@ def today_summary():
         d = dict(row)
         d["balance"] = round(d["income"] - d["expense"], 2)
         return d
+
+
+def list_active_periods(limit=12):
+    """最近有流水的月份（倒序）+ 当月是否有账。
+
+    为什么需要：账本/会计报表默认打开「当月」，但**月初（1~2 号）当月往往只有
+    一两天流水**，页面第一眼就是空白 —— 对店主是误导，对演示是灾难。
+    前端据此把默认期间落到「最近有账的那个月」，并明确告知用户看的是哪个月。
+    """
+    with _conn() as conn:
+        rows = conn.execute(
+            "SELECT substr(created_at,1,7) AS period, COUNT(*) AS cnt "
+            f"FROM transactions WHERE {_ACTIVE_FILTER} "
+            "AND substr(created_at,1,7) IS NOT NULL "
+            "GROUP BY period ORDER BY period DESC LIMIT ?", (limit,)).fetchall()
+    today = date.today()
+    current = f"{today.year}-{today.month:02d}"
+    months = [r["period"] for r in rows]
+    return {
+        "current": current,
+        "latest": months[0] if months else None,
+        "has_current": current in months,
+        "months": months,
+    }
 
 
 def monthly_summary(year=None, month=None):

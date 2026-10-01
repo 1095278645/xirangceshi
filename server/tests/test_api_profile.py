@@ -38,8 +38,9 @@ class TestAPIProfile(unittest.TestCase):
         core = sum(len(router.routes) for router in registry.get_routers("core"))
         full = sum(len(router.routes) for router in registry.get_routers("full"))
         # 基线：撤旧/收敛(A/C/B) → 候选处理/提醒投递/进化真值 → 连锁总部视图 → 统一保本线
-        self.assertEqual(core, 78)
-        self.assertEqual(full, 126)
+        #       → /api/ledger/periods（月初账本默认期间回退，见 db.list_active_periods）
+        self.assertEqual(core, 79)
+        self.assertEqual(full, 127)
 
     def test_invalid_profile_rejected(self):
         with self.assertRaises(ValueError):

@@ -2,6 +2,41 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [1.1.12] - 2026-10-01
+
+参赛交付前的**最终审核与优化**：修掉 3 条会让全量测试变红的日期脆弱用例、
+修掉一处会把凭证记错科目的静默兜底，并把版本与文档口径收敛到同一套数字。
+
+### 修复 · 日期脆弱测试（全量测试由「3 failed」回到全绿）
+- `tests/test_gaps_http.py::TestAccountingFlow` 硬编码期间 `2026-09`，而
+  `db.add_transaction` 落的是**当前时间戳** —— 一进入 10 月，整片会计闭环用例
+  必然失败（收入/费用读成 0）。改为按 `date.today()` 推导 `period` 与 `as_of`。
+- `tests/test_store.py::TestLedgerReverseDerive` 用「今天 / 昨天 / 前天」并断言
+  当月 `active_days == 3`，于是**每月 1~2 号必挂**（前两天跨到上个月）。
+  改为显式挑选一个放得下连续三天的月份，并把该月作为断言期间。
+- 两条用例都补了注释说明"为什么不能用当天硬编码"，避免以后回退。
+
+### 修复 · 分类 → 科目静默错映射
+- `categories.resolve_accounts()`：新增统一解析入口，**先同义词归一、再兜底**，
+  并返回"是否走了兜底"供调用方留痕；`db_ledger` / `db_corrections` 改为复用它。
+- 补 `CATEGORY_ALIASES`：`主营业务成本 / 主营成本 → 进货`。原先「主营业务成本」
+  不在映射表里，凭证会被兜底成「管理费用-办公费」——账本写着主营业务成本、
+  凭证却是办公费，成本结构整个错位，而且只有一条 warning，店主看不出来。
+- 回归用例：`tests/test_smoke.py::test_accounting_synonym_lands_on_right_account`、
+  `tests/test_order_amount_missing.py::test_resolve_accounts_flags_fallback`。
+
+### 修复 · 版本与口径漂移
+- 测试数三处不一致（badge 575 / README 正文 517 / 文档 517 / 提交说明 550）
+  → 统一为实测 **617 项**（`pytest -q`，209 subtests）。
+- 版本号三处不一致（`main.py` 0.2.0 / `pyproject.toml` 1.0.0 / CHANGELOG 1.1.11）
+  → 统一为 **1.1.12**。
+
+### 验收
+- `cd server && python -m pytest -q` → **617 passed**（全程不联网）。
+- `scripts/check_frontend_contract.py`、`check_mp_api.py`、`check_mp_pages.py`、
+  `check_web_pages.py`、`check_web_render.js`、`check_mp_runtime.js` 全绿。
+
+
 ## [1.1.11] - 2026-09-22
 
 连锁总部视图 + 云化实装（Litestream 配置/编排/恢复演练）+ 真实用户验证工具包。

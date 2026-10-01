@@ -21,6 +21,7 @@ import os
 import sys
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -377,6 +378,15 @@ class TestMobileGaps(GapsHttpBase):
 
 
 class TestAccountingFlow(GapsHttpBase):
+    # 期间必须随「今天」推导：db.add_transaction 落的是当前时间戳，
+    # 原先硬编码 "2026-09" 的用例一到下个月就整片失败（跨月即挂）。
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        today = date.today()
+        cls.period = today.strftime("%Y-%m")
+        cls.as_of = today.isoformat()
+
     def _books(self):
         db.add_transaction(None, "卖早点", 1000, trans_type="income",
                            category="主营业务收入")
@@ -385,40 +395,47 @@ class TestAccountingFlow(GapsHttpBase):
 
     def test_statements_and_close_reopen(self):
         self._books()
-        tb = self.client.get("/api/accounting/trial-balance?period=2026-09")
+        tb = self.client.get(f"/api/accounting/trial-balance?period={self.period}")
         self.assertEqual(tb.status_code, 200, tb.text)
         body = tb.json()
         self.assertTrue(body["balanced"],
                         f"借贷应平衡：借 {body['total_debit']} / 贷 {body['total_credit']}")
         self.assertAlmostEqual(body["total_debit"], body["total_credit"], places=2)
 
-        inc = self.client.get("/api/accounting/income-statement?period=2026-09").json()
+        inc = self.client.get(
+            f"/api/accounting/income-statement?period={self.period}").json()
         self.assertAlmostEqual(inc["total_revenue"], 1000, places=2)
         self.assertAlmostEqual(inc["total_expense"], 300, places=2)
         self.assertAlmostEqual(inc["net_profit"], 700, places=2)
 
-        bal = self.client.get("/api/accounting/balance-sheet?as_of=2026-09-30").json()
+        bal = self.client.get(
+            f"/api/accounting/balance-sheet?as_of={self.as_of}").json()
         self.assertTrue(bal["balanced"],
                         f"资产 {bal['total_assets']} 应等于负债+权益 "
                         f"{bal['liabilities_and_equity']}")
 
-        closed = self.client.post("/api/accounting/close", json={"period": "2026-09"})
+        closed = self.client.post("/api/accounting/close",
+                                  json={"period": self.period})
         self.assertEqual(closed.status_code, 200, closed.text)
         self.assertAlmostEqual(closed.json()["net_profit"], 700, places=2)
         self.assertEqual(len(self.client.get("/api/accounting/closings")
                              .json()["closings"]), 1)
 
         # 结转后：本期损益归零、资产负债表仍平衡
-        inc2 = self.client.get("/api/accounting/income-statement?period=2026-09").json()
+        inc2 = self.client.get(
+            f"/api/accounting/income-statement?period={self.period}").json()
         self.assertAlmostEqual(inc2["net_profit"], 0, places=2)
-        bal2 = self.client.get("/api/accounting/balance-sheet?as_of=2026-09-30").json()
+        bal2 = self.client.get(
+            f"/api/accounting/balance-sheet?as_of={self.as_of}").json()
         self.assertTrue(bal2["balanced"],
                         f"结转后仍应平衡：{bal2['total_assets']} vs "
                         f"{bal2['liabilities_and_equity']}")
 
-        reopened = self.client.post("/api/accounting/reopen", json={"period": "2026-09"})
+        reopened = self.client.post("/api/accounting/reopen",
+                                    json={"period": self.period})
         self.assertEqual(reopened.status_code, 200, reopened.text)
-        inc3 = self.client.get("/api/accounting/income-statement?period=2026-09").json()
+        inc3 = self.client.get(
+            f"/api/accounting/income-statement?period={self.period}").json()
         self.assertAlmostEqual(inc3["net_profit"], 700, places=2)
         # 反结转不删记录，而是把该期间标记为 reopened（留痕），
         # 所以列表里仍在，只是状态变了 —— 前端据此判断"已可重结"
@@ -428,16 +445,49 @@ class TestAccountingFlow(GapsHttpBase):
     def test_reclose_after_edit_does_not_double_count(self):
         """结转后又改账再结转：不能把上次的结转凭证重复计入。"""
         self._books()
-        self.client.post("/api/accounting/close", json={"period": "2026-09"})
+        self.client.post("/api/accounting/close", json={"period": self.period})
         db.add_transaction(None, "又卖了一单", 200, trans_type="income",
                            category="主营业务收入")
-        again = self.client.post("/api/accounting/close", json={"period": "2026-09"})
+        again = self.client.post("/api/accounting/close",
+                                 json={"period": self.period})
         self.assertEqual(again.status_code, 200, again.text)
         self.assertAlmostEqual(again.json()["net_profit"], 900, places=2)
         self.assertTrue(again.json()["reclosed"], "重复结转应走红冲重算")
-        tb = self.client.get("/api/accounting/trial-balance?period=2026-09"
+        tb = self.client.get(f"/api/accounting/trial-balance?period={self.period}"
                              "&exclude_closing=true").json()
         self.assertTrue(tb["balanced"])
+
+
+class TestLedgerPeriods(GapsHttpBase):
+    """月初当月没账时，账本/会计报表要能拿到「最近有账的月份」并换月。
+
+    背景：默认期间是「当月」，而每月 1~2 号当月只有一两天流水 —— 打开账本
+    是空白页。前端靠这条接口换月，所以接口语义必须准确（不能把"当月没账"
+    报成"有账"，否则前端会一直停在空白页）。
+    """
+
+    def test_empty_ledger_has_no_latest(self):
+        r = self.client.get("/api/ledger/periods").json()
+        self.assertFalse(r["has_current"])
+        self.assertIsNone(r["latest"])
+        self.assertEqual(r["months"], [])
+
+    def test_latest_is_last_month_when_current_is_empty(self):
+        db.add_transaction(None, "上月卖货", 100, "income", "主营业务收入")
+        last_month = (date.today().replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+        with db.get_conn() as conn:
+            conn.execute("UPDATE transactions SET created_at=?",
+                         (f"{last_month}-05 09:00:00",))
+        r = self.client.get("/api/ledger/periods").json()
+        self.assertFalse(r["has_current"], "当月还没有流水，不能报成有账")
+        self.assertEqual(r["latest"], last_month)
+        self.assertIn(last_month, r["months"])
+
+    def test_current_month_wins_when_it_has_data(self):
+        db.add_transaction(None, "今天卖货", 100, "income", "主营业务收入")
+        r = self.client.get("/api/ledger/periods").json()
+        self.assertTrue(r["has_current"])
+        self.assertEqual(r["latest"], date.today().strftime("%Y-%m"))
 
 
 class TestMultiShopFlow(GapsHttpBase):
