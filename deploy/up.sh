@@ -158,11 +158,13 @@ if [ -z "$IP" ]; then IP="<服务器公网IP>"; fi
 TOKEN_SHOWN="$(grep '^SHOP_ACCESS_TOKEN=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r')"
 
 printf '\n\033[1m======== 部署完成 ========\033[0m\n'
-if [ "$SITE" = ":80" ]; then
-	printf '访问地址 : http://%s/\n' "$IP"
-else
-	printf '访问地址 : https://%s/   （HTTP 自动跳 HTTPS）\n' "$SITE"
-fi
+# SITE 可能是 ":80"、"https://1.2.3.4"（裸 IP 的 IP 证书）或 "shop.example.com"（域名）。
+# 已经带 scheme 的别再加一次 —— 实测输出过「https://https://1.2.3.4/」这种双前缀。
+case "$SITE" in
+	:80)          printf '访问地址 : http://%s/\n' "$IP" ;;
+	http://*|https://*) printf '访问地址 : %s/   （HTTP 自动跳 HTTPS）\n' "$SITE" ;;
+	*)            printf '访问地址 : https://%s/   （HTTP 自动跳 HTTPS）\n' "$SITE" ;;
+esac
 printf '访问令牌 : %s\n' "$TOKEN_SHOWN"
 printf '容器时间 : %s（主机 %s）\n' "$CTIME" "$(date '+%Y-%m-%d %H:%M %Z')"
 printf '下一步   : 打开网页 → 底部「更多」→「设置」→ 粘贴上面的令牌 → 保存\n'
