@@ -116,10 +116,18 @@ def confirm_collection(cid: int, *, item: str | None = None,
     只允许 pending/paid → confirmed，避免重复入账。
     """
     import db   # 写交易需要聚合层
-    from categories import CATEGORY_TO_ACCOUNTS
+    from categories import CATEGORY_TO_ACCOUNTS, category_direction
 
     if category not in CATEGORY_TO_ACCOUNTS:
         raise ValueError(f"分类无效：{category!r}")
+    # 收款确认入账的方向**必然是收入**（下面硬编码 trans_type="income"）。
+    # 只校验"在白名单里"不够：传一个支出类科目（如「办公费」）会生成
+    # 「借 办公费 / 贷 银行存款」这种方向相反的凭证 —— 钱明明是收进来的。
+    # 这里是显式 API 入参自相矛盾（不是模型抖动），所以直接拒绝、不自动纠正。
+    if category_direction(category) == "expense":
+        raise ValueError(
+            f"分类方向不一致：收款入账是收入，不能用品类 {category!r}（支出类）；"
+            f"请改用收入类分类，如「主营业务收入」")
 
     with _conn() as conn:
         row = conn.execute("SELECT * FROM payment_collections WHERE id=?",

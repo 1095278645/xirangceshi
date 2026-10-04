@@ -304,6 +304,8 @@ async function main() {
   console.log('浏览器：' + browser);
   console.log('输出目录：' + OUT_DIR);
   console.log('后端：' + BASE_URL);
+  // 把「这次拍哪些屏」显式打出来：否则"跳过了全部却报成功"会被当成正常
+  console.log('拍摄范围：' + (ONLY.length ? '仅 ' + ONLY.join(', ') : '全部 ' + SHOTS.length + ' 屏'));
 
   const userDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-shot-'));
   const port = 9333 + Math.floor(Math.random() * 50);
@@ -350,7 +352,10 @@ async function main() {
 
     for (const s of SHOTS) {
       // 只重拍某一屏时：SHOT_ONLY=00-review.png（省掉整套动线的 AI 调用）
-      if (ONLY && !ONLY.includes(s.name)) continue;
+      // 注意必须判 ONLY.length：空数组 [] 在 JS 里是 truthy，
+      // 写成 `if (ONLY && !ONLY.includes(...))` 会把**全部**截图都 continue 掉，
+      // 而且 failed 为空 → 末尾照样报"成功 14/14"（实测踩过这个假成功）。
+      if (ONLY.length && !ONLY.includes(s.name)) continue;
       console.log(`\n== ${s.name} · ${s.desc} ==`);
       try {
         await s.run(cdp);
@@ -363,9 +368,23 @@ async function main() {
       }
     }
 
-    console.log(`\n== 汇总：成功 ${SHOTS.length - failed.length} / ${SHOTS.length} ==`);
+    // 产出校验：把「本轮应该产出哪些文件」逐个核对一遍。
+    // 只统计 failed 是不够的 —— 循环被跳过时 failed 也是空的，会报假成功（实测踩过）。
+    const expected = SHOTS.filter(s => !ONLY.length || ONLY.includes(s.name));
+    const missing = expected.filter(s => {
+      const p = path.join(OUT_DIR, s.name);
+      return !fs.existsSync(p) || fs.statSync(p).size < 1024;
+    }).map(s => s.name);
+    missing.forEach(n => {
+      const m = `${n}: 没有产出（或文件过小）`;
+      if (!failed.includes(m)) failed.push(m);
+    });
+
+    console.log(`\n== 汇总：成功 ${expected.length - missing.length} / ${expected.length} ==`);
+    console.log(`   产出目录：${OUT_DIR}`);
     failed.forEach(f => console.log('   ✗ ' + f));
-    process.exit(failed.length ? 1 : 0);
+    // 用 exitCode 而不是 process.exit()：后者在 stdout 是管道时可能丢掉缓冲输出
+    process.exitCode = failed.length ? 1 : 0;
   } finally {
     try { if (ws) ws.close(); } catch (_) {}
     try { proc.kill(); } catch (_) {}

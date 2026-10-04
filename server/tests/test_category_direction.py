@@ -54,6 +54,33 @@ class CategoryDirectionTest(unittest.TestCase):
             self.assertNotIn("测试收入", categories.CATEGORY_TO_ACCOUNTS)
 
 
+class TransTypeNormalizeTest(unittest.TestCase):
+    """DB 上 trans_type 有 CHECK(income/expense) 约束 —— 非法值必须在上游收敛。
+
+    对抗式核对时实测：模型回「支出」/「EXPENSE」/空值时，INSERT 撞约束抛
+    IntegrityError，记账接口**直接 500**：店主记不上账，报错信息还毫无意义。
+    """
+
+    def test_recognized_values(self):
+        cases = {
+            "income": "income", "Income": "income", "收入": "income", "进账": "income",
+            "expense": "expense", "EXPENSE": "expense", "支出": "expense", "花费": "expense",
+            " 支出 ": "expense",
+        }
+        for given, want in cases.items():
+            with self.subTest(given=given):
+                got, ok = categories.normalize_trans_type(given)
+                self.assertTrue(ok, f"{given!r} 应被识别")
+                self.assertEqual(got, want)
+
+    def test_unknown_returns_empty_and_unrecognized(self):
+        for given in ("", None, "transfer", "转账", "其他"):
+            with self.subTest(given=given):
+                got, ok = categories.normalize_trans_type(given)
+                self.assertEqual(got, "")
+                self.assertFalse(ok)
+
+
 class ReconcileTest(unittest.TestCase):
     def test_consistent_pair_untouched(self):
         for cat, ttype in (("主营业务收入", "income"), ("办公费", "expense")):
@@ -216,6 +243,105 @@ class HttpPathTest(unittest.TestCase):
                 self.assertEqual(categories.category_direction(row["category"]),
                                  row["trans_type"],
                                  f"分类 {row['category']!r} 与方向 {row['trans_type']} 不一致")
+
+
+    # ---- 非法 trans_type：旧实现直接 500，现在必须能记上账 ----
+
+    def _post_with_trans_type(self, ttype, category="办公费", text="买面粉花了300"):
+        fake = {"customer": "", "item": "买面粉", "amount": 300,
+                "trans_type": ttype, "category": category,
+                "note": "", "tags": "", "confidence": 0.9, "needs_check": False}
+        with mock.patch("ai.parse_transaction", return_value=fake), \
+             mock.patch("ai.ai_available", return_value=True):
+            return self.client.post("/api/orders", json={"text": text})
+
+    def test_chinese_trans_type_does_not_500(self):
+        for ttype, want in (("支出", "expense"), ("收入", "income"),
+                            ("EXPENSE", "expense"), ("", "expense")):
+            with self.subTest(ttype=ttype):
+                r = self._post_with_trans_type(ttype)
+                self.assertEqual(r.status_code, 200,
+                                 f"trans_type={ttype!r} 不该 500（旧实现撞 DB 约束）：{r.text[:200]}")
+                rec = r.json().get("recorded") or {}
+                self.assertIn(rec.get("trans_type"), ("income", "expense"),
+                              "落库方向必须是 income/expense")
+                # 空值那一路没有方向线索，会计上按分类推成 expense（办公费）
+                self.assertEqual(rec.get("trans_type"), want)
+
+    def test_multi_with_chinese_trans_type_does_not_500(self):
+        fake = {"customer": "", "item": "今天收入1250，支出320", "amount": None,
+                "trans_type": "收入", "category": "主营业务收入",
+                "note": "", "tags": "", "confidence": 0.9, "needs_check": False,
+                "transactions": [
+                    {"customer": "", "item": "收入1250", "amount": 1250,
+                     "trans_type": "收入", "category": "主营业务收入"},
+                    {"customer": "", "item": "支出320", "amount": 320,
+                     "trans_type": "支出", "category": "办公费"},
+                ]}
+        with mock.patch("ai.parse_transaction", return_value=fake), \
+             mock.patch("ai.ai_available", return_value=True):
+            r = self.client.post("/api/orders", json={"text": "今天收入1250，支出320"})
+        self.assertEqual(r.status_code, 200, r.text[:300])
+        rows = r.json().get("recorded_list") or []
+        self.assertEqual([x["trans_type"] for x in rows], ["income", "expense"])
+
+    def test_all_written_rows_use_valid_direction(self):
+        """凡是落库的方向，都必须是 income/expense —— 否则统计口径会漏计。"""
+        self._post_with_trans_type("支出")
+        with db.get_conn() as conn:
+            bad = conn.execute(
+                "SELECT COUNT(*) FROM transactions WHERE trans_type NOT IN ('income','expense')"
+            ).fetchone()[0]
+        self.assertEqual(bad, 0)
+
+
+class CollectionDirectionTest(unittest.TestCase):
+    """收款确认入账方向恒为收入：传支出类科目必须被拒，而不是生成反方向凭证。"""
+
+    def setUp(self):
+        import tempfile
+        self._tmp = tempfile.TemporaryDirectory()
+        root = Path(self._tmp.name)
+        import config
+        import shops
+        self._orig = (config.DATA_DIR, config.DB_PATH,
+                      shops.SHOPS_DIR, shops.REGISTRY_PATH)
+        config.DATA_DIR = str(root)
+        config.DB_PATH = str(root / "col.db")
+        shops.SHOPS_DIR = root / "shops"
+        shops.REGISTRY_PATH = root / "registry.db"
+        db.DB_PATH = Path(config.DB_PATH)
+        db._schema_ready.clear()
+        db.init_db()
+        shops.init_registry()
+        from fastapi.testclient import TestClient
+        import main
+        self.client = TestClient(main.app)
+
+    def tearDown(self):
+        import config
+        import shops
+        (config.DATA_DIR, config.DB_PATH,
+         shops.SHOPS_DIR, shops.REGISTRY_PATH) = self._orig
+        db._schema_ready.clear()
+        self._tmp.cleanup()
+
+    def test_collection_rejects_expense_category(self):
+        col = self.client.post("/api/collect/create",
+                               json={"amount": 12.5, "item": "豆浆两杯"}).json()
+        cid = col.get("id") or (col.get("collection") or {}).get("id")
+        self.assertTrue(cid, col)
+        r = self.client.post(f"/api/collect/{cid}/confirm", json={"category": "办公费"})
+        self.assertGreaterEqual(r.status_code, 400,
+                                f"收款入账用支出类科目应被拒，实际 {r.status_code}")
+
+    def test_collection_accepts_income_category(self):
+        col = self.client.post("/api/collect/create",
+                               json={"amount": 12.5, "item": "豆浆两杯"}).json()
+        cid = col.get("id") or (col.get("collection") or {}).get("id")
+        r = self.client.post(f"/api/collect/{cid}/confirm",
+                             json={"category": "主营业务收入"})
+        self.assertEqual(r.status_code, 200, r.text[:200])
 
 
 if __name__ == "__main__":

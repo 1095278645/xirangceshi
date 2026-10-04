@@ -7,7 +7,8 @@ import ai
 import db
 import notifications
 import tax as taxcalc
-from categories import is_known_category, normalize_category, reconcile_category
+from categories import (category_direction, is_known_category, normalize_category,
+                        normalize_trans_type, reconcile_category)
 from schemas import (OrderIn, RefundIn, TransactionEditIn, VoidIn)
 
 log = logging.getLogger("orders")
@@ -90,7 +91,6 @@ def create_order(data: OrderIn):
             customer, tags=parsed.get("tags", ""), favorite=parsed.get("item", ""),
             set_favorite=False)
     amount = data.amount if data.amount is not None else parsed.get("amount")
-    trans_type = parsed.get("trans_type", "income")
 
     # 分类归一：模型可能返回近义词（实测返回过"工资"）。旧实现直接判
     # is_known_category → False → 静默兜底到办公费，账本品类与凭证科目对不上。
@@ -99,10 +99,25 @@ def create_order(data: OrderIn):
     category = normalize_category(raw_category)
     if category and raw_category.strip() != category:
         log.info("分类已归一：%r → %r", raw_category, category)
+
+    # 收支方向先收敛：DB 上 trans_type 有 CHECK(income/expense) 约束，模型回
+    # 「支出」这类值会撞约束抛 IntegrityError → 记账接口直接 500（对抗式核对实测到）。
+    raw_ttype = parsed.get("trans_type", "")
+    trans_type, _tt_ok = normalize_trans_type(raw_ttype)
+    if not _tt_ok:
+        log.warning("收支方向 %r 无法识别，改用关键词/分类判定", raw_ttype)
+
     if not category:
         if raw_category:
             log.warning("分类无法归一（模型返回 %r），改用关键词兜底", raw_category)
-        category, trans_type = db.detect_category(data.text)
+        category, detected_tt = db.detect_category(data.text)
+        # 关键词兜底同时给出方向；只有模型方向认不出来时才采用它
+        if not trans_type:
+            trans_type = detected_tt
+    if not trans_type:
+        # 分类已知 → 用它推方向；都没有就按最保守的收入处理（与 DB 默认一致）
+        trans_type = category_direction(category) or "income"
+        log.warning("收支方向缺失，按分类 %r 判定为 %s", category, trans_type)
 
     # 方向一致性：模型偶发把支出挂到收入类科目（线上实测出现过 expense + 其他收入）。
     # 不卡这一道就会生成方向相反的凭证 —— 账和凭证一起错，且不报错。
@@ -243,13 +258,20 @@ def _record_multi(parsed: dict, subs: list[dict], text: str) -> dict:
                 cust, tags="", favorite=sub.get("item", ""), set_favorite=False)
         raw_cat = (sub.get("category") or "").strip()
         category = normalize_category(raw_cat)
-        ttype = sub.get("trans_type") or "income"
+        # 方向先收敛（同单笔路径）：DB 有 CHECK 约束，非法值会让整句记账 500
+        raw_tt = sub.get("trans_type") or ""
+        ttype, _tt_ok = normalize_trans_type(raw_tt)
+        if not _tt_ok:
+            log.warning("多笔中第 %s 笔收支方向 %r 无法识别，改用关键词/分类判定",
+                        len(recorded_list) + 1, raw_tt)
         if not category:
             # 用这一笔自己的文本兜底，不要用整句（整句会把两笔的科目混起来）
             category, ttype2 = db.detect_category(
                 f"{sub.get('item', '')} {raw_cat}".strip() or text)
-            if ttype not in ("income", "expense"):
+            if not ttype:
                 ttype = ttype2
+        if not ttype:
+            ttype = category_direction(category) or "income"
         # 方向一致性：模型可能给「支出 + 收入类科目」这种自相矛盾的组合
         # （线上实测出现过），不一致就换成该方向的通用科目并留痕
         category, _dir_fixed = reconcile_category(category, ttype)

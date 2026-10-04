@@ -198,9 +198,34 @@ def resolve_accounts(category: str | None, trans_type: str = "expense") -> tuple
     return CATEGORY_TO_ACCOUNTS[fallback], ""
 
 
+# ===== 收支方向归一 =====
+# DB 上 transactions.trans_type 有 CHECK(trans_type IN ('income','expense')) 约束。
+# 模型偶尔会回中文或大写（"支出" / "收入" / "EXPENSE"）—— 旧实现直接塞给 INSERT，
+# 撞约束抛 IntegrityError，记账接口**直接 500**：店主记不上账，报错信息还毫无意义。
+# （对抗式核对时实测到：中文方向值 / 空值 / 大写英文三种都会 500。）
+TRANS_TYPE_ALIASES = {
+    "income": "income", "in": "income", "收入": "income", "进账": "income",
+    "收": "income", "收款": "income", "入账": "income", "销售": "income",
+    "expense": "expense", "out": "expense", "支出": "expense", "出账": "expense",
+    "付": "expense", "付款": "expense", "花费": "expense", "开销": "expense",
+}
+
+
+def normalize_trans_type(value: str | None) -> tuple:
+    """把模型给的收支方向收敛成 ``income`` / ``expense``。
+
+    返回 ``(trans_type, recognized)``：认不出来时返回 ``("", False)``，
+    由调用方接着用「分类方向」或「关键词兜底」判定 —— 绝不硬塞一个值进 DB。
+    收敛不了就留痕，这与本项目「有限取值必须收敛、不许静默猜」的约定一致。
+    """
+    raw = str(value or "").strip().lower()
+    if raw in TRANS_TYPE_ALIASES:
+        return TRANS_TYPE_ALIASES[raw], True
+    return "", False
+
+
 def category_direction(category: str | None) -> str | None:
     """这个分类本身属于哪个方向：'income' / 'expense'；认不出来返回 None。
-
     判定方式不靠人工维护的表，而是看它映射到的科目属于哪一类 ——
     「主营业务收入 → 5001（收入类）」是收入，「办公费 → 560101（费用类）」是支出。
     这样以后往 CATEGORY_TO_ACCOUNTS 里加分类时，方向自动跟着对，不会漏。
