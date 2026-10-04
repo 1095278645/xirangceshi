@@ -126,11 +126,16 @@ curl -sI https://shop.example.com/api/health | head -3
 ## 六、演示数据与 AI Key
 
 - **演示库迁移（推荐）**：本机 `python scripts/seed_demo_data.py` 灌好数据后，用 `-WithData` 上传，数据和界面表现与本地一致。
-- **服务器上空库灌数据**：
+- **服务器上空库灌数据**（镜像里没有 `scripts/`，它是被 `.dockerignore` 排除的，必须先 `docker cp` 进去）：
   ```bash
   docker cp scripts ai-shopkeeper:/app/scripts
   docker exec -it ai-shopkeeper python /app/scripts/seed_demo_data.py
   ```
+- **跨月补灌（库里已有本月流水时）**：`seed_demo_data.py` 的幂等门会**拒绝执行**（防止流水翻倍），
+  `--current-only` 也会被同一道门挡住，而 `--force` 是"清空整库重灌"（会丢历史月）。
+  只想补"已有数据之后 ~ 今天"这段窗口时，把 `MONTH_START/DAYS` 指向缺失区间后调
+  `seed_transactions()` 即可（同一套确定性生成器，只做加法、不删数据），
+  参考 `deliverables/_seed_patch.py`；操作前先 `cp` 一份账本做回滚点。
 - **AI Key 两种填法**：`.env` 里 `DEEPSEEK_API_KEY=`（改完重跑 `bash deploy/up.sh`），或在网页端「设置」页填写。
   > ⚠️ 实测提醒：网页端「设置」页保存的 Key 实际写在**容器内**的 `/app/server/config.local.json`，
   > 而容器只挂了 `server/data` —— 所以**重跑 `up.sh` 重建容器后会丢**。长期部署请写进 `.env`。
