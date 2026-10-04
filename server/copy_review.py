@@ -82,6 +82,30 @@ _NUMBER_RE = re.compile(r'\d')
 _LIST_MARK_RE = re.compile(r'[①②③④⑤⑥⑦⑧⑨⑩]|^\s*[\d]+[.、)]|^\s*[-·•]', re.M)
 _PROMO_TAIL_RE = re.compile(r'期待(您的|你的)?(光临|惠顾)|欢迎光临|谢谢惠顾')
 
+# 匹配前的归一化：违禁词靠"插入空格/标点/emoji"就能绕过（实测"最 好 吃"漏过），
+# 所以判定前先去掉这些噪声，再在**压缩后的文本**上找词。
+# \ufe0e/\ufe0f 是 emoji 的变体选择符（不可见但要一起去掉，否则"最好❤️"会漏）、
+# \u200d 是零宽连接符、\U0001F3FB-\U0001F3FF 是肤色修饰符。
+_NOISE_RE = re.compile(
+    r'[\s\u3000\u200b-\u200d\ufe0e\ufe0f\U0001F3FB-\U0001F3FF'
+    r'·・,，.。、;；:：!！?？~～\-—_/\\|()（）\[\]【】"\'`]+')
+# 常见繁体 → 简体（只收与规则表相关的字，不做完整转换）
+_TRAD_TO_SIMP = str.maketrans({
+    '絕': '绝', '對': '对', '網': '网', '價': '价', '獨': '独', '無': '无',
+    '敵': '敌', '極': '极', '頂': '顶', '級': '级', '療': '疗', '藥': '药',
+    '減': '减', '肥': '肥', '賺': '赚', '險': '险', '漲': '涨', '搶': '抢',
+    '團': '团', '規': '规', '則': '则', '關': '关', '注': '注',
+})
+
+
+def normalize_for_match(text: str) -> str:
+    """归一化：去空格/标点/emoji + 繁转简。**只用于匹配，不用于输出**（不改写正文）。"""
+    if not text:
+        return ''
+    cleaned = _NOISE_RE.sub('', text)
+    cleaned = _EMOJI_RE.sub('', cleaned)
+    return cleaned.translate(_TRAD_TO_SIMP)
+
 
 def count_lines(text: str) -> int:
     return len([l for l in (text or '').splitlines() if l.strip()])
@@ -102,7 +126,11 @@ def concrete_ratio(text: str) -> float:
 # ---------------- 单条检查 ----------------
 
 def _hit(words, text) -> list[str]:
-    return [w for w in words if w and w in text]
+    """在归一化文本里找词（挡住"插空格/标点/emoji"的绕过），返回**原始词形**便于提示。"""
+    flat = normalize_for_match(text)
+    if not flat:
+        return []
+    return [w for w in words if w and normalize_for_match(w) in flat]
 
 
 def _check_channel_length(text: str, channel: str, hard_max: int) -> dict:

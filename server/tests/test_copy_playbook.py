@@ -192,6 +192,32 @@ class TestHardChecks(unittest.TestCase):
         for key in ("chars", "lines", "emoji", "concrete_count", "concrete_ratio", "limit"):
             self.assertIn(key, r["diagnostics"])
 
+    def test_bypass_attempts_are_caught_after_normalization(self):
+        """拆字/分隔符/emoji/繁体都是常见绕过手法，归一化后必须照样拦下。"""
+        for text in ("本店最 好 吃，全 网 最 低 价。",
+                     "本店最·好·吃，绝·对·推·荐。",
+                     "最好❤️吃，绝对推荐。",
+                     "全網最低價，"):
+            with self.subTest(text=text):
+                r = cr.review(text, self.combo)
+                self.assertIn("absolute_terms", self._ids(r), f"没拦住：{text}")
+
+    def test_known_limit_synonyms_not_caught(self):
+        """已知局限：同义替换（顶尖/首屈一指）不在词表里，字面匹配拦不住。
+
+        这条**不是**要修的东西，而是把边界钉在测试里：改造词表或加语义检查时，
+        如果突然能拦住了，说明能力提升了，届时把这个用例改成期望 fail 即可。
+        """
+        r = cr.review("本店顶尖水准，首屈一指。", self.combo)
+        self.assertNotIn("absolute_terms", self._ids(r))
+
+    def test_normalize_is_for_matching_only(self):
+        """归一化只用于判定，不许改变输入文本（否则等于变相改写）。"""
+        raw = "最 好 吃 ❤️"
+        cr.review(raw, self.combo)
+        self.assertEqual(raw, "最 好 吃 ❤️")
+        self.assertEqual(cr.normalize_for_match("最 好 吃 ❤️"), "最好吃")
+
 
 class TestImagePlan(unittest.TestCase):
     """配图方案：封面/内容/结尾，含图上文字与提示词；回评不配图"""
