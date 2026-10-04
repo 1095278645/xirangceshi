@@ -27,6 +27,10 @@ services:
       DEEPSEEK_MODEL: "${DEEPSEEK_MODEL:-deepseek-chat}"
       # 能力档：core（默认，成本低）/ full（演示前建议切到 full）
       SHOP_API_PROFILE: "${SHOP_API_PROFILE:-core}"
+      # AI 编排：fast（每次动作 1 次调用）/ team（多 agent：员工并行 → 掌柜裁决）
+      # 不在这里透传的话，.env 里写了 AI_PIPELINE 也不会进容器（实测踩过：
+      # 线上日志里是「快速·review」，说明跑的是 fast，而对外讲的是"AI 员工团队"）
+      AI_PIPELINE: "${AI_PIPELINE:-fast}"
       # 公网部署必须设置：不设置则任何人拿到地址就能读写账本（见 server/auth.py）
       SHOP_ACCESS_TOKEN: "${SHOP_ACCESS_TOKEN:?公网部署必须设置 SHOP_ACCESS_TOKEN，见 deploy/.env.example}"
     volumes:
@@ -45,8 +49,10 @@ services:
         condition: service_healthy
     environment:
       # 有已备案域名 → SITE_ADDRESS=shop.example.com（自动 HTTPS）
-      # 只有公网 IP   → SITE_ADDRESS=:80（仅 HTTP，语音功能需要 HTTPS 才能用）
+      # 只有公网 IP   → SITE_ADDRESS=https://1.2.3.4（走 LE 的 IP 证书，需同时设 DEFAULT_SNI=1.2.3.4）
       SITE_ADDRESS: "${SITE_ADDRESS:-:80}"
+      # 裸 IP 场景：客户端对 IP 字面量不发 SNI，必须靠这个值让 Caddy 选到证书；域名场景用不到
+      DEFAULT_SNI: "${DEFAULT_SNI:-localhost}"
     ports:
       - "80:80"
       - "443:443"

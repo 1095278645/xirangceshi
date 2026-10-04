@@ -7,7 +7,7 @@ import ai
 import db
 import notifications
 import tax as taxcalc
-from categories import is_known_category, normalize_category
+from categories import is_known_category, normalize_category, reconcile_category
 from schemas import (OrderIn, RefundIn, TransactionEditIn, VoidIn)
 
 log = logging.getLogger("orders")
@@ -103,6 +103,14 @@ def create_order(data: OrderIn):
         if raw_category:
             log.warning("分类无法归一（模型返回 %r），改用关键词兜底", raw_category)
         category, trans_type = db.detect_category(data.text)
+
+    # 方向一致性：模型偶发把支出挂到收入类科目（线上实测出现过 expense + 其他收入）。
+    # 不卡这一道就会生成方向相反的凭证 —— 账和凭证一起错，且不报错。
+    category, _dir_fixed = reconcile_category(category, trans_type)
+    if _dir_fixed:
+        log.warning("分类方向与收支方向不一致（模型给 %r / %s），已改用 %r 并留痕",
+                    raw_category, trans_type, category)
+        raw_category = f"{raw_category}（方向不一致，已纠正为 {category}）"
 
     # 金额缺失（或显式给 0）：不落库，返回草稿让界面追问
     if amount is None or float(amount or 0) <= 0:
@@ -242,6 +250,12 @@ def _record_multi(parsed: dict, subs: list[dict], text: str) -> dict:
                 f"{sub.get('item', '')} {raw_cat}".strip() or text)
             if ttype not in ("income", "expense"):
                 ttype = ttype2
+        # 方向一致性：模型可能给「支出 + 收入类科目」这种自相矛盾的组合
+        # （线上实测出现过），不一致就换成该方向的通用科目并留痕
+        category, _dir_fixed = reconcile_category(category, ttype)
+        if _dir_fixed:
+            log.warning("多笔中第 %s 笔分类方向不一致（%r / %s），已改用 %r",
+                        len(recorded_list) + 1, raw_cat, ttype, category)
         tid, voucher = db.add_transaction(
             cid, sub.get("item", "") or text, sub["amount"],
             trans_type=ttype, category=category,

@@ -184,6 +184,26 @@ try {
   problems.push('renderMetrics 有数据渲染异常：' + e.message);
 }
 
+// ---------- 未登录横幅（401 时必须给出提示，不能安静地显示一片 0） ----------
+try {
+  evalInCtx('state.needToken = true; state.route = "home"');
+  const banner = evalInCtx('tokenBanner()');
+  if (typeof banner !== 'string' || !banner.includes('需要访问令牌')) {
+    problems.push('未登录时首页没有提示横幅（使用者会以为"店里没有数据"）');
+  } else if (!banner.includes("go('settings')")) {
+    problems.push('未登录横幅缺少「去填写访问令牌」入口');
+  } else {
+    ran.push(`tokenBanner(${banner.length})`);
+  }
+  // 设置页自己有详细区块 → 不重复挂；已登录（needToken=false）→ 不挂
+  evalInCtx('state.route = "settings"');
+  if (evalInCtx('tokenBanner()') !== '') problems.push('设置页不该重复挂横幅');
+  evalInCtx('state.route = "home"; state.needToken = false');
+  if (evalInCtx('tokenBanner()') !== '') problems.push('已登录时不该出现令牌横幅');
+} catch (e) {
+  problems.push('tokenBanner 检查异常：' + e.message);
+}
+
 // ---------- 共享契约自检（标签/谓词/错误归类） ----------
 try {
   const FC = ctx.FRONTEND_CONTRACT;

@@ -39,17 +39,18 @@ scripts\upload_to_server.ps1  ──scp──▶  ~/xirang
 
 | 情况 | 部署方式 | 结果 |
 |---|---|---|
-| 有**已备案**域名（内地节点） | `SITE_ADDRESS=shop.example.com bash deploy/up.sh` | `https://shop.example.com`，Caddy 自动证书 |
-| 有域名但**没备案** | 走「[五、免备案分支](#五免备案分支cloudflare-tunnel)」 | Cloudflare 域名 + 隧道，不碰 80/443 |
-| 只有公网 IP | `bash deploy/up.sh`（自动 `SITE_ADDRESS=:80`） | `http://<公网IP>/`，**仅 HTTP** |
+| 有**已备案**域名（内地节点） | `SITE_ADDRESS=shop.example.com` | `https://shop.example.com`，Caddy 自动证书 |
+| **只有公网 IP**（没域名） | `SITE_ADDRESS=https://<IP>` + `DEFAULT_SNI=<IP>` | `https://<公网IP>/`，**Let's Encrypt 的 IP 证书**（6 天、自动续期）—— **这是本节推荐路径**，见[九、没有域名也要 HTTPS](#九没有域名也要-https本项目实测有效的两条路) |
+| 有域名但**没备案** | 同上（域名会被腾讯云拦截）或 Cloudflare 隧道 | 未备案域名在内地节点会被换成拦截页，实测走不通，见第九节 |
+| 不想折腾 HTTPS | `SITE_ADDRESS=:80` | `http://<公网IP>/`，仅 HTTP，语音会降级 |
 
-> ⚠️ 语音记账需要"安全上下文"（HTTPS 或 localhost）。纯 HTTP 部署时语音按钮会降级为手动输入，其余功能不受影响。
+> ⚠️ 语音记账需要"安全上下文"（HTTPS 或 localhost）。纯 HTTP 部署时语音按钮会降级为手动输入，其余功能不受影响；**IP 证书同样满足安全上下文**，语音可用。
 
 ## 二、控制台准备（腾讯云，约 3 分钟）
 
 1. **防火墙放通端口**：轻量应用服务器控制台 → 防火墙 → 添加规则
-   - 有域名：放通 `80`、`443`（TCP）+ `443`（UDP，HTTP/3 可选）
-   - 只有 IP：放通 `80`
+   - 有域名或用 **IP 证书**：放通 `80`、`443`（TCP）+ `443`（UDP，HTTP/3 可选）—— IP 证书的 ACME 校验走 80，缺了签不下来
+   - 纯 HTTP 演示：只放通 `80`
    - `22` 保持放通（上传代码用）；**不要**对公网放通 `8000`
 2. **域名解析**（有域名时）：域名 DNS → 添加 `A` 记录 → 指向服务器公网 IP。
 3. **备案**（内地节点 + 域名）：腾讯云 → 备案，一般 7~20 个工作日；未备案的域名解析到内地节点，访问 80/443 会被拦截。
@@ -171,27 +172,74 @@ bash deploy/up.sh          # 幂等，账本不动
 6. **令牌轮换**：改 `.env` 的 `SHOP_ACCESS_TOKEN` → 重跑 `up.sh` → 各端在「设置」页填新令牌。
 7. **服务器只留必要端口**：`22` 建议改成密钥登录并限制来源 IP；不要安装来源不明的面板插件。
 
-## 九、免备案分支（Cloudflare Tunnel）
+## 九、没有域名也要 HTTPS（本项目实测有效的两条路）
 
-域名没备案、又不想等，或不想对公网开放 80/443 时：
+语音记账、PWA「添加到主屏幕」都要求**安全上下文**（HTTPS 或 localhost）—— `http://IP` 不行，浏览器会拒绝麦克风（项目里已自动降级为手动输入）。
+
+### 方案 A（推荐，已实测跑通）：Let's Encrypt 的 **IP 地址证书**
+
+Let's Encrypt 自 2026-01 起**正式支持给裸 IP 签发证书**（[官方公告](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability)，6 天有效期；[certbot 支持说明](https://letsencrypt.org/2026/03/11/shorter-certs-certbot)，Caddy 2.10+ 也可）。**裸 IP 不触发备案拦截**（备案只拦"未备案域名"），所以内地节点也能拿到浏览器信任的 HTTPS —— 没域名时这是最干净的方案。
 
 ```bash
-# 服务器上（临时演示用，重启即换地址）
-curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
-chmod +x /usr/local/bin/cloudflared
-cloudflared tunnel --url http://localhost:8000
+# .env 里改成这两行，然后重跑 sudo bash deploy/up.sh
+SITE_ADDRESS=https://<公网IP>
+DEFAULT_SNI=<公网IP>
 ```
 
-得到 `https://xxxx.trycloudflare.com`，HTTPS 直接可用。要固定域名就把域名托管到 Cloudflare，建**命名隧道**并加一条 DNS 路由，效果等同自有域名 HTTPS。
+`deploy/Caddyfile` 里对应的关键配置（已内置，无需手改）：
 
-限制：小程序**正式版**的 request 合法域名仍需备案域名，隧道地址只能在开发者工具（勾选「不校验合法域名」）或网页端使用。
+```caddyfile
+{
+	# 客户端对 IP 字面量按 RFC 6066 **不发 SNI**；缺这个值 Caddy 在握手阶段选不到证书，
+	# 会直接回 TLS internal_error —— 现象是"证书明明签出来了，但就是连不上"（实测踩过）
+	default_sni {$DEFAULT_SNI:localhost}
+}
+
+{$SITE_ADDRESS:localhost} {
+	# Caddy 默认给 IP 发「内部自签」证书（issuer=local，浏览器不信任），
+	# 必须显式声明 ACME 签发者才会去签 LE 的 IP 证书；IP 证书是 6 天短证书，要选 shortlived profile
+	tls {
+		issuer acme {
+			profile shortlived
+		}
+	}
+	reverse_proxy shopkeeper:8000
+}
+```
+
+要点：
+
+- 证书 **6 天**有效，Caddy 会**自动续期**（走 ARI）；**别删 `caddy_data` 卷**，否则要重新签发（重跑 `up.sh` 也能重签）。
+- 自检：`openssl s_client -connect <IP>:443` 应返回 `Verify return code: 0 (ok)`；`curl -sI https://<IP>/` 应 200。
+- 起来后 `http://<IP>` 会自动 `308` 跳到 HTTPS。
+- **小程序正式版仍要求"已备案域名"**（IP 不能作为 request 合法域名），IP 证书只解决网页端与真机调试。
+
+### 方案 B：Cloudflare 隧道（不想对公网开放 80/443 时）
+
+```bash
+curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared   # 国内可能很慢
+chmod +x /usr/local/bin/cloudflared
+cloudflared tunnel --url http://localhost:8000     # 临时：地址随机、重启就变
+```
+
+把域名托管到 Cloudflare 建**命名隧道**可得固定地址，不碰 80/443、也不需要备案。注意隧道多了一层代理，服务端限流拿到的客户端 IP 要重新确认（见安全清单第 3 条）。
+
+### ❌ 走不通的路（都实测或查证过，别再花时间）
+
+| 想法 | 为什么不行 |
+|---|---|
+| `sslip.io` / `nip.io` 等"免费域名指向内地 IP" | **会被腾讯云拦截**：实测 Caddy 申请证书时，ACME 校验拿到的响应是 `https://dnspod.qcloud.com/static/webblock.html?d=<域名>` —— 未备案域名解析到内地服务器，HTTP 被换成拦截页，证书自然签不下来 |
+| 自签名证书 | 证书报错的页面在 Chrome 里**不算安全上下文**，麦克风照样被拒；除非把自签 CA 装进**每台手机**的信任库 |
+| 给 IP 签常规 90 天免费证书 | 免费 CA 的常规证书不给裸 IP 签发（LE 只提供上面那种 6 天短证书） |
 
 ## 十、排障
 
 | 现象 | 原因与处理 |
 |---|---|
 | 浏览器打不开 | 防火墙没放通 80/443；DNS 未解析；`docker compose ... logs caddy` 看证书申请失败原因 |
-| 内地节点域名 80/443 被拦 | 域名未备案：先走「免备案分支」，或完成备案后再切 |
+| 内地节点域名 80/443 被拦 | 域名未备案：会被换成 `dnspod.qcloud.com/static/webblock.html` 拦截页 → 用第九节「IP 证书」方案，或完成备案后再切 |
+| `https://IP` 连不上（TLS `internal_error` / alert 80） | 缺 `DEFAULT_SNI=<IP>`：客户端对 IP 不发 SNI，Caddy 选不到证书就握手失败（现象是"证书签出来了却连不上"）|
+| IP 证书 6 天后失效 | `caddy_data` 卷被删或未持久化（证书与续期状态在里面）；重跑 `up.sh` 会重新签发 |
 | `https` 证书申请失败 | 域名没解析到本机 / 80 端口被宝塔、nginx 占用（`ss -ltnp \| grep :80`）|
 | 打开是 502 | 应用没起来：`logs shopkeeper`；`docker inspect -f '{{.State.Health.Status}}' ai-shopkeeper` |
 | 页面能开，接口 401 | 正常：去「设置」页填令牌 |
@@ -200,7 +248,7 @@ cloudflared tunnel --url http://localhost:8000
 | 流水/复盘日期差一天 | 容器时区不是 +0800：`docker exec ai-shopkeeper date +%z` 应为 `+0800`；不是就说明镜像缺 `tzdata`（[Dockerfile](../Dockerfile) 已装，旧镜像需重建）|
 | 构建卡在 pip | `.env` 里 `PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple` |
 | `docker pull` 超时 | 检查 `/etc/docker/daemon.json` 的 `registry-mirrors`（脚本已配腾讯云内网镜像）|
-| 语音按钮不可用 | 纯 HTTP 部署：语音需要 HTTPS（配域名或走隧道）|
+| 语音按钮不可用 | 页面不是 HTTPS：用第九节「IP 证书」方案，或配域名/隧道（**自签名证书不管用**，证书报错的页面不是安全上下文）|
 | 小程序连不上 | 后端地址要填 `https://域名`；正式版需在公众平台配置合法域名（须备案） |
 
 ## 十一、其它部署形态

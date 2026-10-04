@@ -61,6 +61,9 @@ async function api(path, method = 'GET', data = null) {
     if (info.kind === 'auth') state.needToken = true;
     throw new Error(info.message);
   }
+  // 成功即说明令牌是对的：清掉 401 标记，让横幅自动消失
+  // （否则填对了令牌，横幅还一直挂着 —— 它只在"确实被拒"时才该出现）
+  if (state.needToken) state.needToken = false;
   return res.json();
 }
 
@@ -308,6 +311,24 @@ function a11yRead() {
 }
 
 // ---------- 渲染分发（各页面渲染函数见 pages/*.js） ----------
+
+/**
+ * 未登录（后端开了鉴权但没填/填错令牌）时的全局提示条。
+ *
+ * 为什么必须在**每个页面**都提示：401 时接口全部失败，各页面会安静地渲染成
+ * 一片 0（实测线上就是这个表现），店主分不清「今天没生意」和「没登录」；
+ * 评审第一次打开也会以为数据是空的。设置页自己有详细区块，这里就不重复挂。
+ */
+function tokenBanner() {
+  if (!state.needToken || state.route === 'settings') return '';
+  return `<div class="card warn-box">
+    <div class="card-title">🔒 需要访问令牌</div>
+    <div class="note">后端已开启鉴权，当前请求被拒绝（401）。
+      下面看到的数字都是空的，<b>不代表店里没有数据</b>。</div>
+    <button class="btn-primary" onclick="go('settings')">去填写访问令牌</button>
+  </div>`;
+}
+
 function render() {
   const r = state.route;
   let html;
@@ -327,7 +348,10 @@ function render() {
   else if (r === 'shops') html = renderShops();
   else if (r === 'metrics') html = renderMetrics();
   else html = renderHome();
-  document.getElementById('app').innerHTML = html;
+  // 未登录（401）时在**每个页面**顶部挂一条提示：否则页面会安静地渲染成一片 0，
+  // 店主/评审分不清「今天没生意」和「没填访问令牌」—— 线上实测就是这个表现。
+  // 设置页自己有更详细的区块，不重复挂。令牌填对后任意请求成功即自动消失。
+  document.getElementById('app').innerHTML = tokenBanner() + html;
   const MORE_ROUTES = ['finance', 'stock', 'invoice', 'settings',
     'accounting', 'backup', 'notify', 'collect', 'shops', 'metrics'];
   const inMore = MORE_ROUTES.includes(r);

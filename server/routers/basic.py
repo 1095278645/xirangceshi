@@ -16,6 +16,45 @@ def health():
     return {"status": "ok", "ai": ai.ai_available()}
 
 
+@router.get("/health/ai")
+def health_ai():
+    """AI 真实探活：**真的调一次模型**，回答"这套配置到底通不通"。
+
+    为什么需要它：`/api/health` 里的 `ai` 只表示"配了 Key"，不代表 Key 能用。
+    线上实测踩过一个很难发现的坑 —— `.env` 把网关的 Key 指向了官方端点，
+    于是**所有 AI 调用 401**，而各功能会安静地退回规则兜底：页面照常出内容，
+    只是内容变朴素了。这种"静默降级"不主动探一把是发现不了的，
+    等到评审现场才发现就晚了。
+
+    与 `/api/health` 的分工：健康检查要保持轻量（Docker healthcheck 每 30 秒打一次），
+    所以**不在它里面调模型**；这个端点供「演示前自检 / 部署后验收」显式调用。
+    """
+    import time
+    started = time.time()
+    settings = ai.load_settings()
+    out = {
+        "configured": bool(settings.get("api_key")),
+        # base_url 不是密钥，可以直接回显，排障时一眼就能看出"Key 与端点配错了对"
+        "base_url": settings.get("base_url", ""),
+        "model": settings.get("model", ""),
+        "reachable": False,
+        "latency_ms": None,
+        "error": "",
+    }
+    if not out["configured"]:
+        out["error"] = "未配置 API Key（无 Key 时各功能走规则兜底，属正常降级）"
+        return out
+    try:
+        reply = ai.chat([{"role": "user", "content": "回复两个字：在线"}],
+                        max_tokens=16, temperature=0, domain="health_probe")
+        out["reachable"] = True
+        out["reply"] = (reply or "").strip()[:20]
+    except Exception as e:  # noqa: BLE001  探活失败要把原因原样带回去
+        out["error"] = f"{type(e).__name__}: {str(e)[:300]}"
+    out["latency_ms"] = int((time.time() - started) * 1000)
+    return out
+
+
 @router.get("/providers")
 def list_providers():
     """返回支持的 AI 大模型提供商列表"""

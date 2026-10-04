@@ -72,6 +72,11 @@ fi
 if grep -q '^SITE_ADDRESS=$' "$ENV_FILE"; then
 	log "未指定域名，按「仅 HTTP」模式部署（SITE_ADDRESS=:80）"
 	sed -i 's|^SITE_ADDRESS=.*|SITE_ADDRESS=:80|' "$ENV_FILE"
+	PUBIP="$(curl -s --max-time 5 https://api.ipify.org || true)"
+	warn "想要 HTTPS（手机语音/PWA 需要）但没域名？把 .env 改成下面两行后重跑本脚本，"
+	warn "会走 Let's Encrypt 的 IP 地址证书（6 天、自动续期，裸 IP 不触发备案拦截）："
+	warn "  SITE_ADDRESS=https://${PUBIP:-<公网IP>}"
+	warn "  DEFAULT_SNI=${PUBIP:-<公网IP>}"
 fi
 if ! grep -Eq '^SHOP_ACCESS_TOKEN=.+' "$ENV_FILE"; then
 	die ".env 里 SHOP_ACCESS_TOKEN 为空：公网部署必须设置，否则任何人都能读写账本"
@@ -79,7 +84,7 @@ fi
 
 SITE="$(grep '^SITE_ADDRESS=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r')"
 if [ "$SITE" = ":80" ]; then
-	warn "当前是 HTTP 部署：手机浏览器的语音录入需要 HTTPS，正式使用建议配已备案域名。"
+	warn "当前是 HTTP 部署：手机浏览器的语音录入需要 HTTPS（见上面的 IP 证书提示，或配已备案域名）。"
 fi
 
 # ---------- 5. 端口占用提醒（宝塔/nginx 常见的坑）----------
@@ -130,6 +135,22 @@ elif [ "$CTZ" != "$HTZ" ]; then
 else
 	log "时区自检通过：容器与主机同为 $HTZ"
 fi
+
+# ---------- 8.2 AI 连通性自检 ----------
+# 为什么必须查：配了 Key 不等于 Key 能用。实测踩过 —— 某网关的 Key 配了官方端点，
+# 所有 AI 调用 401，而各功能会**安静地退回规则兜底**（页面照常出内容，只是变朴素）。
+# 这类"静默降级"不主动探一把就发现不了，等到评审现场发现就晚了。
+TOKEN_FOR_CHECK="$(grep '^SHOP_ACCESS_TOKEN=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r')"
+AI_JSON="$(curl -s --max-time 90 -H "X-Shop-Token: $TOKEN_FOR_CHECK" http://127.0.0.1:8000/api/health/ai || true)"
+case "$AI_JSON" in
+	*'"reachable": true'*|*'"reachable":true'*)
+		log "AI 自检通过：模型可调用（编排模式：$(grep -m1 '^AI_PIPELINE=' "$ENV_FILE" | cut -d= -f2- | tr -d '\r' || echo fast)）" ;;
+	*'"configured": false'*|*'"configured":false'*)
+		warn "未配置 AI Key：文案 / 复盘 / 画像将走规则兜底（记账与账本不受影响）" ;;
+	*)
+		warn "AI 配了 Key 但调不通，各功能会静默退回规则兜底。接口返回：$AI_JSON"
+		warn "  最常见原因：DEEPSEEK_API_KEY 与 DEEPSEEK_BASE_URL 不是同一家（改 .env 后重跑本脚本）" ;;
+esac
 
 # ---------- 9. 汇总 ----------
 IP="$(curl -s --max-time 5 https://api.ipify.org || true)"

@@ -40,8 +40,9 @@ class TestAPIProfile(unittest.TestCase):
         # 基线：撤旧/收敛(A/C/B) → 候选处理/提醒投递/进化真值 → 连锁总部视图 → 统一保本线
         #       → /api/ledger/periods（月初账本默认期间回退，见 db.list_active_periods）
         #       → 知识资产治理（knowledge 域共 8 个端点）与跨域关系索引（relations 域 4 个）
-        self.assertEqual(core, 91)
-        self.assertEqual(full, 139)
+        #       → /api/health/ai（AI 真实探活：配了 Key 但调不通不再静默降级）
+        self.assertEqual(core, 92)
+        self.assertEqual(full, 140)
 
     def test_invalid_profile_rejected(self):
         with self.assertRaises(ValueError):

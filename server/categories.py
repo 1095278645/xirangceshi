@@ -99,6 +99,8 @@ CATEGORY_TO_ACCOUNTS = {
 }
 
 ACCOUNT_NAMES = {code: name for code, name, _c, _d, _l in ACCOUNT_TITLES}
+# 科目 → 类别（asset/liability/equity/income/expense）：用来判断「这个分类的方向」
+ACCOUNT_CATEGORY_OF = {code: kind for code, _name, kind, _d, _l in ACCOUNT_TITLES}
 
 # ===== 分类名归一 =====
 # 模型偶尔会把分类说成近义词（实测真实调用返回过「工资」而不是「职工薪酬」）。
@@ -194,6 +196,42 @@ def resolve_accounts(category: str | None, trans_type: str = "expense") -> tuple
         return CATEGORY_TO_ACCOUNTS[canonical], canonical
     fallback = "主营业务收入" if trans_type == "income" else "办公费"
     return CATEGORY_TO_ACCOUNTS[fallback], ""
+
+
+def category_direction(category: str | None) -> str | None:
+    """这个分类本身属于哪个方向：'income' / 'expense'；认不出来返回 None。
+
+    判定方式不靠人工维护的表，而是看它映射到的科目属于哪一类 ——
+    「主营业务收入 → 5001（收入类）」是收入，「办公费 → 560101（费用类）」是支出。
+    这样以后往 CATEGORY_TO_ACCOUNTS 里加分类时，方向自动跟着对，不会漏。
+    """
+    canonical = normalize_category(category)
+    mapping = CATEGORY_TO_ACCOUNTS.get(canonical)
+    if not mapping:
+        return None
+    for code in mapping[:2]:
+        kind = ACCOUNT_CATEGORY_OF.get(code)
+        if kind in ("income", "expense"):
+            return kind
+    return None
+
+
+def reconcile_category(category: str | None, trans_type: str) -> tuple:
+    """让「分类的方向」与「收支方向」一致，返回 ``(category, adjusted)``。
+
+    为什么必须卡这一道：模型**偶发**把支出挂到收入类科目（线上实测出现过
+    `trans_type=expense` + `category='其他收入'`，同一句话换个时间跑又是对的）。
+    一旦不一致，`_auto_voucher` 会按分类去映射科目 —— 给一笔支出生成
+    「借 库存现金 / 贷 其他业务收入」这样**方向相反**的凭证：账本品类与凭证
+    一起错，而且不报任何错，店主看不出来。
+
+    这里以**收支方向**为准（实测里方向是对的，错的是分类），把分类换成该方向的
+    通用科目，并返回 ``adjusted=True`` 让调用方留痕。
+    """
+    want = category_direction(category)
+    if want is None or want == trans_type:
+        return category, False
+    return ("主营业务收入" if trans_type == "income" else "办公费"), True
 
 
 def detect_category(text: str) -> tuple:

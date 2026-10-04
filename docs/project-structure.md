@@ -79,7 +79,7 @@
     ├── aggregate_pay.py# 聚合支付适配器（预留收钱吧/付桥等服务商）
     ├── config.py       # 配置读取（环境变量 > config.local.json > 默认值）
     ├── scripts/        # 自检脚本（接口一致性 / 小程序页面 / 网页端页面 / 渲染试跑）
-    ├── tests/          # pytest 测试（617 项）
+    ├── tests/          # pytest 测试（713 项）
     └── static/         # 网页版（手机浏览器可直接访问）
         ├── index.html   # 单页入口（按依赖顺序加载 js/）
         ├── style.css

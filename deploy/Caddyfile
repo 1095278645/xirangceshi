@@ -1,8 +1,9 @@
 # 巷子里的 AI 掌柜 · 反向代理配置（Caddy 2）
 #
-# SITE_ADDRESS 由 deploy/.env 提供：
-#   有已备案域名 → shop.example.com   → 自动申请并续期 Let's Encrypt 证书，HTTP 自动跳 HTTPS
-#   只有公网 IP   → :80               → 仅 HTTP（浏览器语音需 HTTPS，见部署文档「免备案」分支）
+# SITE_ADDRESS 由 deploy/.env 提供（支持逗号分隔多个地址）：
+#   有已备案域名 → shop.example.com                      → 自动申请并续期 LE 证书，HTTP 自动跳 HTTPS
+#   只有公网 IP   → http://1.2.3.4, https://1.2.3.4      → IP 走 LE 的 IP 地址证书（见下方 tls 块）
+#   仅内网演示   → :80                                    → 仅 HTTP（浏览器语音需 HTTPS，会降级为手动输入）
 #
 # 想让 Let's Encrypt 在证书到期前发提醒邮件，把下面两行的注释去掉并改成你的邮箱
 # （注意：不能写成空值，否则 Caddy 会因为 email 缺参数而启动失败）：
@@ -10,8 +11,25 @@
 # 	email you@example.com
 # }
 
+# default_sni：客户端连**裸 IP** 时按 RFC 6066 不会发送 SNI（浏览器/curl/node 都一样），
+# 没有它 Caddy 在握手阶段选不到证书，会直接回 TLS internal_error（实测：先签出证书也连不上）。
+# 用域名部署时浏览器一定带 SNI，这个值不会生效，可以留默认。
+{
+	default_sni {$DEFAULT_SNI:localhost}
+}
+
 {$SITE_ADDRESS:localhost} {
 	encode zstd gzip
+
+	# 裸 IP 没有域名可签：Caddy 默认给 IP 发**内部自签**证书（issuer=local，浏览器不信任）。
+	# Caddy 2.10+ 支持 ACME 的 IP identifier，所以这里显式声明 ACME 签发者，
+	# 让它去申请 Let's Encrypt 的 IP 地址证书（2026-01 GA，**6 天有效期**，由 Caddy 自动续期）。
+	# 有域名时这段可以删掉：域名本来就会自动走 ACME 签 90 天证书。
+	tls {
+		issuer acme {
+			profile shortlived
+		}
+	}
 
 	# 不信任客户端自带的 X-Forwarded-For：Caddy 默认就会用「直连客户端 IP」覆盖该头
 	# （未配置 trusted_proxies 时不采信上游传入的值），所以服务端限流拿到的是真实 IP。

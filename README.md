@@ -12,7 +12,7 @@ AIGC:
 # 巷子里的AI掌柜
 
 [![CI](https://github.com/1095278645/xirangceshi/actions/workflows/ci.yml/badge.svg)](https://github.com/1095278645/xirangceshi/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-617%20passed-brightgreen.svg)](#测试与验证)
+[![Tests](https://img.shields.io/badge/tests-713%20passed-brightgreen.svg)](#测试与验证)
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](#快速开始)
 [![License](https://img.shields.io/badge/license-MulanPSL--2.0-blue.svg)](LICENSE)
 
@@ -236,15 +236,19 @@ cd server
 python ../scripts/mp_demo_check.py
 ```
 
-检查内容（4 部分）：
+检查内容（5 部分）：
 
 1. **接口契约**：小程序调用的接口是否都存在于后端（以 OpenAPI schema 为权威契约）
 2. **页面静态一致性**：WXML 绑定的事件方法/自定义组件是否都有定义
 3. **演示数据是否就绪**：流水/熟客/记忆点/提醒是否达到演示下限、AI 缓存是否已预热
 4. **演示配置**：插件声明 / appid / urlCheck / 默认后端地址
+5. **AI 连通性**：**真的调一次模型**（`/api/health/ai`）—— 没配 Key 只提示（属正常降级），
+   配了 Key 却调不通直接判「必须修」
 
 存在「必须修」的问题时以非 0 退出，便于接入 CI。**第 3 部分专门用来兜住
-"忘了灌演示数据"** —— 否则现场打开熟客页才发现是空的。
+"忘了灌演示数据"** —— 否则现场打开熟客页才发现是空的；
+**第 5 部分兜住"配了 Key 却用不了"** —— 那种情况各功能会静默退回规则兜底，
+页面照常出内容、只是变朴素，不探活发现不了（线上实测踩过：Key 与端点不是同一家）。
 
 > ⚠️ **换一台机器演示时，有两样东西不会跟着仓库走**（都在 `.gitignore` 里）：
 > `server/config.local.json`（你的 AI Key）与 `server/data/ai_shopkeeper.db`（演示数据）。
@@ -310,7 +314,7 @@ python ../scripts/prewarm_cache.py
 
 两道关口，用途不同：
 
-**1. 单元/集成测试（617 项，随时可跑，不联网）**
+**1. 单元/集成测试（713 项，随时可跑，不联网）**
 
 ```bash
 cd server
@@ -506,7 +510,7 @@ docker compose down
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 在 push / PR 时执行：
 
-1. **617 项**单元/集成测试（`pytest -q`，全程不联网，真实 `ai.chat` 被 `tests/conftest.py` 闸门拦截）
+1. **713 项**单元/集成测试（`pytest -q`，全程不联网，真实 `ai.chat` 被 `tests/conftest.py` 闸门拦截）
 2. 灌演示数据 + 演示前自检（接口契约 / 页面一致性 / 演示数据 / 演示配置）
 3. 小程序接口契约、小程序页面静态检查、网页端页面静态检查
 4. Node 中试跑网页端全部渲染函数

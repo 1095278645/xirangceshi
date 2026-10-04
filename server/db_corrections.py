@@ -21,7 +21,8 @@ import json
 import logging
 from datetime import date
 
-from categories import ACCOUNT_NAMES, CATEGORY_TO_ACCOUNTS, FRIENDLY_NAMES, resolve_accounts
+from categories import (ACCOUNT_NAMES, CATEGORY_TO_ACCOUNTS, FRIENDLY_NAMES,
+                        category_direction, resolve_accounts)
 
 log = logging.getLogger("db_corrections")
 
@@ -167,6 +168,14 @@ def edit_transaction(txn_id: int, *, reason: str = "", **fields) -> dict:
             raise ValueError(f"分类无效：{merged.get('category')!r}")
         if merged.get("trans_type") not in ("income", "expense"):
             raise ValueError("trans_type 只能是 income / expense")
+        # 方向一致性：分类与收支方向必须匹配，否则会生成方向相反的凭证
+        # （例如把一笔支出的分类改成「主营业务收入」）
+        _want = category_direction(merged["category"])
+        if _want and _want != merged["trans_type"]:
+            raise ValueError(
+                f"分类方向不一致：{merged['category']!r} 属于"
+                f"{'收入' if _want == 'income' else '支出'}类，"
+                f"但收支方向是 {merged['trans_type']!r}")
         try:
             amount = float(merged.get("amount") or 0)
         except (TypeError, ValueError):

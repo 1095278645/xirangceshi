@@ -97,6 +97,46 @@
 - [`docs/knowledge-governance.md`](docs/knowledge-governance.md)：字段语义、状态机、
   挥发度策略、接口与开发约定。
 
+### 修复 · 线上实测发现的问题（2026-10-04 对公网部署逐项走查后补）
+
+背景：以**匿名访客**与**已登录店主**两种身份对线上部署做了真实走查（51/51 接口、
+15/15 界面），发现 4 个问题，本轮修掉 3 个、并把第 4 个变成"不可能再静默发生"。
+
+- **分类方向一致性**（`categories.category_direction` / `reconcile_category`）：
+  模型偶发把支出挂到收入类科目 —— 线上实测出现过 `trans_type='expense'` +
+  `category='其他收入'`（同一句话换个时间跑又是对的，属模型抖动）。旧实现只做白名单
+  归一、**不校验方向**，于是 `_auto_voucher` 按分类映射科目，给一笔支出生成了
+  「借 库存现金 / 贷 其他业务收入」这种**方向相反**的凭证：账本品类与凭证一起错，
+  而且不报任何错。现在：
+  - 方向**由科目类别推导**（`ACCOUNT_CATEGORY_OF`），不靠人工维护的方向表，
+    以后往 `CATEGORY_TO_ACCOUNTS` 加分类，方向自动跟着对；
+  - 记账两条路径（单笔 / 多笔）不一致时**以收支方向为准**换成该方向的通用科目并留痕；
+  - 人工更正（`db_corrections.edit_transaction`）遇到方向不符**直接拒绝**并说明原因；
+  - 回归用例 `tests/test_category_direction.py`：覆盖推导、纠正、凭证方向、
+    人工拒绝，以及"落库分类方向必须与收支一致"的 HTTP 端到端断言。
+
+- **未登录时的全局提示**（`core.js` 的 `tokenBanner()`）：401 时各页面会**安静地渲染成
+  一片 0**，店主/评审分不清"今天没生意"与"没填访问令牌"（线上第一眼就是这个表现）。
+  除设置页原有的详细区块外，**每个页面**现在都会挂一条提示条 + 「去填写访问令牌」入口；
+  任意请求成功即自动消失（不会填对了还一直挂着）。`check_web_render.js` 增加行为断言
+  （未登录要挂、设置页不重复挂、已登录不挂）。
+
+- **AI 配了 Key 却调不通，不再静默降级**：
+  - 新增 `GET /api/health/ai`：**真的调一次模型**并返回
+    `{configured, base_url, model, reachable, latency_ms, error}`。`/api/health` 里的 `ai`
+    只说明"配了 Key"，而线上实测踩过的正是"Key 与端点不是同一家 → 所有 AI 调用 401 →
+    各功能安静退回规则兜底"（复盘日志写的是"退回基础拼装"，页面看起来照常）。
+    健康检查保持轻量，探活独立成端点，供部署验收与演示前自检调用。
+  - `scripts/mp_demo_check.py` 新增第 5 部分「AI 连通性」：没配 Key 只提示（属正常降级），
+    **配了 Key 却调不通直接进"必须修"**。
+  - `deploy/up.sh` 新增 8.2 节 AI 自检，与已有的鉴权自检、时区自检并列。
+
+- **部署配置：`AI_PIPELINE` 没被传进容器**（`deploy/docker-compose.public.yml`）：
+  编排的 `environment` 里没有这一项，`.env` 里写了 `AI_PIPELINE=team` 也会被忽略 ——
+  线上日志里是「快速·review」，说明对外讲"AI 员工团队"、实际跑的是 `fast` 单次生成。
+  现在透传，并在 `deploy/.env.example` 里显式给出 `AI_PIPELINE=team` 与代价说明，
+  同时补了"Key 与 BASE_URL 必须同源"的告警与自查命令。
+
 ### 已知例外（未拆，说明理由）
 - 前端三个文件仍超 400 行，且本次改动各增加约 20 行（`home.js` 588→608、
   小程序 `index.js` 423→442、`index.wxml` 249→268）：都属既有已知例外
@@ -105,7 +145,7 @@
   `scripts/arch_check.py` 因此仍报 L1 FAIL（可解释、已知）。
 
 ### 验收
-- `cd server && python -m pytest -q` → **699 passed**（212 subtests，全程不联网）。
+- `cd server && python -m pytest -q` → **713 passed**（227 subtests，全程不联网；含线上实测后的分类方向一致性、未登录横幅与 AI 探活补强）。
 - 端到端实跑（**复制**演示库，未碰原库）：掌柜复盘 → 登记 17 件知识资产 →
   运行期核验 13 条（ok 5 / unknown 8，unknown 是"没有可对比真值来源"的诚实结论）→
   导出知识包 → 关系索引合并 513 条边、二次合并 `unchanged=513 / deactivated=0`、

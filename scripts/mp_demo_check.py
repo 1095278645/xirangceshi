@@ -11,8 +11,10 @@
     python ../scripts/mp_demo_check.py
 """
 import json
+import os
 import re
 import sys
+import urllib.request
 from pathlib import Path
 
 SERVER = Path(__file__).resolve().parent.parent / "server"
@@ -428,11 +430,56 @@ def check_data() -> None:
         print("     可选：按教程第 8 步预热，现场即可秒出")
 
 
+def check_ai_live() -> None:
+    """第 5 部分：**AI 真的能用吗**（真调一次模型，不只看有没有配 Key）。
+
+    为什么必须单独查：`/api/health` 里的 `ai` 只说明"配了 Key"，不说明 Key 能用。
+    线上实测踩过 —— `.env` 把网关的 Key 指向了官方端点，于是所有 AI 调用 401，
+    各功能安静地退回规则兜底：页面照常出内容，只是内容变朴素了。
+    这种"静默降级"不真探一把就发现不了，等到评审现场才发现就晚了。
+
+    没有 Key 是**正常降级**（只提示），配了 Key 却连不通才是**必须修**。
+    """
+    print()
+    print("=" * 72)
+    print("5. AI 连通性（真调一次模型）")
+    print("=" * 72)
+
+    base = os.environ.get("SHOP_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+    token = os.environ.get("SHOP_ACCESS_TOKEN", "")
+    headers = {"X-Shop-Token": token} if token else {}
+    url = f"{base}/api/health/ai"
+    try:
+        r = urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60)
+        info = json.loads(r.read().decode("utf-8"))
+    except Exception as e:  # noqa: BLE001
+        notes.append(f"没能连上后端做 AI 探活（{type(e).__name__}）——需先起后端")
+        print(f"  ⚠ 探活失败：{type(e).__name__}（后端没起？或开了鉴权需要 SHOP_ACCESS_TOKEN）")
+        return
+
+    if not info.get("configured"):
+        print(f"  ℹ 未配置 API Key：{info.get('error') or '各功能走规则兜底'}")
+        print("    演示前想要真实 AI 效果，请按教程第 3 步配置 Key")
+        notes.append("未配置 AI Key：文案/复盘/画像将走规则兜底（记账与账本不受影响）")
+        return
+
+    print(f"  配置：base_url={info.get('base_url')}  model={info.get('model')}")
+    if info.get("reachable"):
+        print(f"  ✅ AI 连通（{info.get('latency_ms')} ms，返回 {info.get('reply')!r}）")
+    else:
+        problems.append(
+            f"AI 配了 Key 但调不通（{info.get('error')}）—— 各功能会静默退回规则兜底")
+        print(f"  ❌ AI 调不通：{info.get('error')}")
+        print("     常见原因：Key 与 base_url 不是同一家（实测踩过：网关的 Key 配了官方端点）")
+        print("     排查：把 base_url 改成 Key 所属服务商的地址后重试")
+
+
 print("小程序演示前自检")
 check_contract()
 check_pages()
 check_data()
 check_demo_config()
+check_ai_live()
 
 print()
 print("=" * 72)
