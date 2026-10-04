@@ -52,6 +52,9 @@
     ├── team.py         # 多 agent 引擎原语（并行竞争扇出 / 采纳归因成长）
     ├── team_domains.py # 多 agent 业务编排骨架 + 域注册表 TEAM_DOMAINS
     ├── team_domain_copy.py   # 文案域（创意/熟客 → 合规评审 → 掌柜融合）
+    ├── copy_playbook.py      # 文案打法库·数据层（渠道/骨架/语气/配方/词表的声明）
+    ├── copy_director.py      # 文案打法库·导演层（按信号选组合、拼写法说明、组合摘要）
+    ├── copy_review.py        # 文案硬检查（合规/AI 味）+ 配图方案 + 交付自检报告
     ├── team_domain_store.py  # 单店诊断域（财务/经营/风控 → 掌柜裁决）
     ├── team_domain_review.py # 复盘域（账房/熟客/采买/税务/监察 → 掌柜裁决）
     ├── shop_snapshot.py# 全店经营快照（账目/熟客/库存/赊账/发票/报税/更正）

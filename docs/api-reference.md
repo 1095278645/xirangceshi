@@ -12,7 +12,7 @@
 | `GET /api/customers` | 熟客列表 |
 | `GET /api/customers/{id}` | 熟客详情（记忆点 + 消费记录） |
 | `POST /api/memories` | 添加记忆点 |
-| `POST /api/insights` | **统一 AI 洞察入口**（`scene`：copy / monthly / tax / customer / store / **growth**；同日缓存 + 失败本地兜底） |
+| `POST /api/insights` | **统一 AI 洞察入口**（`scene`：copy / monthly / tax / customer / store / **growth**；同日缓存 + 失败本地兜底）。文案场景另接受 `channel` / `skeleton` / `tone` / `recipe` / `biz_type` / `return_report`（见 [文案打法库](copy-playbook.md)） |
 | `POST /api/reminders/generate` | 生成今日熟客提醒 |
 | `GET /api/reminders` | 提醒列表 |
 | `POST /api/reminders/{id}/done` | 完成提醒（完成后不再自动补发） |

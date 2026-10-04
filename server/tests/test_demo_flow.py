@@ -46,10 +46,7 @@ class TestDemoFlow(unittest.TestCase):
             mock.patch("ai.generate_reminders",
                        return_value=[{"customer": "王阿姨", "content": "[桩] 提醒"}]),
             mock.patch("ai.generate_customer_insight", return_value="[桩] 熟客画像"),
-            mock.patch("ai.generate_copy",
-                       return_value=("[桩] 融合文案", {"employees": ["创意文案师", "合规审核"],
-                                                  "adopted": ["创意文案师"]},
-                                    ["[桩] 第一条", "[桩] 第二条", "[桩] 第三条"])),
+            mock.patch("ai.generate_copy", side_effect=self._fake_generate_copy),
             # team 域走的是 ai.chat，直接给 JSON 桩
             mock.patch("team_domains.ai.chat",
                        return_value='{"verdict":"桩裁决","adopted":["创意文案师"],'
@@ -63,6 +60,25 @@ class TestDemoFlow(unittest.TestCase):
             for t in ("transactions", "vouchers", "voucher_entries", "customers",
                       "memories", "reminders", "domain_context"):
                 conn.execute(f"DELETE FROM {t}")
+
+    @staticmethod
+    def _fake_generate_copy(*args, **kwargs):
+        """文案桩：按调用方的返回形态给结果（洞察层走 return_report=True）。
+
+        形状必须跟着真实函数走 —— 它现在支持 `return_report=True` 返回「正文 + 交付报告」，
+        而接口层要求"多 agent 出多稿"，所以报告里的 candidates 要给满 3 条。
+        """
+        variants = ["[桩] 第一条", "[桩] 第二条", "[桩] 第三条"]
+        if kwargs.get("return_report"):
+            return variants[0], {
+                "texts": variants, "candidates": variants, "primary": variants[0],
+                "verdict": "pass", "combo": {"channel_name": "朋友圈", "reason": "[桩]"},
+                "team": {"adopted": ["创意文案师"]}, "image_plan": {"count": 1, "items": []},
+            }
+        process = {"employees": ["创意文案师", "合规审核"], "adopted": ["创意文案师"]}
+        if kwargs.get("return_process"):
+            return variants[0], process, variants
+        return variants[0]
 
     @staticmethod
     def _fake_parse(text):

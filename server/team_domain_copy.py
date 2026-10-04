@@ -73,37 +73,80 @@ def _copy_degraded_process(shop_name: str, scene: str, extra: str) -> dict:
 # ---------------- 生成入口 ----------------
 
 def generate_copy(shop_name: str, scene: str, extra: str, customer_name: str = "",
-                  context: str = "", return_process: bool = False):
-    """生成有烟火气的朋友圈文案（多人协作：创意/熟客竞争 → 合规评审 → 掌柜融合）
+                  context: str = "", return_process: bool = False, *,
+                  channel: str = "", skeleton: str = "", tone: str = "",
+                  recipe: str = "", return_report: bool = False,
+                  biz_type: str = ""):
+    """生成有烟火气的文案（多人协作：创意/熟客竞争 → 合规评审 → 掌柜融合）。
 
-    有 AI Key 时返回 3 条风格各异的变体；无 Key 降级走模板。
+    - 有 AI Key 时返回 3 条风格各异的变体；无 Key 降级走模板（**降级文本一字未改**）。
+    - 新增关键词参数（渠道/骨架/语气/配方）走 `copy_playbook` 的声明式打法库：
+      都不传时按场景信号自动选型，选型理由进交付报告（回答"为什么这么写"）。
+    - `return_report=True` 时返回 (正文, 交付报告)，报告含配图方案与硬规则自检；
+      报告失败不影响文案本身（降级成一份最简报告）。
     """
+    # 选型先算（纯本地）：即使无 Key 也能给出"这条该按什么渠道/骨架写"
+    import copy_playbook as pb
+    if not biz_type:
+        biz_type = pb.infer_biz_type(f'{scene} {extra} {context}')
+    combo = pb.select_combo(scene=scene, extra=extra, biz_type=biz_type,
+                            channel=channel, skeleton=skeleton, tone=tone, recipe=recipe)
+
     if not ai.ai_available():
         text = _copy_degraded(shop_name, scene, extra, context)
+        process = _copy_degraded_process(shop_name, scene, extra)
+        if return_report:
+            return text, _report(text, combo, process, shop_name, extra, biz_type)
         if not return_process:
             return text
-        return text, _copy_degraded_process(shop_name, scene, extra), [text]
+        return text, process, [text]
+    brief = pb.build_brief(combo, shop_name, biz_type, customer_name, extra)
     task = (f"店铺：{shop_name}；场景：{scene}；补充：{extra}\n"
             + (f"熟客：{customer_name}，可自然带一句（不硬凑）\n" if customer_name else "")
-            + (f"经营上下文（参考不照抄）：{context}\n" if context else ""))
+            + (f"经营上下文（参考不照抄）：{context}\n" if context else "")
+            + f"\n【这次怎么写】\n{brief}\n")
     settings = ai.load_settings()
     if settings.get("ai_pipeline") != "team":
         from team_domains import _run_fast
         final, process, variants = _run_fast(
             "copy", task,
-            system=("为街边小店写朋友圈文案。要像真人老板随手发圈：短句、具体细节、"
-                    "口语自然；不用广告腔、网红词、排比。禁止出现复盘、账本、"
-                    "看这笔账等无关提醒。输出3条风格各异的正文，每条不超过80字，"
-                    "用 ||| 分隔。"),
+            system=("为街边小店写可发布的文案。严格按【这次怎么写】里的渠道纪律、"
+                    "结构与语气来写；短句、具体细节、口语自然；不用广告腔、网红词、排比。"
+                    "禁止出现复盘、账本、看这笔账等无关提醒。"
+                    "输出3条不同角度的正文，每条控制在渠道字数上限内，用 ||| 分隔。"),
             temperature=0.8, max_tokens=600, variants=True)
+        if return_report:
+            return final, _report(final, combo, process, shop_name, extra, biz_type, variants)
         return (final, process, variants) if return_process else final
 
     from team_domains import _run_team
     final, process, variants = _run_team(
         "copy", task,
-        sys_suffix="（请输出3条风格各异的朋友圈文案正文，每条不超过80字，分别用不同的文案公式和角度，"
-                   "只输出正文，用 ||| 分隔3条。）",
+        sys_suffix=("（严格按【这次怎么写】的渠道纪律与结构写，输出3条角度各异的正文，"
+                    "每条不超过该渠道上限，只输出正文，用 ||| 分隔3条。）"),
         variants=True)
+    if return_report:
+        return final, _report(final, combo, process, shop_name, extra, biz_type, variants)
     if not return_process:
         return final
     return final, process, variants
+
+
+def _report(final: str, combo: dict, process: dict, shop_name: str, extra: str,
+            biz_type: str, variants: list | None = None) -> dict:
+    """组装交付报告；报告自身出任何问题都降级成最简版（不能拖垮文案）。"""
+    cands = [t for t in (variants or []) if (t or '').strip()]
+    if final and final not in cands:
+        cands.insert(0, final)
+    texts = cands or ([final] if final else [])
+    try:
+        import copy_review
+        return copy_review.build_report(combo, texts, team=process, shop_name=shop_name,
+                                        extra=extra, biz_type=biz_type,
+                                        candidates=cands)
+    except Exception as e:  # noqa: BLE001 —— 报告是附加物，失败也要让文案能用
+        import logging
+        logging.getLogger("team_domain_copy").warning("交付报告生成失败（文案照常返回）：%s", e)
+        return {"combo": {"reason": combo.get("reason", "")}, "texts": texts,
+                "candidates": cands or texts, "primary": texts[0] if texts else "",
+                "verdict": "unknown", "error": str(e)[:200]}

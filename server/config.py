@@ -83,6 +83,19 @@ KNOWLEDGE_EDGE_SCAN_LIMIT = int(
 KNOWLEDGE_BUNDLE_KEEP_DAYS = int(
     os.environ.get("SHOP_KB_BUNDLE_KEEP_DAYS", "30") or "30")
 
+# ---- 文案打法（渠道字数上限 + 具体度门槛）----
+# 上限口径：一个渠道一个上限，超了 WARN、超 10% 以上 FAIL（见 copy_review._check_channel_length）。
+COPY_MOMENTS_MAX_CHARS = int(os.environ.get("SHOP_COPY_MOMENTS_MAX", "220") or "220")
+COPY_XHS_BODY_MAX_CHARS = int(os.environ.get("SHOP_COPY_XHS_MAX", "1000") or "1000")
+COPY_DOUYIN_MAX_CHARS = int(os.environ.get("SHOP_COPY_DOUYIN_MAX", "200") or "200")
+COPY_GROUP_MAX_CHARS = int(os.environ.get("SHOP_COPY_GROUP_MAX", "180") or "180")
+COPY_SIGNBOARD_MAX_CHARS = int(os.environ.get("SHOP_COPY_SIGNBOARD_MAX", "20") or "20")
+COPY_GROUPBUY_MAX_CHARS = int(os.environ.get("SHOP_COPY_GROUPBUY_MAX", "300") or "300")
+COPY_REPLY_MAX_CHARS = int(os.environ.get("SHOP_COPY_REPLY_MAX", "160") or "160")
+# 具体度门槛：具体物个数 ÷ 句子数，低于它就判定"像广告不像人话"
+COPY_MIN_CONCRETE_RATIO = float(
+    os.environ.get("SHOP_COPY_MIN_CONCRETE", "0.5") or "0.5")
+
 # ---- 提示词预算（L11 速度硬约束）----# 进入模型前，提示词过长先告警；超过上限则截断（保留 system，其余截尾）。
 # 目的：任何"脚本原始大输出"都不应未经摘要直接喂给模型。
 AI_PROMPT_WARN_CHARS = int(os.environ.get("SHOP_AI_PROMPT_WARN", "8000") or "8000")

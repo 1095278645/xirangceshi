@@ -127,11 +127,24 @@ class InsightIn(BaseModel):
 
 
 class UnifiedInsightIn(BaseModel):
-    """统一 AI 洞察入口（copy / monthly / tax / customer / store）"""
+    """统一 AI 洞察入口（copy / monthly / tax / customer / store / growth）"""
     # 有限取值 → Literal：非法 scene 在请求期直接被拒（422），而不是落到运行期才 400
     scene: Literal["copy", "monthly", "tax", "customer", "store", "growth"]
     payload: dict = {}
     refresh: bool = False
+    # 文案打法维度（只对 scene=copy 有意义）：不传则按场景信号自动选型。
+    # 取值与 copy_playbook 的常量元组一致，由 tests/test_copy_playbook.py 回归（铁律5）。
+    channel: Literal["", "moments", "xiaohongshu", "douyin", "wechat_group",
+                     "signboard", "groupbuy", "reply"] = ""
+    skeleton: Literal["", "scene_transplant", "pain_open", "listicle", "contrast",
+                      "number_hook", "dialogue", "counter_intuitive"] = ""
+    tone: Literal["", "neighbor", "promo_bright", "group_notice", "shout",
+                  "reply_sincere", "pro_plain"] = ""
+    recipe: Literal["", "moments_daily", "moments_soft_ad", "xhs_note", "xhs_guide",
+                    "douyin_shout", "group_notice", "group_urge", "board_one_line",
+                    "reply_sincere", "review_answer"] = ""
+    biz_type: str = ""          # 业态：只用于自动选型兜底与举例（开放取值，不枚举）
+    return_report: bool = False  # True=额外返回交付报告（为什么这么写 + 配图 + 自检）
 
 
 class TransactionEditIn(BaseModel):

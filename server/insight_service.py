@@ -25,17 +25,33 @@ def _cache_key(scene: str, payload: dict) -> str:
 
 
 def _copy(payload: dict) -> dict:
+    """文案场景：走打法库（渠道/骨架/语气/配方），可选返回"发布方案"报告。
+
+    新增维度从 payload 读，放在**顶层参数**也认（前端更顺手），非法值由请求层
+    Literal 拦下（422），这里不再兜底。
+    """
     context_parts = []
     for domain, key in (("ledger", "daily_review"), ("store", "diagnosis")):
         item = db.get_domain_context(domain, key)
         if item and item.get("value"):
             context_parts.append(str(item["value"])[:200])
-    text, process, variants = ai.generate_copy(
+    want_report = bool(payload.get("return_report"))
+    final, report = ai.generate_copy(
         payload.get("shop_name", "我的小店"), payload.get("scene", "今日营业"),
         payload.get("extra", ""), payload.get("customer_name", ""),
-        " | ".join(x for x in context_parts if x), return_process=True)
-    return {"text": text, "team": process, "variants": variants,
-            "gene_id": (process or {}).get("gene_id")}
+        " | ".join(x for x in context_parts if x), return_report=True,
+        channel=payload.get("channel", ""), skeleton=payload.get("skeleton", ""),
+        tone=payload.get("tone", ""), recipe=payload.get("recipe", ""),
+        biz_type=payload.get("biz_type", ""))
+    # 交付报告里的 texts 只是"被检查的那几条"；variants 保持"模型给了几稿就是几稿"，
+    # 否则前端会以为多 agent 只出了一稿（实测被 test_demo_flow 抓到过）。
+    out = {"text": final, "team": report.get("team") or {},
+           "variants": report.get("candidates") or [final],
+           "gene_id": (report.get("team") or {}).get("gene_id"),
+           "combo": report.get("combo"), "verdict": report.get("verdict")}
+    if want_report:
+        out["report"] = report
+    return out
 
 
 def _monthly(payload: dict) -> dict:

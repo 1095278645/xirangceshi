@@ -101,8 +101,20 @@ def update_settings(data: SettingsIn):
 
 @router.post("/insights")
 def unified_insights(data: UnifiedInsightIn):
-    """统一 AI 洞察入口：默认同日缓存，失败时返回本地兜底而不是报错。"""
+    """统一 AI 洞察入口：默认同日缓存，失败时返回本地兜底而不是报错。
+
+    文案场景（scene=copy）额外接受打法维度（channel/skeleton/tone/recipe/biz_type）：
+    放在顶层字段（走 Literal 校验，非法值 422）也会合并进 payload，
+    前端不必把参数再包一层。
+    """
+    payload = dict(data.payload or {})
+    for field in ("channel", "skeleton", "tone", "recipe", "biz_type"):
+        value = getattr(data, field, "")
+        if value and not payload.get(field):
+            payload[field] = value
+    if data.return_report and not payload.get("return_report"):
+        payload["return_report"] = True
     try:
-        return generate_insight(data.scene, data.payload, data.refresh)
+        return generate_insight(data.scene, payload, data.refresh)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
