@@ -53,7 +53,7 @@ def current_db_path():
 # _ensure_schema 用它判断是否需要迁移。
 # （早期只检查 transactions.status 这一列，导致**新增的表不会被创建** ——
 #   实测老库访问 opening_balances 时崩在 "no such table"。）
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 6
 
 
 def _ensure_schema(conn) -> None:
@@ -67,19 +67,29 @@ def _ensure_schema(conn) -> None:
     key = str(current_db_path())
     if key in _schema_ready:
         return
-    # 先登记再迁移：init_db() 内部会再走 get_conn()，若不先标记就会无限递归
-    # （实测 RecursionError: maximum recursion depth exceeded）。
-    _schema_ready.add(key)
+
+    def _migrate() -> None:
+        # 先登记再迁移：init_db() 内部会再走 get_conn()，若不先标记就会无限递归
+        # （实测 RecursionError: maximum recursion depth exceeded）。
+        _schema_ready.add(key)
+        try:
+            current = conn.execute("PRAGMA user_version").fetchone()[0]
+            if current < SCHEMA_VERSION:
+                conn.commit()      # 先提交，避免 init_db 的 DDL 与外层事务冲突
+                init_db()
+                # 用底层连接写版本号：走 get_conn() 会再触发自检（递归风险）
+                with _raw_conn() as c2:
+                    c2.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        except sqlite3.Error:
+            # 迁移失败必须**撤销 ready 标记**：否则这个进程此后每次 get_conn 都跳过迁移，
+            # 变成"永久缺表"直到重启（独立复核实测：删表后接口一直 500，重启才恢复）。
+            _schema_ready.discard(key)
+            raise
+
     try:
-        current = conn.execute("PRAGMA user_version").fetchone()[0]
-        if current < SCHEMA_VERSION:
-            conn.commit()          # 先提交，避免 init_db 的 DDL 与外层事务冲突
-            init_db()
-            # 用底层连接写版本号：走 get_conn() 会再触发自检（递归风险）
-            with _raw_conn() as c2:
-                c2.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        _migrate()
     except sqlite3.Error as e:  # noqa: BLE001
-        log.warning("schema 自检失败（将由调用方按需处理）：%s", e)
+        log.warning("schema 自检失败（下次连接会重试迁移）：%s", e)
 
 
 def _raw_conn():

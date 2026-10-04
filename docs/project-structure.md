@@ -44,7 +44,10 @@
     │   ├── backup.py   # 数据备份 / 导出 / 恢复
     │   ├── collect.py  # 收款即入账（收款请求 / 公开收款页 / 收款码 / 确认入账）
     │   ├── notify.py   # 主动触达（消息订阅 / 推送测试 / 投递记录）
-    │   └── shops.py    # 多店 / 多用户管理接口
+    │   ├── shops.py    # 多店 / 多用户管理接口
+    │   ├── knowledge.py# 知识资产治理（总览 / 运行期核验 / 知识包导出）
+    │   ├── knowledge_assets.py # 知识资产台账（列表 / 查证来源 / 手工登记 / 回填）
+    │   └── relations.py# 跨域关系索引（关系地图 / 线索追溯 / 增量合并）
     ├── ai.py           # AI 单 agent 能力（记账解析 / 洞察 / 画像 / 报税，无 Key 兜底）
     ├── team.py         # 多 agent 引擎原语（并行竞争扇出 / 采纳归因成长）
     ├── team_domains.py # 多 agent 业务编排骨架 + 域注册表 TEAM_DOMAINS
@@ -52,6 +55,15 @@
     ├── team_domain_store.py  # 单店诊断域（财务/经营/风控 → 掌柜裁决）
     ├── team_domain_review.py # 复盘域（账房/熟客/采买/税务/监察 → 掌柜裁决）
     ├── shop_snapshot.py# 全店经营快照（账目/熟客/库存/赊账/发票/报税/更正）
+    ├── knowledge_assets.py # 知识资产治理层（状态机/版本/证据溯源）
+    ├── knowledge_verify.py # 运行期核验（真值对账、漂移判定，从 knowledge_assets 外移）
+    ├── knowledge_backfill.py # 进化层存量知识回填为资产（外移）
+    ├── knowledge_extract.py# 复盘产出 → 知识资产（结论/技能/事实/采纳归因逐条登记）
+    ├── knowledge_governance.py # 知识治理聚合（总览/核验/知识包导出·导入/数据保留/看板子块）
+    ├── db_knowledge_schema.py  # 知识层建表（knowledge_assets + knowledge_edges 唯一部分索引）
+    ├── shop_relations.py   # 跨域关系索引（实体关系抽取/增量合并/关系地图/线索追溯）
+    ├── db_relations.py     # 关系边的数据层（upsert/软删/体检/清理）
+    ├── db_relations_graph.py   # 关系图的 BFS 邻域与最短路（从 db_relations 外移）
     ├── db.py           # SQLite（连接/建表/迁移；按域 re-export 查询能力；跟随店上下文）
     ├── db_corrections.py# 交易更正：编辑 / 作废 / 退货冲销（含审计留痕）
     ├── db_collections.py# 收款请求（收款即入账）

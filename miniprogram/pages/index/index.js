@@ -39,11 +39,16 @@ Page({
     layer1: '',          // 第一层：一句话结论
     layer2: '',          // 第二层：为什么 + 怎么做
     judgeEvidence: [],   // 掌柜裁决引用的事实
+    judgeEvidenceText: '',  // 同上，拼成一句话（WXML 直接输出数组会逗号拼接，不好读）
     skills: [],          // 触发的技能卡片
     detailOpen: false,   // 是否展开第二层
     snapshot: '',        // 掌柜看到的全店原始事实（原文）
     snapshotLines: [],   // 拆行后的快照，供 wx:for
     snapOpen: false,     // 是否展开原始事实
+    // 知识资产（结论的依据：来源可查证的资产台账）
+    knowledge: [],
+    knowledgeNote: '',
+    knowledgeOpen: false,
     reviewBusy: false,   // 正在让掌柜复盘
     connBroken: false,   // 后端连不上时显示常驻提示条
     serverAddr: ''
@@ -88,16 +93,30 @@ Page({
     const snap = (h && h.snapshot) ? String(h.snapshot) : ''
     const layers = (h && h.layers) ? h.layers : {}
     const skills = Array.isArray(layers.skills) ? layers.skills : []
+    const evidence = (layers.judge && Array.isArray(layers.judge.evidence))
+      ? layers.judge.evidence : []
+    const kb = (h && h.knowledge) ? h.knowledge : {}
+    // WXML 里不能调方法：证据列表先拼成一句话，避免直接输出数组被逗号拼接
+    const knowledge = (Array.isArray(kb.items) ? kb.items : []).map(k => Object.assign({}, k, {
+      evidenceText: Array.isArray(k.evidence) ? k.evidence.join('；') : '',
+    }))
     this.setData({
       review: (h && h.ok && h.review) ? h.review : (h && h.review) || '',
       layer1: layers.layer1_summary || '',
       layer2: layers.layer2_detail || '',
-      judgeEvidence: (layers.judge && Array.isArray(layers.judge.evidence))
-        ? layers.judge.evidence : [],
+      judgeEvidence: evidence,
+      judgeEvidenceText: evidence.join('；'),
       skills,
       snapshot: snap,
       snapshotLines: snap.split('\n').map(s => s.trim()).filter(Boolean),
+      knowledge,
+      knowledgeNote: kb.note || '',
     })
+  },
+
+  // 展开"结论的依据"：这条复盘依据了哪些知识资产、来源是什么、还成不成立
+  toggleKnowledge() {
+    this.setData({ knowledgeOpen: !this.data.knowledgeOpen })
   },
 
   // 让掌柜立刻复盘一次（五位伙计各管一摊 → 掌柜裁决，约 5~10 秒）

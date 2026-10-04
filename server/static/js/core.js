@@ -169,6 +169,10 @@ const state = {
   snapshot: '',        // 掌柜看到的全店原始事实
   snapOpen: false,
   reviewBusy: false,
+  // 知识资产（结论的依据：来源可查证的资产台账，对应参考图「管得住」）
+  knowledge: [],       // 本次复盘结论所依据的知识资产（带来源/版本/是否待复核）
+  knowledgeNote: '',   // 人话说明（"这些依据都能回到原始单据"）
+  knowledgeOpen: false,
   // 财务（现金流 / 预算 / 应收应付）
   finance: { tab: 0, month: '', cash: { cash_on_hand: '', months: 6, result: null, loading: false },
     budForm: { month: '', scope: 'expense', amount: '', category: '', note: '' },

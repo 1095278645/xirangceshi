@@ -56,6 +56,33 @@ EVOLUTION_VERIFY_MIN_TASKS = int(os.environ.get("SHOP_EVOLUTION_VERIFY_TASKS", "
 EVOLUTION_VERIFY_CMD = os.environ.get("SHOP_EVOLUTION_VERIFY_CMD", "")
 EVOLUTION_VERIFY_TIMEOUT = int(os.environ.get("SHOP_EVOLUTION_VERIFY_TIMEOUT", "300") or "300")
 
+# ---- 知识资产治理层（参考图「管得住」：知识要在运行期回到真值上核验）----
+# 背景：掌柜的结论（"今天流水 580 元"）写下来就是**资产**，但资产会过期。
+# 这里把"陈旧的容忍度"从代码里抽出来：稳定事实必须逐字一致，动态事实允许漂移，
+# 但超过容忍度就必须标记为"待复核"，不许继续当结论用（`volatile` 默认 0.20 是刻意宽松的：
+# 日流水这类事实每天本来就会变，这里的容忍度管的是"同一口径下的量级失真"，
+# 而不是"日期翻篇"——翻篇靠 verified_at 的时间戳判断）。
+KNOWLEDGE_VERIFY_DRIFT_STABLE = float(
+    os.environ.get("SHOP_KB_DRIFT_STABLE", "0.0") or "0.0")
+KNOWLEDGE_VERIFY_DRIFT_SLOW = float(
+    os.environ.get("SHOP_KB_DRIFT_SLOW", "0.05") or "0.05")
+KNOWLEDGE_VERIFY_DRIFT_VOLATILE = float(
+    os.environ.get("SHOP_KB_DRIFT_VOLATILE", "0.20") or "0.20")
+
+# ---- 跨域关系索引层（参考图「看得懂」：关系要能增量合并、也要能回收）----
+# stale：多久没再被原始单据证实，就认为这条边可能已经失效（体检出 stale_edges）
+# keep：已失效的边保留多久用于回溯（软删在前，物理清理在后）
+# scan：一次抽取最多扫多少笔流水（3000+ 笔的演示库不能全量重算，否则接口变慢）
+KNOWLEDGE_EDGE_STALE_DAYS = int(
+    os.environ.get("SHOP_KB_EDGE_STALE_DAYS", "30") or "30")
+KNOWLEDGE_EDGE_KEEP_DAYS = int(
+    os.environ.get("SHOP_KB_EDGE_KEEP_DAYS", "90") or "90")
+KNOWLEDGE_EDGE_SCAN_LIMIT = int(
+    os.environ.get("SHOP_KB_EDGE_SCAN_LIMIT", "3000") or "3000")
+# 知识包导出文件的保留期（天）：导出每次都带时间戳，不清理会一直堆在 data/knowledge/
+KNOWLEDGE_BUNDLE_KEEP_DAYS = int(
+    os.environ.get("SHOP_KB_BUNDLE_KEEP_DAYS", "30") or "30")
+
 # ---- 提示词预算（L11 速度硬约束）----# 进入模型前，提示词过长先告警；超过上限则截断（保留 system，其余截尾）。
 # 目的：任何"脚本原始大输出"都不应未经摘要直接喂给模型。
 AI_PROMPT_WARN_CHARS = int(os.environ.get("SHOP_AI_PROMPT_WARN", "8000") or "8000")

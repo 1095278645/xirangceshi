@@ -199,6 +199,9 @@ async function reviewFeedback(useful) {
 
 function toggleSnap() { state.snapOpen = !state.snapOpen; render(); }
 
+// 知识资产：结论的"依据台账"（来源/版本/是否待复核），对应参考图「管得住」
+function toggleKnowledge() { state.knowledgeOpen = !state.knowledgeOpen; render(); }
+
 function toggleDetail() { state.detailOpen = !state.detailOpen; render(); }
 
 function _applyHeartbeat(hb) {
@@ -208,6 +211,9 @@ function _applyHeartbeat(hb) {
   state.skills = Array.isArray(layers.skills) ? layers.skills : [];
   state.judgeEvidence = (layers.judge && Array.isArray(layers.judge.evidence))
     ? layers.judge.evidence : [];
+  const kb = (hb && hb.knowledge) || {};
+  state.knowledge = Array.isArray(kb.items) ? kb.items : [];
+  state.knowledgeNote = kb.note || '';
 }
 
 async function loadMonth() {
@@ -583,6 +589,20 @@ function renderHome() {
     ${state.snapOpen && state.snapshot ? `
       <div class="snap-box">${esc(state.snapshot).replace(/\n/g, '<br/>')}
         <div class="acct-note">结论都是从这些事实里挑出来的；没记的经营动作也会出现在这里。</div>
+      </div>` : ''}
+    ${(state.knowledge || []).length ? `
+      <div class="snap-toggle" onclick="toggleKnowledge()">
+        ${state.knowledgeOpen ? '收起' : '这些结论的依据'} · ${state.knowledge.length} 项 ▾</div>` : ''}
+    ${state.knowledgeOpen && (state.knowledge || []).length ? `
+      <div class="snap-box">
+        ${state.knowledge.map(k => `
+          <div class="skill-card skill-${k.stale ? 'high' : 'low'}">
+            <div class="skill-name">${esc(k.subject || '')} · 第${esc(k.version || 1)}版</div>
+            <div class="skill-summary">${esc(k.statement || '')}</div>
+            <div class="acct-note">来源：${esc(k.source_kind || '未标注')} ·
+              证据：${(k.evidence || []).map(esc).join('；')}${k.stale ? ' · 动态事实已变，需再核一遍' : ''}</div>
+          </div>`).join('')}
+        <div class="acct-note">${esc(state.knowledgeNote || '每一条都能回到原始单据；改过的旧版本留痕可查。')}</div>
       </div>` : ''}
   </div>` : ''}`;
 }

@@ -56,6 +56,15 @@ async def _backup_loop():
                 log.info("进化数据清理：%s", pruned)
         except Exception as e:  # noqa: BLE001
             log.warning("进化数据清理失败：%s", e)
+        # 知识层数据保留：关系边（软删过保留期）与知识包导出文件
+        # 不做这一步，边与导出文件只增不减（独立复核指出：`prune_edges` 此前没有任何生产调用点）。
+        try:
+            import knowledge_governance
+            kp = await asyncio.to_thread(knowledge_governance.knowledge_maintenance)
+            if kp and (kp.get("edges_pruned") or kp.get("bundles_pruned")):
+                log.info("知识层清理：%s", kp)
+        except Exception as e:  # noqa: BLE001
+            log.warning("知识层清理失败：%s", e)
         # 首次启动后等一小会儿再循环，避免与建库/迁移抢 IO
         await asyncio.sleep(30 if first else BACKUP_INTERVAL_SECONDS)
         first = False

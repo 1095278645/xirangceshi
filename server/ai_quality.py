@@ -175,6 +175,9 @@ def capability_report(days: int = 7) -> dict[str, Any]:
             "user_feedback_loop": True,
             "rule_fallback": True,
         },
+        # 知识治理：掌柜的结论写下来之后，"还在不在真人真事上成立"要能查
+        # （对应参考图「管得住」：知识是资产，动态事实回到运行时核验）
+        "knowledge": _knowledge_block(),
     }
 
 
@@ -200,3 +203,12 @@ def _registered_skill_count() -> int:
         return len(skill_cards.SKILL_CARDS)
     except Exception:
         return 0
+
+
+def _knowledge_block() -> dict[str, Any]:
+    """知识治理子块：资产/关系两层的要点。任一层不可用时降级，不拖垮能力看板。"""
+    try:
+        import knowledge_governance
+        return knowledge_governance.capability_block()
+    except Exception as e:  # noqa: BLE001
+        return {"available": False, "error": str(e)[:200]}

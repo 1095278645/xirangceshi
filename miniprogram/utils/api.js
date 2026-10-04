@@ -202,6 +202,20 @@ module.exports = {
     request('/api/heartbeat/feedback', 'POST', { useful, reason: reason || '' }),
   shopSnapshot: () => request('/api/heartbeat/snapshot'),
 
+  // ---- 知识资产治理（结论的依据：来源 / 版本 / 运行期核验） ----
+  // 说明：首页复盘卡的"依据"随 /api/heartbeat 一起返回，这几个是给「知识台账」用的细查接口
+  knowledgeSummary: () => request('/api/knowledge/summary'),
+  knowledgeVerify: (assetId) =>
+    request('/api/knowledge/verify', 'POST', { asset_id: assetId || '', limit: 50 }),
+  knowledgeAssets: (state) => request('/api/knowledge/assets?state=' + (state || 'active')),
+
+  // ---- 跨域关系索引（他和什么有关 / 这条结论怎么串起来的） ----
+  relationsSummary: () => request('/api/relations/summary'),
+  relationsGraph: (keyword) => request('/api/relations/graph?keyword=' + encodeURIComponent(keyword || '')),
+  relationsChain: (entityType, entityRef, depth) =>
+    request('/api/relations/chain?entity_type=' + (entityType || 'customer') +
+            '&entity_ref=' + encodeURIComponent(entityRef || '') + '&depth=' + (depth || 2)),
+
   // ---- 资金健康：现金流预测 / 预算 / 应收应付 ----
   cashflow: (data) => request('/api/cashflow', 'POST', data),
   budgets: (month) => request('/api/budgets?month=' + month),

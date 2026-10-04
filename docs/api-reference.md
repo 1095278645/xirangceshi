@@ -95,6 +95,18 @@
 | `POST /api/shops/users` | 新增成员（返回**一次性**令牌） |
 | `POST /api/shops/{id}/members` | 把账号加入某家店/改店内角色 |
 | `DELETE /api/shops/{id}/members/{uid}` | 把账号移出某家店 |
+| `GET /api/knowledge/summary` | **知识台账总览**：资产统计 + 关系索引体检 + 漂移策略阈值（`?verify=true` 触发运行期核验） |
+| `GET /api/knowledge/assets` | 知识资产列表（`kind` / `state`（`all`=不过滤）/ `volatility` / `subject` / `limit`） |
+| `GET /api/knowledge/assets/{asset_id}` | 单条知识资产（含证据与版本信息） |
+| `GET /api/knowledge/assets/{asset_id}/sources` | **来源可查证**：这件知识依据的原始事实、来源定位、现在还算不算数 |
+| `POST /api/knowledge/assets` | 手工登记知识资产（有限取值由 Literal 强约束，非法即 422） |
+| `POST /api/knowledge/verify` | **运行期核验**：把 volatile 资产拿回今天的真值上对一遍（漂移的标记为待复核；目标不存在 → 404） |
+| `POST /api/knowledge/backfill` | 把进化层已有基因/经验回填登记为知识资产 |
+| `POST /api/knowledge/bundle` | **导出知识包**（资产 + 关系，原子写落 `server/data/knowledge/`，含格式版本号） |
+| `GET /api/relations/summary` | 跨域关系索引体检（有效边/类型分布/健康度/增量检查点） |
+| `GET /api/relations/graph` | 关系地图（按实体类型分组 + 中文关系名，`keyword` 可过滤） |
+| `GET /api/relations/chain` | 追线索：从某实体出发看它和谁有关、怎么串起来（1~3 跳；`entity_type` 非法值 422） |
+| `POST /api/relations/merge` | 增量合并关系索引（回收未再证实的边需 `?full=true&confirm=true`；抽取为空时一律不动） |
 
 > 收款流水同步说明：后端启动后每 6 小时自动拉取所有启用账户的昨日账单（wx_trade_id 唯一索引幂等去重）；演示模式（mchid=DEMO）无需任何商户资料即可体验全流程，数据带 `[演示]` 标记可一键清空。正式对接微信支付商户号需配置 API 证书与 APIv3 密钥（`pip install wechatpayv3`）。
 
@@ -103,6 +115,10 @@
 > 携带**成员令牌**时还会按店铺成员关系做二次校验（越权返回 403）。
 
 > 安全审计记录见 [`docs/security-audit-2026-09.md`](docs/security-audit-2026-09.md)。
+
+> **知识资产与关系索引**（对应「知识资产治理」补强）的字段语义、状态机与挥发度策略见
+> [`docs/knowledge-governance.md`](docs/knowledge-governance.md)；
+> 设计动机与路线图见 [`docs/qianxuesen-review-ai-shopkeeper.md`](docs/qianxuesen-review-ai-shopkeeper.md)。
 
 > 演示/讲解脚本与现场排障见 [`docs/demo-guide.md`](docs/demo-guide.md)。
 

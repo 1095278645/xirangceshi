@@ -358,3 +358,30 @@ class ReminderSendIn(BaseModel):
     channel: Literal["", "mock", "webhook", "wecom_bot", "wecom_app", "wechat_subscribe"] = ""
     target: str = ""
     content: str = ""               # 可覆盖话术；留空则用提醒原文
+
+
+# ---------------- 知识资产治理层（对应参考图「管得住」：来源 / 版本 / 状态 / 可核验） ----------------
+# 铁律5：凡是"有限取值"一律 Literal 强约束，非法值在请求期即被拒，不落到运行期兜底。
+# 与 knowledge_assets.py 的 ASSET_KINDS / ASSET_STATES / VOLATILITIES 保持一致，
+# 由 tests/test_knowledge_http.py 做漂移回归（唯一真源仍是 knowledge_assets.py 的常量元组）。
+class KnowledgeAssetIn(BaseModel):
+    """手工登记一件知识资产（AI 自动登记的路径走 knowledge_extract）。"""
+    kind: Literal["decision", "experience", "strategy", "attention", "fact", "profile"]
+    subject: str = Field(max_length=200)              # 知识挂在谁身上（关联对象，如 daily_review）
+    statement: str = Field(max_length=2000)           # 知识正文（开放取值：内容本身不是枚举）
+    evidence: list[str] = []                          # 支撑事实（可回查的原始依据）
+    source_kind: Literal["snapshot", "transaction", "invoice", "product", "customer",
+                         "ledger", "evolution", "skill_card", "computed", "manual"] = "manual"
+    source_ref: str = ""                              # 来源定位（如 ledger:daily_review）
+    volatility: Literal["stable", "slow", "volatile"] | None = None   # 不传=按来源推断
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+
+class KnowledgeVerifyIn(BaseModel):
+    """运行期核验：把知识拿回真值上对一遍（volatile 资产的"当日核验"）"""
+    asset_id: str = ""                                # 留空=核验全部 volatile 资产
+    limit: int = Field(default=50, ge=1, le=500)      # 单次最多核验多少条（防一次打太多查询）
+
+
+
+

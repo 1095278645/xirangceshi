@@ -49,12 +49,16 @@ BUSINESS_DOMAINS = [
     {"name": "notify",    "module": "notify",    "desc": "主动触达（消息订阅 / 推送测试 / 投递记录）",     "enabled": True},
     {"name": "accounting", "module": "accounting", "desc": "会计闭环（余额表 / 利润表 / 资产负债表 / 期末结转）", "enabled": True},
     {"name": "shops",     "module": "shops",     "desc": "多店 / 多用户（店铺与账号、角色权限、店铺切换）", "enabled": True},
+    {"name": "knowledge", "module": "knowledge", "desc": "知识资产治理（台账 / 来源可查证 / 运行期核验 / 知识包导出）", "enabled": True},
+    {"name": "relations", "module": "relations", "desc": "跨域关系索引（关系地图 / 线索追溯 / 增量合并）", "enabled": True},
 ]
 
 
 CORE_DOMAINS = {
     'arch', 'basic', 'orders', 'voice', 'customers', 'tax', 'store',
     'report', 'evolution', 'backup', 'collect', 'shops',
+    # 知识资产与关系索引属核心能力：它们不是可选的"增值项"，而是掌柜结论的可信度底座
+    'knowledge', 'relations',
 }
 
 

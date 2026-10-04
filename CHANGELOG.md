@@ -2,6 +2,112 @@
 
 本项目遵循 [语义化版本](https://semver.org/lang/zh-CN/) 与 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 
+## [未发布]
+
+按「知识库演进：找得到 → 看得懂 → 管得住」的思路补强两项能力：
+**知识资产治理层**（让掌柜的结论可追溯、可核验、可回滚）与
+**跨域关系索引层**（让分散在各业务域的事实连成带证据的网）。
+
+### 新增 · 知识资产治理层
+- `server/knowledge_assets.py`：知识即资产 —— 每条结论带 `kind / subject / statement /
+  evidence / source_kind / source_ref / volatility / confidence`，并有状态机
+  `draft / active / superseded / retired` 与内容哈希幂等（同内容不重复登记；
+  内容变了旧版标 `superseded` 并写 `valid_to / superseded_by`，新版 `version+1`，
+  **旧版不删**，可回滚可追溯）。
+- `server/knowledge_extract.py`：复盘产出自动登记为资产（结论 / 命中的技能卡片 /
+  原始事实 / 采纳归因），任一段失败只跳过该段，不影响复盘主链路。
+- `server/knowledge_governance.py`：治理聚合 —— 总览、运行期核验、知识包导出/导入
+  （走 `safe_io` 原子写，落 `server/data/knowledge/`）。
+- **运行期核验**：资产按 `volatility`（stable / slow / volatile）分层，
+  动态事实在读取时回到真值上对一遍，对不上的标记 `verify_ok=0` 并写明人话原因 ——
+  不拿过期数字当结论。新建的 volatile 资产**从未核验过**，因此从"未通过"起步
+  （避免把"刚登记、没对过真值"显示成"已核验无误"）。
+  三态里 `unknown` **不等于** `ok`（真值取不到时不塞 0 冒充）。
+- `server/db_knowledge_schema.py`：建 `knowledge_assets` / `knowledge_edges` 两表（幂等）；
+  `db.SCHEMA_VERSION` 4 → 5，老库首次连接自动迁移。
+
+### 新增 · 跨域关系索引层
+- `server/shop_relations.py`：从既有表抽取**带证据的边**（买过 / 卖出在 / 供应 /
+  由供货 / 开票对象 / 我欠他 / 他欠我 / 关联流水 / 提及），重算走**增量合并**
+  （未变的边只刷新 `last_seen`，未再被证实的边软删可回溯），并提供
+  关系地图与线索追溯（1~3 跳）。
+- `server/db_relations.py`：关系边数据层（`upsert_edge` / 软删 / BFS / 最短路 /
+  体检 / 过期清理），体检覆盖孤儿边、悬空对象、重复键、陈旧边。
+- **护栏**：增量模式下抽取结果为空时**不得清空索引**（一次数据抖动不该抹掉整张网）；
+  回收还要求 `full=true` **且** `confirm=true`（铁律2：破坏性动作显式确认）。
+
+### 独立复核后修掉的缺陷（对抗式复核结论，均已带回归用例）
+- **`full=true` 曾可绕过"空结果不清库"护栏**：一次数据抖动 + 一个 query 参数就能把整张关系网
+  软删光。现在抽取为空**无论参数一律不动**；回收另需 `confirm=true`，未确认时返回
+  `skipped="confirm_required"` 与 `pending_recycle` 条数。
+  （`tests/test_shop_relations.py::test_full_without_confirm_never_wipes_the_index`）
+- **新建的 volatile 资产被默认标成"已核验无误"**：`verify_ok` 从 1 起步，等于把"刚登记、
+  没对过真值"显示成"对得上"。现在从 0 起步，只有真跑过核验并对上才转 1。
+- **列表查询的枚举是自由文本**：`?kind=想当然` 会 200 + `count=0`，看起来像"没有这类知识"。
+  现在 `kind/state/volatility` 一律 `Literal`，非法值请求期 422（铁律5）。
+- **文档过度宣称"降低置信度"**：核验只改 `verify_ok` 与 `drift_note`，不改 `confidence`
+  —— 文档已改为与实现一致。
+- **draft 状态破坏幂等**：`register_asset` 原先只查 active，草稿重复登记会插多行。
+  改为同时匹配 `active/draft`。
+
+### 第二轮独立复核后修掉的问题（更细的一轮，同样带回归用例）
+- **关系域整体 500**：`knowledge_edges` 缺失/迁移失败时 `/api/relations/*` 三个 GET 直接 500
+  （知识域有降级、关系域没有）。现在路由统一兜底成 200 + `available=false` + 原因；
+  `db._ensure_schema` 迁移失败时**撤销 ready 标记**（原先该进程会此后永久跳过迁移，重启才恢复）。
+- **读接口的写放大**：`GET /api/heartbeat` 原先对**全部** active volatile 资产逐条核验并写库
+  （200 条时实测 12.4s / 200 次写）。现在先截断再核验（只核要展示的 5 条），
+  核验写回改成一次连接 + `executemany`。
+- **并发登记造出两条 active**：登记改为 `BEGIN IMMEDIATE` + `(asset_key)` 部分唯一索引
+  （`WHERE state IN ('active','draft')`），并给旧库加了收敛迁移；`asset_id` 撞号改为换号重试。
+- **草稿顶掉在用结论**：`state='draft'` 曾在 active 存在时把它标 superseded，导致该 key
+  一条 active 都不剩；现在草稿不落库并明确返回原因，`draft→active` 变成真正的状态迁移。
+- **`entity_type` 自由文本**：`/api/relations/chain` 的非法类型会 200，现在 422；
+  `schemas.RelationsQueryIn` / `KnowledgeExportIn` 两个没接线的模型删除，避免"死契约"。
+- **正文无长度上限**：`statement` 限 2000、`subject` 限 200（请求期 422 + 数据层再截断一次）。
+- **`find_paths` 重复路径与方向不明**：按**节点序列**去重（保留最短），每一跳补 `direction`
+  （顺着关系还是反向走），否则会给出店里并不存在的方向。
+- **返回码一致性**：`POST /api/knowledge/verify` 目标不存在时由 200+error 改为 **404**。
+- **导出文件与失效边无清理**：新增 `knowledge_governance.knowledge_maintenance()`，
+  挂进 `main._backup_loop`（每 6 小时），清理过期知识包文件与过保留期的失效边；
+  新增 `config.KNOWLEDGE_BUNDLE_KEEP_DAYS`。
+- **测试假绿**：4 条只断言"字段存在"的用例改为断言真实内容（核验结果不许是降级错误对象、
+  降级用例必须真造降级、backfill 断言 `errors == []`、环用例补真环与菱形图）。
+- 代码搬家（文件回到 400 行内，API 不变）：`db_relations_graph.py`（图的 BFS/最短路）、
+  `knowledge_backfill.py`（进化层回填）。
+- 删除两个"没接线"的模型（`KnowledgeExportIn` / `RelationsQueryIn`），避免留下死契约。
+
+### 新增 · 接口与前端
+- 新业务域 `knowledge` / `relations`（`routers/` 按注册表挂载，均属核心域）。
+- `POST /api/knowledge/assets` 等 8 个知识接口、4 个关系接口（见
+  [`docs/api-reference.md`](docs/api-reference.md)）。
+- `/api/heartbeat`（GET/POST）新增 `knowledge` 分块；`/api/metrics/ai/capability`
+  新增知识治理子块。
+- 网页端复盘卡新增「这些结论的依据」可展开区块（来源 / 版本 / 证据 / 是否待复核）；
+  小程序端同区块，并修掉「掌柜依据」直接输出数组导致逗号拼接的显示问题。
+
+### 文档
+- [`docs/qianxuesen-review-ai-shopkeeper.md`](docs/qianxuesen-review-ai-shopkeeper.md)：
+  系统工程视角的评审与三步路线图（含诚实边界）。
+- [`docs/knowledge-governance.md`](docs/knowledge-governance.md)：字段语义、状态机、
+  挥发度策略、接口与开发约定。
+
+### 已知例外（未拆，说明理由）
+- 前端三个文件仍超 400 行，且本次改动各增加约 20 行（`home.js` 588→608、
+  小程序 `index.js` 423→442、`index.wxml` 249→268）：都属既有已知例外
+  （`Page({...})` 主体与小程序的单页复盘卡，强拆会动演示动线）；
+  新增的"结论依据"区块只是沿用既有 `.snap-toggle/.snap-box` 模式，未引入新抽象。
+  `scripts/arch_check.py` 因此仍报 L1 FAIL（可解释、已知）。
+
+### 验收
+- `cd server && python -m pytest -q` → **698 passed**（212 subtests，全程不联网）。
+- 端到端实跑（**复制**演示库，未碰原库）：掌柜复盘 → 登记 17 件知识资产 →
+  运行期核验 13 条（ok 5 / unknown 8，unknown 是"没有可对比真值来源"的诚实结论）→
+  导出知识包 → 关系索引合并 513 条边、二次合并 `unchanged=513 / deactivated=0`、
+  体检 `ok=True`。
+- `check_web_pages.py` / `check_mp_pages.py` / `check_mp_api.py` /
+  `check_web_render.js` / `check_mp_runtime.js` / `check_frontend_contract.py` /
+  `mp_demo_check.py`（问题 0）全绿。
+
 ## [1.1.12] - 2026-10-01
 
 参赛交付前的**最终审核与优化**：修掉 3 条会让全量测试变红的日期脆弱用例、

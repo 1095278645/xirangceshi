@@ -139,6 +139,18 @@ def generate_daily_review():
             "verdict": process.get("verdict", "") if isinstance(process, dict) else "规则兜底",
         }
         set_domain_context("ledger", "daily_review_layers", layers)
+        # 知识资产登记（对应参考图「管得住」）：这次复盘说出的结论、命中的技能、
+        # 用到的原始事实、采纳了谁——统统登记成**带来源与版本**的资产。
+        # 失败不影响复盘：登记是"沉淀"，复盘是"产出"，不能让沉淀拖垮产出。
+        try:
+            import knowledge_extract
+            knowledge_extract.extract_assets(
+                snapshot, context=context, review=text,
+                confidence=quality.get("confidence", 0.0),
+                evidence=quality.get("evidence", []),
+                adopted=process.get("adopted", []) if isinstance(process, dict) else [])
+        except Exception as e:  # noqa: BLE001
+            log.warning("知识资产登记失败（复盘照常可用）：%s", e)
     except Exception as e:  # noqa: BLE001 —— 分层输出失败不影响既有复盘
         log.warning("技能卡片分层输出失败，退回纯文本复盘：%s", e)
     return text

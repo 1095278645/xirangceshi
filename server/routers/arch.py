@@ -36,6 +36,15 @@ def profile_delete(profile_id: int):
     return {"ok": db.delete_store_profile(profile_id)}
 
 
+def _knowledge_brief() -> dict:
+    """这次复盘结论的依据（知识资产）。读不到就返回空块，不让复盘接口失败。"""
+    try:
+        import knowledge_governance
+        return knowledge_governance.review_knowledge()
+    except Exception:  # noqa: BLE001
+        return {"items": [], "total": 0, "stale": 0, "verified_at": "", "note": ""}
+
+
 # -- 心跳复盘 --
 @router.post("/heartbeat")
 def heartbeat_generate():
@@ -46,7 +55,8 @@ def heartbeat_generate():
     text = heartbeat.generate_daily_review()
     return {"ok": True, "review": text,
             "layers": heartbeat.daily_review_layers(),
-            "snapshot": heartbeat.daily_snapshot_text()}
+            "snapshot": heartbeat.daily_snapshot_text(),
+            "knowledge": _knowledge_brief()}
 
 
 @router.get("/heartbeat")
@@ -54,8 +64,10 @@ def heartbeat_read():
     text = heartbeat.daily_review_text()
     return {"ok": bool(text), "review": text,
             "layers": heartbeat.daily_review_layers(),
-            "snapshot": heartbeat.daily_snapshot_text()} if text else {
-        "ok": False, "review": None, "layers": None, "snapshot": None}
+            "snapshot": heartbeat.daily_snapshot_text(),
+            "knowledge": _knowledge_brief()} if text else {
+        "ok": False, "review": None, "layers": None, "snapshot": None,
+        "knowledge": {"items": [], "total": 0, "stale": 0, "verified_at": "", "note": ""}}
 
 
 @router.get("/heartbeat/snapshot")

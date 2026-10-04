@@ -344,3 +344,5 @@ def init_schema(conn) -> None:
     # ===== AI 调用指标（成本/性能看板的底座） =====
     from db_metrics import init_ai_metrics_tables
     init_ai_metrics_tables(conn)
+    from db_knowledge_schema import init_knowledge_tables  # 知识资产治理层建表
+    init_knowledge_tables(conn)
