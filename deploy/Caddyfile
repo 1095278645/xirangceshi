@@ -13,18 +13,11 @@
 {$SITE_ADDRESS:localhost} {
 	encode zstd gzip
 
-	# 覆盖客户端自带的 X-Forwarded-For。
-	# 服务端按该头取客户端 IP 做限流（server/ratelimit.py 取最左侧值），
-	# 若沿用客户端传入的值，任何人都能换个头绕过限流，所以这里强制改写。
-	reverse_proxy shopkeeper:8000 {
-		header_up X-Forwarded-For {remote_host}
-		header_up X-Real-IP {remote_host}
-	}
-
-	# 语音上传与 Excel 导出都比普通请求慢/大，放宽读体超时
-	timeouts {
-		read_body 120s
-	}
+	# 不信任客户端自带的 X-Forwarded-For：Caddy 默认就会用「直连客户端 IP」覆盖该头
+	# （未配置 trusted_proxies 时不采信上游传入的值），所以服务端限流拿到的是真实 IP。
+	# 注意：本项目早前版本在这里写过 header_up/timeouts，两者都不需要——
+	# timeouts 不是合法的站点级指令，会让 Caddy 直接启动失败（线上实测踩过）。
+	reverse_proxy shopkeeper:8000
 
 	# 不向外泄露服务端软件版本
 	header {

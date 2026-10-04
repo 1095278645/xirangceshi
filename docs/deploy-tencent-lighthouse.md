@@ -15,7 +15,7 @@ scripts\upload_to_server.ps1  ──scp──▶  ~/xirang
 |---|---|
 | [`deploy/up.sh`](../deploy/up.sh) | **一键**：装 Docker → 配镜像加速 → 生成 `.env`（含随机令牌）→ 构建 → 起服务 → 健康检查与鉴权自检 → 打印地址与令牌 |
 | [`deploy/docker-compose.public.yml`](../deploy/docker-compose.public.yml) | 应用 + Caddy 编排；`8000` 只绑 `127.0.0.1`，对外只开 `80/443` |
-| [`deploy/Caddyfile`](../deploy/Caddyfile) | 反向代理；有域名时自动申请/续期 HTTPS 证书；强制改写 `X-Forwarded-For` |
+| [`deploy/Caddyfile`](../deploy/Caddyfile) | 反向代理；有域名时自动申请/续期 HTTPS 证书；不采信客户端伪造的 `X-Forwarded-For` |
 | [`deploy/.env.example`](../deploy/.env.example) | 环境变量样例（`up.sh` 据此生成 `.env`） |
 | [`scripts/upload_to_server.ps1`](../scripts/upload_to_server.ps1) | 本机打包**当前工作树**（含未提交改动）并上传；默认不带账本与 Key |
 
@@ -157,7 +157,7 @@ bash deploy/up.sh          # 幂等，账本不动
 
 1. **必须设置 `SHOP_ACCESS_TOKEN`**：不设置时 `/api/**` 完全放行，任何人拿到地址即可读写账本、消耗模型额度（`server/auth.py` 的默认行为是为本地演示保留的）。
 2. **只暴露 80/443**：编排里 `8000` 已绑定到 `127.0.0.1`，不要改成 `0.0.0.0`。
-3. **反代改写 `X-Forwarded-For`**：服务端按该头做限流，`Caddyfile` 已强制覆盖，别删。
+3. **限流按真实客户端 IP**：Caddy 默认用直连客户端 IP 覆盖 `X-Forwarded-For`（未配置 `trusted_proxies` 时不采信客户端传入的值），服务端拿到的就是真实 IP。**若前面再套一层 Cloudflare/CDN、或在 Caddy 里配了 `trusted_proxies`，必须重新确认这一点**，否则限流可被伪造头绕过。
 4. **只跑 1 个副本**：SQLite 单写 + 限流是进程内内存实现（`server/ratelimit.py`），横向扩容会数据分裂、限流失效。要扩容先按演进文档迁 Postgres + Redis。
 5. **密钥与账本不入库**：`.env`、`server/config.local.json`、`server/data/` 均在 `.gitignore`；提交前用 `git check-ignore -v <path>` 复核。
 6. **令牌轮换**：改 `.env` 的 `SHOP_ACCESS_TOKEN` → 重跑 `up.sh` → 各端在「设置」页填新令牌。
