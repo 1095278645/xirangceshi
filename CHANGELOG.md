@@ -75,6 +75,12 @@
 - 代码搬家（文件回到 400 行内，API 不变）：`db_relations_graph.py`（图的 BFS/最短路）、
   `knowledge_backfill.py`（进化层回填）。
 - 删除两个"没接线"的模型（`KnowledgeExportIn` / `RelationsQueryIn`），避免留下死契约。
+- **修掉一处 CI 日历 flake**：`seed_demo_data.py` 的熟客到店是"每天随机挑 4~6 位"，
+  在每月 1~2 号灌数据时挂到熟客名下的流水可能只有 1~4 笔，低于 `mp_demo_check`
+  的眼门槛 5 → 演示自检判"演示数据不完整"、CI 变红，而数据本身没问题（**2026-10-04
+  那次 CI 失败就是这个**）。现在加"熟客消费记录保底"：不足 `MIN_CUSTOMER_TXNS=8` 时
+  用各熟客的固定点单补齐（日期落在当月窗口内、早市时段），演示与 CI 不再依赖今天是几号；
+  回归用例 `tests/test_demo_flow.py::test_demo_seed_customer_transaction_floor`。
 
 ### 新增 · 接口与前端
 - 新业务域 `knowledge` / `relations`（`routers/` 按注册表挂载，均属核心域）。
@@ -99,7 +105,7 @@
   `scripts/arch_check.py` 因此仍报 L1 FAIL（可解释、已知）。
 
 ### 验收
-- `cd server && python -m pytest -q` → **698 passed**（212 subtests，全程不联网）。
+- `cd server && python -m pytest -q` → **699 passed**（212 subtests，全程不联网）。
 - 端到端实跑（**复制**演示库，未碰原库）：掌柜复盘 → 登记 17 件知识资产 →
   运行期核验 13 条（ok 5 / unknown 8，unknown 是"没有可对比真值来源"的诚实结论）→
   导出知识包 → 关系索引合并 513 条边、二次合并 `unchanged=513 / deactivated=0`、

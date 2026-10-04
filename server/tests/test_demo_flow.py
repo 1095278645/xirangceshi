@@ -12,7 +12,7 @@ AI 调用被替换为固定桩（不消耗额度、不依赖网络），因此�
 import sys
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -81,6 +81,45 @@ class TestDemoFlow(unittest.TestCase):
         import main
         from fastapi.testclient import TestClient
         return TestClient(main.app)
+
+    def test_demo_seed_customer_transaction_floor(self):
+        """月头保底：灌演示数据必须保证熟客名下有足够消费记录。
+
+        背景：CI 在 2026-10-04 跑时，当月只灌了 4 天，"熟客到店"是每天随机挑 4~6 位，
+        挂到熟客名下的流水只有 4 笔 < mp_demo_check 的门槛 5 → **演示自检红、CI 挂**，
+        而数据本身没问题，是日历太早。这个门槛曾经只在"月中以后"才稳过。
+        """
+        import importlib.util
+        root = Path(__file__).resolve().parent.parent.parent   # 仓库根：scripts/ 在这里
+        spec = importlib.util.spec_from_file_location(
+            "seed_demo_data", root / "scripts" / "seed_demo_data.py")
+        seed = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(seed)
+
+        ids = {}
+        for cust in seed.CUSTOMERS:
+            cid, _ = db.find_or_create_customer(cust["name"])
+            ids[cust["name"]] = cid
+        last_visit = {name: None for name in ids}
+        cust_days = {name: set() for name in ids}
+        # 先只给 2 位熟客各记一笔（模拟"当月只有 1~2 天"的窗口）——
+        # 时间戳必须落在**本月窗口内**：保底逻辑按"当月挂到熟客名下的流水"计数，
+        # 直接 add_transaction 会落在"现在"，若测试恰好在月初跨月时刻跑就会算到上月去。
+        for name in list(ids)[:2]:
+            tid, _ = db.add_transaction(ids[name], "肉包 2 个", 12.0, "income",
+                                        seed.INCOME_CATEGORY, note="[测试] 月头")
+            seed._backdate(tid, seed.MONTH_START, 8, 30)
+        added = seed._ensure_customer_transactions(ids, last_visit, cust_days)
+        self.assertGreater(added, 0, "不足门槛时必须补")
+        month_start = seed.MONTH_START.isoformat()
+        with db.get_conn() as conn:
+            n = conn.execute(
+                "SELECT COUNT(*) AS c FROM transactions WHERE customer_id IS NOT NULL "
+                "AND trans_type='income' AND substr(created_at,1,10) >= ?",
+                (month_start,)).fetchone()["c"]
+        self.assertGreaterEqual(n, seed.MIN_CUSTOMER_TXNS)
+        # 幂等：已经够了就不再补（按 helper 自己的口径复查，避免两边窗口写法不一致）
+        self.assertEqual(seed._ensure_customer_transactions(ids, last_visit, cust_days), 0)
 
     # ---------------- 第 1 站 ----------------
     def test_station1_recording(self):

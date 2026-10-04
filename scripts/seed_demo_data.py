@@ -286,8 +286,53 @@ def seed_transactions(ids):
             conn.execute("UPDATE customers SET last_visit=? WHERE id=?",
                          (d.isoformat() + " 08:30:00", ids[name]))
 
+    # ---- 熟客消费记录下限（月头保底）----
+    # 为什么需要：熟客到店是"每天挑 4~6 位"，演出日只剩 1~2 天时（每月 1~2 号灌数据），
+    # 挂到熟客名下的流水可能只有 1~4 笔，演示自检（mp_demo_check 第 3 部分要求 >= 5 笔）
+    # 就会判"演示数据不完整"→ CI 红，而数据其实没问题，是**日历太早**。
+    # 这里按"每位熟客在窗口里至少到店一次"补足，让演示与 CI 不再依赖今天是几号。
+    created += _ensure_customer_transactions(ids, last_visit, cust_days)
     print(f"  流水 {created} 笔")
     return created
+
+
+MIN_CUSTOMER_TXNS = 8          # 熟客名下流水下限（自检门槛 5 的保底，留出余量）
+
+
+def _ensure_customer_transactions(ids, last_visit, cust_days) -> int:
+    """保底：本月挂到熟客名下的流水不足 MIN_CUSTOMER_TXNS 时补足。
+
+    用各熟客的**固定点单**（CUSTOMER_BASKET），保证"常点"与消费记录仍然自洽；
+    日期从窗口末日往前排，落在本月内、且是早市时段。返回补的笔数。
+    """
+    with db.get_conn() as conn:
+        # 按"整月"计数（与 mp_demo_check 的口径一致）——早先写成"只数当月 1 号"，
+        # 结果第二天就判成"不足"反复补，幂等失效（实测 call1 补 8、call2 又补 6）。
+        have = conn.execute(
+            "SELECT COUNT(*) AS c FROM transactions "
+            "WHERE customer_id IS NOT NULL AND trans_type='income' "
+            "AND substr(created_at, 1, 7) = ?",
+            (MONTH_START.isoformat()[:7],)).fetchone()["c"]
+    if have >= MIN_CUSTOMER_TXNS:
+        return 0
+    added = 0
+    for idx, cust in enumerate(CUSTOMERS):
+        if have + added >= MIN_CUSTOMER_TXNS:
+            break
+        items = CUSTOMER_BASKET[cust["name"]]
+        d = MONTH_START + timedelta(days=max(DAYS - 1 - (idx % max(DAYS, 1)), 0))
+        amt = basket_price(items)
+        txn_id, _ = db.add_transaction(
+            ids[cust["name"]], basket_desc(items), amt, "income",
+            INCOME_CATEGORY, note=f"[演示] {cust['name']}")
+        _backdate(txn_id, d, 8, 10 + idx)
+        added += 1
+        cust_days[cust["name"]].add(d)
+        if last_visit[cust["name"]] is None or d > last_visit[cust["name"]]:
+            last_visit[cust["name"]] = d
+    if added:
+        print(f"  熟客消费记录保底：补 {added} 笔（月头窗口太短）")
+    return added
 
 
 def seed_reminders(ids):
