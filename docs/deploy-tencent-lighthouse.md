@@ -131,8 +131,11 @@ curl -sI https://shop.example.com/api/health | head -3
   docker cp scripts ai-shopkeeper:/app/scripts
   docker exec -it ai-shopkeeper python /app/scripts/seed_demo_data.py
   ```
-- **AI Key 两种填法**：`.env` 里 `DEEPSEEK_API_KEY=`（改完重跑 `bash deploy/up.sh`），或在网页端「设置」页填写（写进挂载卷，重启不丢）。
-- 演示前建议把 `.env` 的 `SHOP_API_PROFILE` 改成 `full` 再重跑一次（对应「设置 → API 能力档」的完整档）。
+- **AI Key 两种填法**：`.env` 里 `DEEPSEEK_API_KEY=`（改完重跑 `bash deploy/up.sh`），或在网页端「设置」页填写。
+  > ⚠️ 实测提醒：网页端「设置」页保存的 Key 实际写在**容器内**的 `/app/server/config.local.json`，
+  > 而容器只挂了 `server/data` —— 所以**重跑 `up.sh` 重建容器后会丢**。长期部署请写进 `.env`。
+- **能力档建议直接切 full**：代码默认 `SHOP_API_PROFILE=core`，会**不挂载** `metrics / payment / finance / stock / invoice / notify(主动触达) / accounting(会计报表)`，
+  前端点到就 404，看起来像"功能缺失"（本项目公网部署就是这么踩到并切过去的）。改 `.env` 的 `SHOP_API_PROFILE=full` 后重跑一次即可。
 
 ## 七、日常运维
 
@@ -187,6 +190,8 @@ cloudflared tunnel --url http://localhost:8000
 | `https` 证书申请失败 | 域名没解析到本机 / 80 端口被宝塔、nginx 占用（`ss -ltnp \| grep :80`）|
 | 打开是 502 | 应用没起来：`logs shopkeeper`；`docker inspect -f '{{.State.Health.Status}}' ai-shopkeeper` |
 | 页面能开，接口 401 | 正常：去「设置」页填令牌 |
+| 某些页面点开就 404（运行指标 / 库存 / 发票 / 主动触达 / 会计报表） | 能力档还是 `core`：把 `.env` 的 `SHOP_API_PROFILE` 改成 `full`，重跑 `sudo bash deploy/up.sh` |
+| Caddy 反复重启、80/443 连不上 | 看 `docker logs ai-shopkeeper-caddy`：Caddyfile 里有非法指令（例如站点块里的 `timeouts` 不是合法指令）会**启动即失败** |
 | 流水/复盘日期差一天 | 容器时区不是 +0800：`docker exec ai-shopkeeper date +%z` 应为 `+0800`；不是就说明镜像缺 `tzdata`（[Dockerfile](../Dockerfile) 已装，旧镜像需重建）|
 | 构建卡在 pip | `.env` 里 `PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple` |
 | `docker pull` 超时 | 检查 `/etc/docker/daemon.json` 的 `registry-mirrors`（脚本已配腾讯云内网镜像）|
