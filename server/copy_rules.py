@@ -46,28 +46,44 @@ HARD_RULES = (
 # 被模型原样写成了一条朋友圈文案（发出去既尴尬、又泄漏经营信息）。
 # 放 copy_rules 而不是 copy_playbook：本模块就是"不能出现在对外文案里的东西"的声明表，
 # 而 copy_playbook 是"怎么写"的打法库，两者变更节奏不同（且前者曾顶到 400 行硬限）。
+# ⚠️ 必须覆盖 HARD_RULES 里 context_leak 的全部词 —— 两层漂移过：
+# 「看这笔账」当时只写进了硬规则（判 fail），没写进这里（剔除），
+# 结果文案被标记为 fail 却照样展示给店主。tests/test_copy_context_leak.py
+# 有一条防漂移用例盯着这个包含关系。
 INTERNAL_MARKERS = (
-    '欠', '催', '要账', '追回', '讨账', '逾期', '应收', '收不回来', '还款',
-    '复盘', '账本', '流水', '毛利', '净利', '成本', '进货价', '保本', '现金',
+    '欠', '欠款', '欠了', '欠着', '催', '催款', '要账', '讨账', '追回', '还款',
+    '逾期', '应收', '应收账款', '收不回来',
+    '复盘', '账本', '看这笔账', '这笔账', '记一笔',
+    '流水', '毛利', '净利', '成本', '进货价', '保本线', '保本', '现金流',
     '亏损', '亏了', '该干', '待办', '预警',
 )
 
 
 def strip_internal(text):
-    """把经营上下文里属于**内部事项**的句子剔掉，只留可以对外说的事实。
+    """删掉含**内部经营事项**的句子，其余内容与排版原样保留。
 
-    按句拆分（。；！？!?换行）后逐句判断：命中任一内部标记词就整句丢弃。
-    宁可少给模型一点上下文，也不要它把催款话术写进朋友圈。
+    为什么必须保留排版：2026-10 实测发现「你要不要先看看这笔账？」被写进了
+    对外文案末尾。它属于内部事项，要删；但如果按"重新拼接"的方式实现，
+    文案里的换行、档位排版（如宜忌体）会被一起破坏。
+    所以按句末标点切开、**连标点一起**丢掉命中句，其余字符逐字保留。
+
+    两个用途共用同一个实现：
+      · 预防层：喂给模型的经营上下文先过一遍（copy_playbook 的调用方）；
+      · 清理层：模型产出的文案再过一遍（team_domain_copy 收尾），
+        因为提示词写了"禁止出现复盘/账本"也仍会偶发泄漏。
     """
     if not text:
         return ''
     import re as _re
+    parts = _re.split(r'([。；！？!?\n])', str(text))
     keep = []
-    for seg in _re.split(r'[。；！？!?\n]', str(text)):
-        seg = seg.strip()
-        if not seg:
-            continue
+    for i in range(0, len(parts) - 1, 2):
+        seg, sep = parts[i], parts[i + 1]
         if any(m in seg for m in INTERNAL_MARKERS):
-            continue
-        keep.append(seg)
-    return '。'.join(keep)
+            continue                      # 命中内部事务：连标点一起丢
+        keep.append(seg + sep)
+    if len(parts) % 2:                    # 结尾没有句末标点的残段
+        tail = parts[-1]
+        if not any(m in tail for m in INTERNAL_MARKERS):
+            keep.append(tail)
+    return ''.join(keep)

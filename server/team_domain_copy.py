@@ -115,6 +115,7 @@ def generate_copy(shop_name: str, scene: str, extra: str, customer_name: str = "
                     "禁止出现复盘、账本、看这笔账等无关提醒。"
                     "输出3条不同角度的正文，每条控制在渠道字数上限内，用 ||| 分隔。"),
             temperature=0.8, max_tokens=600, variants=True)
+        final, variants = _clean_variants(variants, final)
         if return_report:
             return final, _report(final, combo, process, shop_name, extra, biz_type, variants)
         return (final, process, variants) if return_process else final
@@ -125,11 +126,42 @@ def generate_copy(shop_name: str, scene: str, extra: str, customer_name: str = "
         sys_suffix=("（严格按【这次怎么写】的渠道纪律与结构写，输出3条角度各异的正文，"
                     "每条不超过该渠道上限，只输出正文，用 ||| 分隔3条。）"),
         variants=True)
+    final, variants = _clean_variants(variants, final)
     if return_report:
         return final, _report(final, combo, process, shop_name, extra, biz_type, variants)
     if not return_process:
         return final
     return final, process, variants
+
+
+def _clean_output(text: str) -> str:
+    """对外文案收尾清理：删掉内部经营事项句（催款/账本/复盘）。
+
+    提示词里明写了"禁止出现复盘、账本、看这笔账等无关提醒"，但实测仍会偶发泄漏
+    （线上出现过「…想吃趁早。你要不要先看看这笔账？」）。硬规则会判 fail，
+    可 fail 只是标记、文案照样展示，所以这里在返回前直接删掉那一句。
+    只删命中 INTERNAL_MARKERS 的句子，不动广告法用词（那类按约定由人确认）。
+    """
+    import copy_rules
+    cleaned = copy_rules.strip_internal(text)
+    if cleaned.strip() != (text or "").strip():
+        import logging
+        logging.getLogger("team_domain_copy").info(
+            "文案收尾清理：删除了内部经营事项句（%d → %d 字）", len(text or ""), len(cleaned))
+    return cleaned
+
+
+def _clean_variants(variants, final):
+    """把变体与主文案都过一遍清理，并丢掉被清空的。"""
+    out = []
+    for v in (variants or []):
+        c = _clean_output(v)
+        if c.strip():
+            out.append(c)
+    f = _clean_output(final)
+    if not out and f.strip():
+        out = [f]
+    return f, out
 
 
 def _report(final: str, combo: dict, process: dict, shop_name: str, extra: str,

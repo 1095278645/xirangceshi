@@ -116,7 +116,9 @@ class HttpContextTest(unittest.TestCase):
 
         def fake_chat(messages, **kw):
             seen["prompt"] = "\n".join(str(m.get("content") or "") for m in messages)
-            return "茶叶蛋便宜出，五毛一个。|||青菜明天到期，买一送一。|||卖完收摊。"
+            # 故意让"模型"返回一条带内部事项的文案（线上真实出现过这种泄漏）
+            return ("茶叶蛋便宜出，五毛一个。|||青菜明天到期，买一送一。"
+                    "|||卖完收摊，想吃趁早。你要不要先看看这笔账？")
 
         with mock.patch("ai.ai_available", return_value=True), \
              mock.patch("ai.chat", side_effect=fake_chat), \
@@ -130,6 +132,44 @@ class HttpContextTest(unittest.TestCase):
         self.assertNotIn("1450", seen["prompt"],
                          "催款金额仍出现在模型提示词里 —— 预防层没生效")
         self.assertNotIn("追回来", seen["prompt"], "催款话术仍进入提示词")
+
+        # 输出侧：模型仍可能写出内部事项，返回给店主之前必须已经删掉
+        # （只标记不拦截 = 没防住 —— 上线后实测踩到过）
+        body = r.json()
+        all_text = " ".join([str(body.get("text") or "")]
+                            + [str(v) for v in body.get("variants") or []])
+        self.assertNotIn("这笔账", all_text,
+                         f"返回给店主的文案里仍有内部事项：{all_text[:160]}")
+        self.assertIn("卖完收摊", all_text, "不该把正常内容一起删掉")
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
+
+
+class LayerConsistencyTest(unittest.TestCase):
+    """两层防线的词表不能漂移：判定层认的词，剔除层也必须认。
+
+    踩过的坑：「看这笔账」只进了 HARD_RULES（判 fail），没进 INTERNAL_MARKERS
+    （剔除），于是线上文案被判 fail 却照样展示给店主 —— 标记而不拦截等于没防住。
+    """
+
+    def test_context_leak_words_subset_of_internal_markers(self):
+        words = []
+        for rule_id, _label, ws in copy_rules.HARD_RULES:
+            if rule_id == "context_leak":
+                words = list(ws)
+        self.assertTrue(words, "HARD_RULES 里必须有 context_leak")
+        missing = [w for w in words if w not in copy_rules.INTERNAL_MARKERS]
+        self.assertEqual(missing, [],
+                         f"这些词只判不拦（会展示给店主）：{missing}")
+
+    def test_leaked_sentence_removed_and_layout_kept(self):
+        text = "茶叶蛋五毛一个，卖完收摊。\n你要不要先看看这笔账？\n青菜明天到期，买一送一。"
+        got = copy_rules.strip_internal(text)
+        self.assertNotIn("这笔账", got, "内部事项句没被删掉")
+        self.assertIn("\n", got, "换行排版被破坏了")
+        self.assertIn("买一送一", got)
 
 
 if __name__ == "__main__":

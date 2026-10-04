@@ -229,6 +229,12 @@ class TestLiveTeamWithMock(_TempDB):
         self.assertIn("合规审核", roles)     # 协作下游评审在场
         self.assertIsInstance(variants, list)
         self.assertGreaterEqual(len(variants), 2)  # 至少2条变体
+        # 变体**不得**被追加"所以呢"兜底话术：那是讲给店主听的口吻，
+        # 出现在朋友圈文案里就是内部事项泄漏（team_domains 曾对 final 特判 copy、
+        # 却漏了变体这条，线上实测到店主看到"…想吃趁早。你要不要先看看这笔账？"）。
+        for v in variants:
+            self.assertNotIn("你要不要先看看这笔账", str(v),
+                             f"对外文案被拼上了内部话术：{v!r}")
         self.assertEqual(team.load_adoption("copy")["创意文案师"], 1)
 
 

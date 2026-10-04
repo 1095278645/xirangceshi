@@ -299,10 +299,19 @@ def _run_team(domain: str, task: str, prev: str = "",
     except Exception:  # noqa: BLE001 —— 轨迹采集失败不影响主链路（采集零侵入）
         pass
 
-    final = (plain_language.translate(judge["final"]) if domain == "copy"
-             else plain_language.polish(judge["final"]))
+    # 对外文案（copy）只做术语翻译，**不能**过 "所以呢？" 过滤器：
+    # 那个过滤器是给"讲给店主听"的建议/复盘用的 —— 它会往缺行动提示的文本末尾
+    # 补一句 fallback_hint「你要不要先看看这笔账？」，而文案是**发到朋友圈的成品**，
+    # 拼上这句就变成了内部催款口吻泄漏（线上实测到，见 test_copy_context_leak）。
+    # final 早就对 copy 特判了，但**变体这条漏了**，导致同一条文案里 final 干净、
+    # 变体却带尾巴 —— 店主看到的是变体，所以问题照样暴露。
+    def _finish(text: str) -> str:
+        return (plain_language.translate(text) if domain == "copy"
+                else plain_language.polish(text))
+
+    final = _finish(judge["final"])
     if variants:
-        variants_list = [plain_language.polish(v) for v in judge.get("variants", [judge["final"]])]
+        variants_list = [_finish(v) for v in judge.get("variants", [judge["final"]])]
         return final, process, variants_list
     return final, process
 
