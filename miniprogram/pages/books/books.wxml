@@ -151,19 +151,8 @@
     </view>
   </block>
 
-  <!-- ============ 科目 ============ -->
-  <block wx:if="{{tabIndex === 2}}">
-    <view class="card cat" wx:for="{{categories}}" wx:key="category">
-      <view class="card-title">{{item.name}}</view>
-      <view class="cat-row" wx:for="{{item.titles}}" wx:for-item="t" wx:key="code">
-        <text class="cat-code">{{t.code}}</text>
-        <text class="cat-name">{{t.name}}</text>
-      </view>
-    </view>
-  </block>
-
   <!-- ============ 报表 ============ -->
-  <block wx:if="{{tabIndex === 3}}">
+  <block wx:if="{{tabIndex === 2}}">
     <view class="card">
       <view class="card-title">月度收支报表导出</view>
       <view class="row">
@@ -180,7 +169,7 @@
   </block>
 
   <!-- ============ 资金健康：现金流预测 / 预算 / 赊账 ============ -->
-  <block wx:if="{{tabIndex === 4}}">
+  <block wx:if="{{tabIndex === 3}}">
     <view class="seg">
       <view wx:for="{{finTabs}}" wx:key="*this"
             class="seg-item {{finTabIndex === index ? 'active' : ''}}"
@@ -332,7 +321,7 @@
   </block>
 
   <!-- ============ 库存 ============ -->
-  <block wx:if="{{tabIndex === 5}}">
+  <block wx:if="{{tabIndex === 4}}">
     <view class="card" wx:if="{{stockSummary}}">
       <view class="card-title">库存总览</view>
       <view class="summary-row">
@@ -420,7 +409,7 @@
   </block>
 
   <!-- ============ 发票台账 ============ -->
-  <block wx:if="{{tabIndex === 6}}">
+  <block wx:if="{{tabIndex === 5}}">
     <view class="card" wx:if="{{invoiceSummary}}">
       <view class="card-title">发票概览</view>
       <view class="dim-row" wx:for="{{invoiceSummary.by_kind}}" wx:key="kind">

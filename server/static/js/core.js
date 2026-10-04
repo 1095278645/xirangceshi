@@ -153,7 +153,7 @@ const state = {
     vatRevenue: '', vatResult: null, surtaxResult: null,
     pitSalary: '', pitSocial: '', pitSpecial: '', pitResult: null,
     citIncome: '', citSmall: true, citResult: null,
-    calendar: null, accountCats: [], downloading: false,
+    calendar: null, downloading: false,
     insight: null, insightLoading: false, insightAiUsed: false, insightCached: false,
     taxAdvice: null, taxAdviceLoading: false, taxAdviceAiUsed: false, taxAdviceCached: false },
   // 单店模型（勇哥方法论泛化）

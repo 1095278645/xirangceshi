@@ -1,4 +1,6 @@
-// 账本页：流水 / 算税 / 科目 / 报表（依赖 core.js 的 state/api/toast/render/pad2/fmt）
+// 账本页：流水 / 算税 / 报表（依赖 core.js 的 state/api/toast/render/pad2/fmt）
+// 为什么去掉了「科目」：66 科目表是给会计看的，摊主看不懂，摆在那里只会让人以为是必填项。
+// 后端 `/api/account-titles` 保留（新店沿用账套、备份、导出都依赖科目结构），只是不再展示。
 'use strict';
 
 // ---------- 账本（省账通能力） ----------
@@ -18,12 +20,6 @@ async function loadBooks() {
     }
   }
   await loadTxnList();
-  try {
-    if (state.books.accountCats.length === 0) {
-      const r = await api('/api/account-titles');
-      state.books.accountCats = r.categories || [];
-    }
-  } catch (_) {}
   render();
 }
 
@@ -171,7 +167,7 @@ function renderBooks() {
   const nowM = new Date().getMonth() + 1;
   const y = b.year || nowY;
   const m = b.month || nowM;
-  const tab = ['流水', '算税', '科目', '报表'];
+  const tab = ['流水', '算税', '报表'];
   const monthVal = `${y}-${pad2(m)}`;
   const seg = tab.map((t, i) =>
     `<div class="seg-item ${b.tab === i ? 'active' : ''}" onclick="switchBookTab(${i})">${t}</div>`).join('');
@@ -267,13 +263,6 @@ function renderBooks() {
         <div class="note">${esc(r.note)}</div>
       </div>`).join('')}
     </div>` : ''}`;
-  } else if (b.tab === 2) {
-    body = b.accountCats.map(c => `
-    <div class="card">
-      <div class="card-title">${c.name}</div>
-      ${c.titles.map(t => `
-      <div class="cat-row"><span class="cat-code">${t.code}</span><span class="cat-name">${t.name}</span></div>`).join('')}
-    </div>`).join('');
   } else {
     body = `
     <div class="card">
@@ -286,7 +275,7 @@ function renderBooks() {
   }
 
   return `
-  <div class="hero"><div class="hero-title">账本</div><div class="hero-sub">查账 · 算税 · 科目 · 报表，全在这一本</div></div>
+  <div class="hero"><div class="hero-title">账本</div><div class="hero-sub">查账 · 算税 · 导出报表，全在这一本</div></div>
   <div class="seg">${seg}</div>
   ${body}`;
 }

@@ -162,7 +162,8 @@ module.exports = {
 
   // 账本（省账通能力）
   transactions: (year, month) => request(`/api/transactions?year=${year}&month=${month}`),
-  accountTitles: () => request('/api/account-titles'),
+  // 说明：/api/account-titles 暂不开放给小程序 —— 66 科目表是给会计看的，摊主看不懂，
+  // 界面已不再展示；后端接口保留（建店沿用账套/备份/导出仍依赖科目结构）。需要时再加回包装。
   taxVat: (quarterlyRevenue) => request('/api/tax/vat', 'POST', { quarterly_revenue: quarterlyRevenue }),
   taxSurtax: (vat, isSmall) => request('/api/tax/surtax', 'POST', { vat, is_small: isSmall }),
   taxPit: (salary, social, special) => request('/api/tax/pit', 'POST', {

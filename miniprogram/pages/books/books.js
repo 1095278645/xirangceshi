@@ -1,4 +1,6 @@
-// pages/books/books.js 账本：流水 / 算税 / 科目 / 报表 / 现金流 / 库存 / 发票
+// pages/books/books.js 账本：流水 / 算税 / 报表 / 现金流 / 库存 / 发票
+// 为什么去掉了「科目」：66 科目表是给会计看的，摊主看不懂（原始反馈："就没有必要展示了。也看不懂。"）。
+// 后端 `/api/account-titles` 保留：新店沿用账套、备份、报表导出都依赖科目结构，只是不再展示。
 const api = require('../../utils/api')
 const FC = require('../../shared/frontend_contract.js')
 
@@ -12,7 +14,7 @@ function todayStr() {
 Page({
   data: {
     tabIndex: 0,
-    tabs: ['流水', '算税', '科目', '报表'],
+    tabs: ['流水', '算税', '报表'],
     apiProfile: 'core',
     // ---- 流水 ----
     year: 0,
@@ -31,8 +33,6 @@ Page({
     citSmall: true,
     citResult: null,
     calendar: null,
-    // ---- 科目 ----
-    categories: [],
     // ---- 报表 ----
     downloading: false,
     // ---- AI 经营洞察 ----
@@ -92,14 +92,11 @@ Page({
       .then(s => this.setData({
         apiProfile: s.api_profile || 'core',
         tabs: (s.api_profile || 'core') === 'full'
-          ? ['流水', '算税', '科目', '报表', '现金', '库存', '发票']
-          : ['流水', '算税', '科目', '报表']
+          ? ['流水', '算税', '报表', '现金', '库存', '发票']
+          : ['流水', '算税', '报表']
       }))
       .catch(() => null)
     this.loadTransactions()
-    api.accountTitles()
-      .then(r => this.setData({ categories: r.categories || [] }))
-      .catch(err => api.reportError(err))
   },
 
   onShow() {
@@ -108,16 +105,16 @@ Page({
 
   switchTab(e) {
     const idx = Number(e.currentTarget.dataset.index)
-    if (this.data.apiProfile !== 'full' && idx > 3) return
+    if (this.data.apiProfile !== 'full' && idx > 2) return
     this.setData({ tabIndex: idx })
     if (idx === 0) this.loadTransactions()
     if (idx === 1 && !this.data.calendar) this.loadCalendar()
-    if (idx === 4 && !this.data.budMonth) {
+    if (idx === 3 && !this.data.budMonth) {
       const now = new Date()
       this.setData({ budMonth: `${now.getFullYear()}-${pad(now.getMonth() + 1)}` })
     }
-    if (idx === 5 && !this.data.stockSummary) this.loadStock()
-    if (idx === 6 && !this.data.invoiceSummary) this.loadInvoice()
+    if (idx === 4 && !this.data.stockSummary) this.loadStock()
+    if (idx === 5 && !this.data.invoiceSummary) this.loadInvoice()
   },
 
   // ================= 资金健康：现金流 / 预算 / 赊账 =================

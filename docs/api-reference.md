@@ -20,7 +20,7 @@
 | `POST /api/evolution/outcome` | **进化真值入口**：店主采纳/修改 AI 产出 → 记胶囊（人类信号，非模型自评） |
 | `GET /api/evolution/summary` | 进化层只读摘要：启用状态 + 候选池 + **变更账本** |
 | `POST /api/evolution/candidates/{gene_id}` | 候选基因处理：`verify`（过验证门）/ `approve`（人工转正，需 `confirm`）/ `reject`（归档可回退） |
-| `GET /api/account-titles` | 66 科目表（按类别分组） |
+| `GET /api/account-titles` | 66 科目表（按类别分组）。**后台能力**：建店沿用账套、报表导出用它；界面已不再展示（摊主看不懂） |
 | `GET /api/transactions` | 交易流水列表（按年月筛选） |
 | `POST /api/tax/vat` | 增值税计算（小规模，30 万免征） |
 | `POST /api/tax/surtax` | 附加税计算（六税两费减半） |
