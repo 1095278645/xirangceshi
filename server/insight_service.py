@@ -3,12 +3,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from datetime import date
 
 import ai
+import copy_playbook as pb
+import copy_rules
 import db
 import store as storelib
 import tax as taxcalc
+
+log = logging.getLogger("insight_service")
 
 from team_domain_copy import _copy_degraded
 from team_domain_store import _store_diagnosis_degraded
@@ -34,7 +39,15 @@ def _copy(payload: dict) -> dict:
     for domain, key in (("ledger", "daily_review"), ("store", "diagnosis")):
         item = db.get_domain_context(domain, key)
         if item and item.get("value"):
-            context_parts.append(str(item["value"])[:200])
+            # 复盘/诊断里混着"催款、账本、毛利"这类**内部事项**，不能喂给写对外文案的模型
+            # （实测被原样写成朋友圈文案）。先剔掉，只留可对外说的事实。
+            raw = str(item["value"])
+            kept = copy_rules.strip_internal(raw)
+            if len(kept) != len(raw):
+                log.info("文案上下文已剔除内部事项 %s/%s：%d → %d 字",
+                         domain, key, len(raw), len(kept))
+            if kept:
+                context_parts.append(kept[:200])
     want_report = bool(payload.get("return_report"))
     final, report = ai.generate_copy(
         payload.get("shop_name", "我的小店"), payload.get("scene", "今日营业"),

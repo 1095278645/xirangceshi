@@ -56,6 +56,16 @@ EVOLUTION_VERIFY_MIN_TASKS = int(os.environ.get("SHOP_EVOLUTION_VERIFY_TASKS", "
 EVOLUTION_VERIFY_CMD = os.environ.get("SHOP_EVOLUTION_VERIFY_CMD", "")
 EVOLUTION_VERIFY_TIMEOUT = int(os.environ.get("SHOP_EVOLUTION_VERIFY_TIMEOUT", "300") or "300")
 
+# ---- AI 调用超时（必须有上限，否则用户看到的是"没反应"）----
+# 背景：OpenAI SDK 的默认超时是 **600 秒**、还要重试 2 次。上游一旦卡住（连接挂死、
+# 网关限流不放行），前端按钮会一直停在「生成中…」几分钟到十几分钟 —— 用户的原话
+# 就是"AI 生成文案没反应"（线上实测反馈）。没有超时 = 没有上限 = 不可诊断。
+# 取 90 秒：本项目最慢的合法调用（首次生成报税建议）实测 30~65 秒，留足余量；
+# 同时把最坏等待从 600s×3 压到 90s×2，超时后由调用方走规则兜底，用户至少能拿到东西。
+AI_TIMEOUT = float(os.environ.get("SHOP_AI_TIMEOUT", "90") or "90")
+# SDK 自带重试；保留 1 次以扛瞬时抖动，又不至于把最坏时延放得太大。
+AI_MAX_RETRIES = int(os.environ.get("SHOP_AI_MAX_RETRIES", "1") or "1")
+
 # ---- 知识资产治理层（参考图「管得住」：知识要在运行期回到真值上核验）----
 # 背景：掌柜的结论（"今天流水 580 元"）写下来就是**资产**，但资产会过期。
 # 这里把"陈旧的容忍度"从代码里抽出来：稳定事实必须逐字一致，动态事实允许漂移，

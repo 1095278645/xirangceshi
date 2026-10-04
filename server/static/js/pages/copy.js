@@ -2,20 +2,44 @@
 'use strict';
 
 // ---------- 文案 ----------
+// 文案是"多 agent"链路（2 位文案师并行出稿 → 合规审核 → 掌柜融合），实测 8~15 秒。
+// 只显示一句"生成中…"很容易被当成"点了没反应"，所以这里**显示已等待秒数**。
+let copyTick = null;
+
+function stopCopyTick() {
+  if (copyTick) { clearInterval(copyTick); copyTick = null; }
+}
+
+function startCopyTick() {
+  stopCopyTick();
+  copyTick = setInterval(() => {
+    const el = document.getElementById('copyElapsed');
+    if (!el) { stopCopyTick(); return; }
+    const s = Math.round((Date.now() - (state.copyStartedAt || Date.now())) / 1000);
+    el.textContent = `已等待 ${s} 秒`;
+  }, 1000);
+}
+
 async function generateCopy() {
   state.copyLoading = true;
   state.copyResult = '';
   state.copyVariants = [];
   state.copyGeneId = null;
+  state.copyStartedAt = Date.now();
   render();
+  startCopyTick();
   try {
     const r = await api('/api/insights', 'POST', { scene: 'copy', payload: state.copyForm });
     state.copyResult = r.text;
     state.copyVariants = (r.variants && r.variants.length > 1) ? r.variants : [r.text];
     state.copyGeneId = r.gene_id || null;
-  } catch (e) { toast(e.message); }
-  state.copyLoading = false;
-  render();
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    stopCopyTick();
+    state.copyLoading = false;
+    render();
+  }
 }
 
 // 复制某条变体：把"采纳"上报给进化层（OPC 真值：只有人的采纳才算数）
@@ -63,7 +87,7 @@ function renderCopy() {
     </div>
     <button class="btn-primary" onclick="generateCopy()" ${loading ? 'disabled' : ''}>${loading ? '生成中…' : '生成文案'}</button>
   </div>
-  ${loading ? '<div class="card"><div class="card-title">正在生成 3 条文案…</div><div class="review-box">两位文案师各出方案 → 合规审核 → 掌柜挑选打磨 3 条</div></div>' : ''}
+  ${loading ? `<div class="card"><div class="card-title">正在生成 3 条文案… <span id="copyElapsed" style="font-weight:400;color:var(--sub)">已等待 0 秒</span></div><div class="review-box">两位文案师各出方案 → 合规审核 → 掌柜挑选打磨 3 条<br />（走的是真模型，通常 8~15 秒；超过 1 分钟多半是网络或模型侧慢，可稍后再点）</div></div>` : ''}
   ${!loading && v.length > 0 ? `
   <div class="card">
     <div class="card-title">📝 挑一条直接发</div>

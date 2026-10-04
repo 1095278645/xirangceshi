@@ -60,13 +60,24 @@ def ai_available():
 
 
 def get_client():
-    """懒加载 openai：未安装或未配置时抛清晰错误，不影响其它功能启动"""
+    """懒加载 openai：未安装或未配置时抛清晰错误，不影响其它功能启动。
+
+    **必须显式设超时**：SDK 默认 600s 且重试 2 次，上游卡死时前端会一直停在
+    「生成中…」（线上实测反馈就是"AI 生成文案没反应"）。超时即抛异常，
+    由调用方走规则兜底 —— 用户至少能拿到东西，而不是无限等待。
+    """
     try:
         from openai import OpenAI
     except ImportError:
         raise RuntimeError("未安装 openai 依赖：pip install openai")
     s = load_settings()
-    return OpenAI(api_key=s["api_key"], base_url=s["base_url"])
+    # 用显式 httpx.Timeout 而不是传一个数字：数字会按 connect/read/write/pool
+    # 四个阶段各自计时，实测总耗时能到配置值的 2.2 倍（3s → 6.7s）。
+    # 这里把连接阶段收紧到 10s、读写阶段按 AI_TIMEOUT，上界才等于配置值。
+    import httpx
+    to = httpx.Timeout(config.AI_TIMEOUT, connect=min(10.0, config.AI_TIMEOUT))
+    return OpenAI(api_key=s["api_key"], base_url=s["base_url"],
+                  timeout=to, max_retries=config.AI_MAX_RETRIES)
 
 
 def _prompt_chars(messages) -> int:
