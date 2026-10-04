@@ -17,6 +17,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import copy_playbook as pb  # noqa: E402
+import copy_director as cd  # noqa: E402
 import copy_review as cr  # noqa: E402
 import config  # noqa: E402
 
@@ -122,101 +123,66 @@ class TestAutoSelection(unittest.TestCase):
         self.assertTrue(s["skeleton_name"] and s["tone_name"])
         self.assertIn("limits", s)
 
+    def test_explicit_channel_is_not_overridden_by_signal(self):
+        """不变量①：显式选的渠道不许被意图信号覆盖（只该补空缺的维度）。"""
+        combo = pb.select_combo(extra="小红书探店", channel="signboard")
+        self.assertEqual(combo["channel"], "signboard")
+        self.assertEqual(combo["skeleton"], "pain_open")       # 由信号补
 
-class TestHardChecks(unittest.TestCase):
-    """硬规则：绝对化用语/医疗/收益承诺/渠道禁忌/字数/具体度"""
+    def test_recipe_always_matches_final_dimensions(self):
+        """不变量②：recipe 必须与最终三维一致，否则报告会自相矛盾。
 
-    def setUp(self):
-        self.combo = pb.select_combo(recipe="moments_daily")
-
-    def _ids(self, result):
-        return {c["id"] for c in result["checks"] if not c["ok"]}
-
-    def test_absolute_terms_fail(self):
-        r = cr.review("本店汤汁最好，全网最低价！", self.combo)
-        self.assertIn("absolute_terms", self._ids(r))
-        self.assertEqual(r["verdict"], "fail")
-
-    def test_medical_claim_fails(self):
-        r = cr.review("这碗汤能降血压、排毒养颜。", self.combo)
-        self.assertIn("medical_claims", self._ids(r))
-        self.assertEqual(r["verdict"], "fail")
-
-    def test_channel_banned_words_fail(self):
-        r = cr.review("今天有卤面，详情 http://a.com", self.combo)
-        self.assertIn("channel_banned", self._ids(r))
-        self.assertEqual(r["verdict"], "fail")
-
-    def test_slop_words_warn(self):
-        r = cr.review("我们致力于为您开启全新体验，匠心甄选。", self.combo)
-        self.assertIn("ai_slop", self._ids(r))
-        self.assertEqual(r["verdict"], "warn")
-
-    def test_length_over_limit(self):
-        long_text = "今天卤面出锅，" + "很好吃，" * 60
-        r = cr.review(long_text, self.combo)
-        self.assertIn("length", self._ids(r))
-
-    def test_concreteness_floor(self):
-        vague = "我们家东西很好吃。欢迎大家都来尝尝。品质一直很稳定。"
-        r = cr.review(vague, self.combo)
-        self.assertIn("concreteness", self._ids(r))
-
-    def test_generic_tail_warn(self):
-        r = cr.review("今天出卤面，8 块一碗。期待您的光临。", self.combo)
-        self.assertIn("generic_tail", self._ids(r))
-
-    def test_clean_text_passes(self):
-        r = cr.review("今天卤面出锅，8 块一碗，卖完收摊。", self.combo)
-        self.assertEqual(r["verdict"], "pass")
-        self.assertEqual(r["violations"], [])
-        self.assertEqual(r["next_actions"], [])
-
-    def test_review_never_rewrites_text(self):
-        """硬约束：只标记不改写（参考 skill 的"不许糊改"原则）。"""
-        dirty = "最好的卤面，为您甄选！"
-        r = cr.review(dirty, self.combo)
-        self.assertNotIn("rewritten", r)
-        self.assertNotIn("text", r)          # 返回里根本不带"改写后的正文"
-        self.assertIn("只标记不改写", r["policy"])
-
-    def test_verdict_takes_worst_of_list(self):
-        combo = pb.select_combo(recipe="moments_daily")
-        team = {"adopted": ["创意文案师"]}
-        report = cr.build_report(combo, ["今天 8 块一碗，卖完收摊。", "全网最低最好吃！"],
-                                 team=team)
-        self.assertEqual(report["verdict"], "fail")
-
-    def test_diagnostics_present(self):
-        r = cr.review("今天 3 笼包子，6 块一个，5 点收摊。", self.combo)
-        for key in ("chars", "lines", "emoji", "concrete_count", "concrete_ratio", "limit"):
-            self.assertIn(key, r["diagnostics"])
-
-    def test_bypass_attempts_are_caught_after_normalization(self):
-        """拆字/分隔符/emoji/繁体都是常见绕过手法，归一化后必须照样拦下。"""
-        for text in ("本店最 好 吃，全 网 最 低 价。",
-                     "本店最·好·吃，绝·对·推·荐。",
-                     "最好❤️吃，绝对推荐。",
-                     "全網最低價，"):
-            with self.subTest(text=text):
-                r = cr.review(text, self.combo)
-                self.assertIn("absolute_terms", self._ids(r), f"没拦住：{text}")
-
-    def test_known_limit_synonyms_not_caught(self):
-        """已知局限：同义替换（顶尖/首屈一指）不在词表里，字面匹配拦不住。
-
-        这条**不是**要修的东西，而是把边界钉在测试里：改造词表或加语义检查时，
-        如果突然能拦住了，说明能力提升了，届时把这个用例改成期望 fail 即可。
+        自测抓到的原例：只传 channel=signboard，recipe 却留成 xhs_note →
+        报告写"从「小红书」判断是小红书·探店笔记"，实际发的是招牌。
         """
-        r = cr.review("本店顶尖水准，首屈一指。", self.combo)
-        self.assertNotIn("absolute_terms", self._ids(r))
+        combo = pb.select_combo(extra="小红书探店", channel="signboard")
+        spec = pb.RECIPE_SPECS.get(combo["recipe"])
+        if spec:
+            self.assertEqual((spec["channel"], spec["skeleton"], spec["tone"]),
+                             (combo["channel"], combo["skeleton"], combo["tone"]))
+        else:
+            self.assertTrue(combo["recipe"].startswith("custom:"))
+        self.assertNotIn("判断是", combo["reason"])
+        self.assertIn("你指定了渠道", combo["reason"])
 
-    def test_normalize_is_for_matching_only(self):
-        """归一化只用于判定，不许改变输入文本（否则等于变相改写）。"""
-        raw = "最 好 吃 ❤️"
-        cr.review(raw, self.combo)
-        self.assertEqual(raw, "最 好 吃 ❤️")
-        self.assertEqual(cr.normalize_for_match("最 好 吃 ❤️"), "最好吃")
+    def test_recipe_kept_when_nothing_explicit(self):
+        """纯信号命中时仍报原名配方（便于复用同一个缩写）。"""
+        combo = pb.select_combo(extra="小红书探店")
+        self.assertEqual(combo["recipe"], "xhs_note")
+
+    def test_recipe_combo_accepts_custom_form(self):
+        """自定义组合（select_combo 产出）也要能展开，不能抛错。"""
+        combo = pb.select_combo(extra="小红书探店", channel="signboard")
+        self.assertTrue(combo["recipe"].startswith("custom:"))
+        expanded = cd.recipe_combo(combo["recipe"])
+        self.assertEqual(expanded["channel"], "signboard")
+        self.assertEqual(expanded["recipe"], combo["recipe"])
+        with self.assertRaises(ValueError):
+            cd.recipe_combo("nope")
+
+    def test_director_importable_without_playbook_first(self):
+        """直接 import copy_director 不能因循环导入炸掉（曾经会）。"""
+        import importlib
+        import copy_director
+        importlib.reload(copy_director)
+        self.assertEqual(copy_director.select_combo(recipe="xhs_note")["channel"],
+                         "xiaohongshu")
+
+    def test_effective_limit_takes_the_stricter_one(self):
+        """config 阈值与打法库声明取更严的那个，且诊断里显示真实生效值。"""
+        import config
+        old = config.COPY_MOMENTS_MAX_CHARS
+        config.COPY_MOMENTS_MAX_CHARS = 10
+        try:
+            combo = pb.select_combo(recipe="moments_daily")
+            self.assertEqual(cr.effective_limit("moments"), 10)
+            r = cr.review("今天出卤面，8 块一碗。", combo)
+            self.assertEqual(r["diagnostics"]["limit"], 10)
+            self.assertIn("length", {c["id"] for c in r["checks"] if not c["ok"]})
+        finally:
+            config.COPY_MOMENTS_MAX_CHARS = old
+        # 恢复后仍按打法库的 220
+        self.assertEqual(cr.effective_limit("moments"), 220)
 
 
 class TestImagePlan(unittest.TestCase):
@@ -263,14 +229,20 @@ class TestGenerateCopyIntegration(unittest.TestCase):
         self.addCleanup(self._no_key.stop)
 
     def test_degraded_text_unchanged(self):
-        """硬回归：降级文案必须与既有实现逐字一致（14 处既有测试依赖它）。"""
+        """硬回归：降级文案必须与**既有实现原样**逐字一致（14 处既有测试依赖它）。
+
+        断言用**字面量**而不是 `_copy_degraded(...)` 自比较 —— 后者恒真、测不出任何东西
+        （独立复核指出的假绿：把 `_copy_degraded` 打桩改掉，自比较照样通过）。
+        """
         import ai
-        from team_domain_copy import _copy_degraded
-        expected = _copy_degraded("老王面馆", "今日营业", "新出卤面", "")
         got = ai.generate_copy("老王面馆", "今日营业", "新出卤面", "")
-        self.assertEqual(got, expected)
-        self.assertIn("老王面馆", got)
-        self.assertIn("新出卤面", got)
+        self.assertEqual(got, "【老王面馆】新出卤面\n—— 今日份营业，欢迎光临！"
+                              "(提示：在设置页填入 API Key 后即可生成真实文案)")
+        # 带 context 的另一条分支也要钉住（模板里会插一段括号说明）
+        got2 = ai.generate_copy("老王面馆", "今日营业", "新出卤面", "", "今日收500元")
+        self.assertEqual(got2, "【老王面馆】新出卤面（今日收500元）\n"
+                               "—— 今日份营业，欢迎光临！"
+                               "(提示：在设置页填入 API Key 后即可生成真实文案)")
 
     def test_degraded_return_process_still_works(self):
         import ai
@@ -326,64 +298,3 @@ class TestSchemasMatchPlaybook(unittest.TestCase):
                     "COPY_REPLY_MAX_CHARS"):
             self.assertGreater(int(getattr(config, key)), 0, f"{key} 必须为正")
         self.assertGreater(float(config.COPY_MIN_CONCRETE_RATIO), 0.0)
-
-
-class TestCopyHTTPContract(unittest.TestCase):
-    """接口契约：`POST /api/insights` 的文案维度走 Literal（非法 422），报告可返回。
-
-    单独在 HTTP 层再打一遍的理由：pytest 里的单元测试全绿但"用户点得到的那条路"不可用的
-    情况，本项目踩过多次（字段名对不上、参数没往下传）。
-    """
-
-    def setUp(self):
-        import tempfile
-        import db
-        self._tmp = tempfile.TemporaryDirectory()
-        db.DB_PATH = Path(self._tmp.name) / "copy_http.db"
-        db._schema_ready.clear()
-        from fastapi import FastAPI
-        from fastapi.testclient import TestClient
-        from routers import basic
-        app = FastAPI()
-        app.include_router(basic.router)
-        self.c = TestClient(app)
-        self._no_key = mock.patch("ai.ai_available", return_value=False)
-        self._no_key.start()
-        self.addCleanup(self._no_key.stop)
-
-    def tearDown(self):
-        self._tmp.cleanup()
-
-    def test_copy_with_channel_and_report(self):
-        r = self.c.post("/api/insights", json={
-            "scene": "copy",
-            "payload": {"shop_name": "老王面馆", "scene": "今日营业", "extra": "新出卤面"},
-            "channel": "xiaohongshu", "return_report": True})
-        self.assertEqual(r.status_code, 200, r.text)
-        body = r.json()
-        self.assertTrue(body.get("text"))
-        self.assertEqual(body["combo"]["channel"], "xiaohongshu")
-        self.assertIn(body["verdict"], ("pass", "warn", "fail"))
-        self.assertIn("image_plan", body["report"])
-        # 顶层维度要真的传进 payload（不是只做了校验）
-        self.assertEqual(body["report"]["combo"]["channel"], "xiaohongshu")
-
-    def test_invalid_channel_is_422(self):
-        r = self.c.post("/api/insights", json={"scene": "copy", "channel": "weibo"})
-        self.assertEqual(r.status_code, 422, "铁律5：非法渠道必须在请求期被拒")
-
-    def test_invalid_recipe_is_422(self):
-        r = self.c.post("/api/insights", json={"scene": "copy", "recipe": "nope"})
-        self.assertEqual(r.status_code, 422)
-
-    def test_default_copy_still_works_without_new_fields(self):
-        """向后兼容：老客户端只传 payload 也必须能用。"""
-        r = self.c.post("/api/insights", json={
-            "scene": "copy", "payload": {"shop_name": "老王面馆", "extra": "新出卤面"}})
-        self.assertEqual(r.status_code, 200, r.text)
-        self.assertTrue(r.json().get("text"))
-        self.assertIn(r.json()["combo"]["channel"], pb.CHANNELS)
-
-
-if __name__ == "__main__":
-    unittest.main()

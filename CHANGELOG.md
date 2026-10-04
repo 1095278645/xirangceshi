@@ -25,8 +25,38 @@
   return_report`（全部 Literal，非法值 422），响应新增 `combo`（含理由）/`verdict`/`report`；
   **向后兼容**（老调用不变，`variants` 仍是模型给了几稿就是几稿）。
 - 文档：[`docs/copy-playbook.md`](docs/copy-playbook.md)（维度表、选型规则、检查规则、扩展须知）。
-- 测试 `tests/test_copy_playbook.py`（41 项）：注册表自检、选型、硬检查、配图方案、
-  HTTP 契约（含非法枚举 422），以及一条硬回归 —— **无 Key 降级文案逐字不变**。
+- 测试 `tests/test_copy_playbook.py`（注册表自检 + 选型 + 集成，41 项）、
+  `tests/test_copy_rules.py`（规则判定与绕过手法）、`tests/test_copy_http.py`（接口契约），
+  含一条硬回归 —— **无 Key 降级文案逐字不变**（字面量断言，不是自比较）。
+
+### 修复 · 文案引擎（两轮独立对抗式复核的发现）
+- **招牌渠道所有文案被判 fail**：渠道禁忌里放了「，」「；」两个**标点词**，归一化后变空串、
+  `'' in flat` 恒真 → 任何非空文案都命中。改为"标点堆砌"判定（`punctuation_pileup`），
+  并在文档里写明"规则词归一化后不能为空"这条维护红线。
+- **`/api/insights` 的 `team`/`gene_id` 被打空**：`build_report` 只产出 `team_adopted`，
+  而调用方读 `team` → 接口契约回归（前端读 `variants`/`text` 所以页面没崩）。
+  现在 `team`/`gene_id` 与旧响应一致。
+- **选型理由与实选组合自相矛盾**：只传 `channel` 时 `recipe` 仍留原名配方（"理由说是小红书、
+  实际发的是招牌"）。现在 `recipe` 强制与最终三维一致（必要时 `custom:渠道+骨架+语气`），
+  且"只给渠道"时按**该渠道的常规写法**补骨架/语气（不再套用朋友圈的默认值）。
+- **循环导入**：`copy_director` 先被 import 会炸（实测）。改用 PEP 562 模块级 `__getattr__`
+  惰性转发 + 首次调用填充，两边加载期互不拉扯。
+- **归一化绕过**：补 NFKC（全角 `１００％`/`＠全体成员`）与 casefold（`YYDS`）；
+  空话套话也改走归一化（原先字面子串，`匠 心 甄 选` 能绕过）；链接禁忌改正则
+  （`www.a.com` 能绕过 `http://` 词表）。
+- **字数口径打架**：`combo.limits` 与 `diagnostics.limit` 现在都给**实际生效值**；
+  `config` 配 0/负数不再被 `or` 吞掉或让所有文案必 fail。
+- **测试假绿 4 处**：降级文案回归原先"自己比自己"恒真 → 改字面量断言；
+  "只标记不改写"改为断言输入容器未被就地改动；补"每个渠道干净文案不许 fail"用例
+  （这条正是上面 P1 的照妖镜）；HTTP 用例 `tearDown` 还原 `db.DB_PATH`，消除顺序依赖。
+- **文件回到 400 行内**（纯搬家，API 不变）：`copy_rules.py`（合规词表）、
+  `copy_report.py`（配图与报告）；测试拆成 `test_copy_playbook` / `test_copy_rules` / `test_copy_http`。
+- 文档补齐：`biz_type`/`return_report` 不走 Literal、`variants` 的准确含义、
+  各渠道默认配图张数、`text_hint` 全分支存在、覆盖边界区分"固有局限"与"实现漏洞"。
+
+> 已知（非本次引入，未修）：`plain_language.polish` 的"所以呢"过滤器会给**文案备选稿**
+> 追加账本话术（`team_domains` 对 copy 域的 variants 走了 polish）。该过滤器本意是给经营建议用的，
+> 文案域应跳过；改动会牵动既有文案输出与测试，单独立项处理。
 
 ### 新增 · 知识资产治理层
 - `server/knowledge_assets.py`：知识即资产 —— 每条结论带 `kind / subject / statement /

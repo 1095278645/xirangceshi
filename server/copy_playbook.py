@@ -29,7 +29,7 @@ from __future__ import annotations
 import re
 
 __all__ = [
-    'CHANNELS', 'SKELETONS', 'TONES', 'RECIPES', 'CONTENT_INDUSTRIES',
+    'HARD_RULES', 'CHANNELS', 'SKELETONS', 'TONES', 'RECIPES', 'CONTENT_INDUSTRIES',
     'CHANNEL_SPECS', 'SKELETON_SPECS', 'TONE_SPECS', 'RECIPE_SPECS',
     'PALETTE_SPECS', 'NO_SLOP_WORDS', 'channel_spec', 'skeleton_spec',
     'tone_spec', 'recipe_spec', 'select_combo', 'build_brief', 'combo_summary',
@@ -382,6 +382,19 @@ def count_concrete(text: str) -> int:
     return len(hits)
 
 # 导演层（选型/写法说明/组合摘要）见 copy_director.py（搬家，API 不变）。
-from copy_director import (  # noqa: E402,F401
-    select_combo, build_brief, combo_summary, detect_intent, recipe_combo,
-)
+# 这里用模块级 __getattr__ **惰性转发**，而不是顶层 import —— 顶层 import 会成环
+# （director 依赖本模块的声明，本模块又要在加载期导入 director，实测报
+#  "partially initialized module"）。PEP 562 的 __getattr__ 在首次访问时才解析，
+# 因此 `copy_playbook.select_combo(...)` 照旧可用，`mock.patch` 也能正常工作。
+_DIRECTOR_EXPORTS = ("select_combo", "build_brief", "combo_summary",
+                     "detect_intent", "recipe_combo")
+
+
+def __getattr__(name):  # noqa: D401  —— 模块级惰性转发（PEP 562）
+    if name in _DIRECTOR_EXPORTS:
+        from copy_director import __dict__ as _d
+        return _d[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+# 合规硬规则词表见 copy_rules.py（声明层，独立文件便于按平台规则迭代）。
+from copy_rules import HARD_RULES  # noqa: E402,F401

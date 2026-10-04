@@ -54,7 +54,9 @@
     ├── team_domain_copy.py   # 文案域（创意/熟客 → 合规评审 → 掌柜融合）
     ├── copy_playbook.py      # 文案打法库·数据层（渠道/骨架/语气/配方/词表的声明）
     ├── copy_director.py      # 文案打法库·导演层（按信号选组合、拼写法说明、组合摘要）
-    ├── copy_review.py        # 文案硬检查（合规/AI 味）+ 配图方案 + 交付自检报告
+    ├── copy_review.py        # 文案硬检查（合规/AI 味自检）
+    ├── copy_rules.py         # 平台合规硬规则词表（声明，独立于代码迭代节奏）
+    ├── copy_report.py        # 配图方案 + 交付自检报告
     ├── team_domain_store.py  # 单店诊断域（财务/经营/风控 → 掌柜裁决）
     ├── team_domain_review.py # 复盘域（账房/熟客/采买/税务/监察 → 掌柜裁决）
     ├── shop_snapshot.py# 全店经营快照（账目/熟客/库存/赊账/发票/报税/更正）

@@ -36,43 +36,36 @@ import config
 
 __all__ = ['SEVERITY_ORDER', 'HARD_RULES', 'SLOP_AND_ABSOLUTE', 'CHANNEL_BANNED',
            'review', 'build_image_plan', 'build_report', 'concrete_ratio',
-           'count_lines', 'count_emoji']
+           'count_lines', 'count_emoji', 'normalize_for_match', 'effective_limit',
+           'punctuation_pileup', 'HARD_RULES']
+
+# 兼容旧引用：合规词表现在是 `copy_playbook` 的**声明**（判定逻辑仍在本模块）。
+# 放这里是因为 copy_review 曾因此超 400 行硬限（arch_check LINE_FAIL）。
+from copy_rules import HARD_RULES  # noqa: E402,F401
 
 # ---------------- 规则表 ----------------
 # 说明：这里只放**能靠字符串判定**的规则。语义类判断（有没有说清卖点）交给 AI 员工，
 # 但结论同样进报告，不让它变成一句没人看的评语。
 
-# (规则 id, 人话说明, 词表 / 类别)
-HARD_RULES = (
-    ('absolute_terms', '绝对化用语（广告法高风险）',
-     ('最好', '第一', '最佳', '最优', '最便宜', '最快', '最强', '国家级', '世界级',
-      '顶级', '极品', '完美', '绝对', '永远', '唯一', '100%', '百分百', '全网最低',
-      '史上最低', '独一无二', '无敌', '首个', '独家')),
-    ('medical_claims', '医疗/功效暗示（食品、日用都不能说）',
-     ('治疗', '治愈', '根治', '药效', '疗效', '消炎', '抗癌', '降血压', '降血糖',
-      '减肥', '瘦身', '排毒', '养生', '增强免疫', '包治', '祖传秘方')),
-    ('finance_promises', '收益承诺（理财/贷款类不能承诺）',
-     ('保本', '保收益', '稳赚', '包赚', '无风险', '高回报', '零风险', '必涨')),
-    ('traffic_fake', '诱导或虚假流量话术',
-     ('转发抽奖', '集赞', '砍一刀', '私信我', '关注我', '点击下方', '刷屏',
-      '排队两小时', '天天爆满', '全网疯抢')),
-    ('urgency_fake', '虚假紧迫感',
-     ('最后一天', '最后机会', '仅此一次', '错过不再', '限时秒杀', '马上涨')),
-)
-
 # AI 味 + 空话：词表来自 copy_playbook（唯一真源），这里只管判定与计数
 SLOP_AND_ABSOLUTE = pb.NO_SLOP_WORDS
 
-# 渠道特有禁忌（渠道规则来自打法库，这里落成可判定的词）
+# 渠道特有禁忌
+# 注意：**不要放纯标点词**（如「，」）—— 归一化后为空，逐字匹配会变成"永远命中"
+# （独立复核抓到的 P1：招牌渠道所有文案被判 fail）。标点类改用 `punctuation_pileup` 判定。
 CHANNEL_BANNED = {
     'moments': ('@全体成员', 'http://', 'https://', '会员日', '感恩回馈'),
     'xiaohongshu': ('家人们', '宝子们', '求三连', '一键三连'),
     'douyin': ('点击下方', '关注我', '链接在评论区'),
     'wechat_group': ('各位老板', '亲们', 'http://', 'https://'),
-    'signboard': ('，', '；'),
+    'signboard': (),
     'groupbuy': ('最终解释权', '解释权归'),
-    'reply': ('亲，', '尊敬的顾客'),
+    'reply': (),
 }
+# 只对"短句/回复"渠道生效的标点堆砌判定（纯标点没法当词表用，见上）
+_PUNCT_CHANNELS = ('signboard', 'reply', 'douyin')
+# 链接类禁忌统一走正则（词表只能穷举 http://，实测 `www.a.com`／`a.com` 绕过）
+_URL_RE = re.compile(r'(https?://|www\.|\b[\w-]+\.(?:com|cn|net|org|top|vip)\b)', re.I)
 
 SEVERITY_ORDER = {'fail': 0, 'warn': 1, 'pass': 2, 'skip': 3}
 
@@ -99,12 +92,18 @@ _TRAD_TO_SIMP = str.maketrans({
 
 
 def normalize_for_match(text: str) -> str:
-    """归一化：去空格/标点/emoji + 繁转简。**只用于匹配，不用于输出**（不改写正文）。"""
+    """归一化：NFKC（全角→半角、全角@等）+ 去空格/标点/emoji + 繁体转简 + 小写。
+
+    **只用于匹配，不用于输出**（不改写正文）。NFKC 是挡"变体绕过"的关键：
+    `１００％`→`100%`、`＠全体成员`→`@全体成员`、`YYDS`→`yyds`。
+    """
     if not text:
         return ''
-    cleaned = _NOISE_RE.sub('', text)
+    import unicodedata
+    cleaned = unicodedata.normalize('NFKC', text)
+    cleaned = _NOISE_RE.sub('', cleaned)
     cleaned = _EMOJI_RE.sub('', cleaned)
-    return cleaned.translate(_TRAD_TO_SIMP)
+    return cleaned.translate(_TRAD_TO_SIMP).casefold()
 
 
 def count_lines(text: str) -> int:
@@ -126,21 +125,69 @@ def concrete_ratio(text: str) -> float:
 # ---------------- 单条检查 ----------------
 
 def _hit(words, text) -> list[str]:
-    """在归一化文本里找词（挡住"插空格/标点/emoji"的绕过），返回**原始词形**便于提示。"""
+    """在归一化文本里找词（挡住"插空格/标点/emoji"的绕过），返回**原始词形**便于提示。
+
+    两个边界（独立复核抓到过真 bug，别改回去）：
+
+    1. **规则词自己的归一化结果可能为空**：招牌渠道的禁忌是「，」「；」这种标点，
+       归一化后变成空串，而 `'' in flat` 恒真 → 任何非空文案都被判 fail。
+       所以归一化后为空的词直接跳过，交给下面的标点堆砌判定。
+    2. **全角/大小写**：`１００％`／`＠全体成员`／`YYDS` 这类要靠 NFKC + casefold 归一，
+       否则换个写法就绕过了。
+    """
     flat = normalize_for_match(text)
     if not flat:
         return []
-    return [w for w in words if w and normalize_for_match(w) in flat]
+    hits = []
+    for w in words:
+        nw = normalize_for_match(w)
+        if not nw:
+            continue                      # 纯标点词走 punctuation_pileup
+        if nw in flat:
+            hits.append(w)
+    return hits
 
 
-def _check_channel_length(text: str, channel: str, hard_max: int) -> dict:
-    """字数：渠道上限取「配置阈值」与「打法库声明」里更严的那个（避免两处口径打架）。"""
+def punctuation_pileup(text: str) -> bool:
+    """标点堆砌判定（招牌/短句渠道用）：连续两个以上标点或全篇标点占比过高。
+
+    这是「，」「；」这类"通道禁词"的正确判法 —— 逐字匹配标点既无意义（文字里本来就可能有），
+    又会被归一化吃掉（见 `_hit` 的边界 1）。
+    """
+    if not text:
+        return False
+    if re.search(r'[，,；;。.！!？?、]{2,}', text):
+        return True
+    puncts = len(re.findall(r'[，,；;。.！!？?、：:—…]', text))
+    return puncts >= 4 and puncts / max(len(text), 1) > 0.25
+
+
+def effective_limit(channel: str, hard_max: int | None = None) -> int:
+    """该渠道的**实际**字数上限：取「config 阈值」与「打法库声明」里更严的那个。
+
+    为什么取更严：两处口径都可能被单独调整（config 给运维，打法库给产品），
+    取严的能保证"任何一处的收紧都生效"，不会出现改了一处却不生效的静默失灵。
+
+    边界：config 值 ≤ 0 视为"没配"（用 `or` 会把 0 当假值吞掉，实测过；
+    而负数会让任何文案必 fail），因此只在 > 0 时才参与取严。
+    """
+    ch = int(hard_max if hard_max is not None else pb.channel_spec(channel)['hard_max'])
     cfg_key = {'moments': 'COPY_MOMENTS_MAX_CHARS', 'xiaohongshu': 'COPY_XHS_BODY_MAX_CHARS',
                'douyin': 'COPY_DOUYIN_MAX_CHARS', 'wechat_group': 'COPY_GROUP_MAX_CHARS',
                'signboard': 'COPY_SIGNBOARD_MAX_CHARS', 'groupbuy': 'COPY_GROUPBUY_MAX_CHARS',
                'reply': 'COPY_REPLY_MAX_CHARS'}.get(channel, '')
-    cfg_max = int(getattr(config, cfg_key, hard_max) or hard_max) if cfg_key else hard_max
-    limit = min(cfg_max, hard_max)
+    if not cfg_key:
+        return ch
+    try:
+        cfg_max = int(getattr(config, cfg_key, ch))
+    except (TypeError, ValueError):
+        cfg_max = ch
+    return min(cfg_max, ch) if cfg_max > 0 else ch
+
+
+def _check_channel_length(text: str, channel: str, hard_max: int) -> dict:
+    """字数：上限口径见 `effective_limit`。"""
+    limit = effective_limit(channel, hard_max)
     n = len(text or '')
     if n <= limit:
         return {'id': 'length', 'ok': True, 'severity': 'pass',
@@ -153,7 +200,8 @@ def _check_channel_length(text: str, channel: str, hard_max: int) -> dict:
 
 
 def _check_slop(text: str) -> dict:
-    hits = pb.strip_slop(text)
+    # 走归一化匹配：否则"匠 心 甄 选"这种拆字能绕过（独立复核指出的实现漏洞）
+    hits = _hit(pb.NO_SLOP_WORDS, text)
     if not hits:
         return {'id': 'ai_slop', 'ok': True, 'severity': 'pass', 'detail': '没有空话套话'}
     return {'id': 'ai_slop', 'ok': False, 'severity': 'warn',
@@ -269,13 +317,18 @@ def review(text: str, combo: dict | None = None, biz_type: str = '',
     checks.append(_check_skeleton_fit(text, combo))
     checks.extend(_check_ai_smell_lines(text, text.splitlines()))
 
+    # 渠道特有禁忌：词表 + 链接正则 + （短句渠道的）标点堆砌
     banned = _hit(CHANNEL_BANNED.get(combo['channel'], ()), text)
+    if _URL_RE.search(text or ''):
+        banned.append('链接/网址')
+    if combo['channel'] in _PUNCT_CHANNELS and punctuation_pileup(text):
+        banned.append('标点堆砌')
     if banned:
         checks.append({'id': 'channel_banned', 'ok': False, 'severity': 'fail',
                        'detail': f'这个渠道不能出现：「{"、".join(banned)}」'})
     else:
         checks.append({'id': 'channel_banned', 'ok': True, 'severity': 'pass',
-                       'detail': '没有渠道特有禁忌词'})
+                       'detail': '没有渠道特有禁忌'})
     checks.extend(_check_forbidden_terms(text))
 
     violations = [c for c in checks if not c['ok']]
@@ -288,7 +341,8 @@ def review(text: str, combo: dict | None = None, biz_type: str = '',
     diagnostics = {
         'chars': len(text), 'lines': count_lines(text), 'emoji': count_emoji(text),
         'concrete_count': pb.count_concrete(text), 'concrete_ratio': concrete_ratio(text),
-        'limit': pb.channel_spec(combo['channel'])['hard_max'],
+        # 用**实际生效**的上限（config 与打法库取更严），否则 config 收紧后诊断还显示旧值
+        'limit': effective_limit(combo['channel']),
     }
     return {
         'checks': checks, 'verdict': verdict, 'diagnostics': diagnostics,
@@ -330,107 +384,16 @@ def _next_actions(violations: list[dict]) -> list[str]:
     return out
 
 
-# ---------------- 配图方案（把参考 skill 的"封面/内容/结尾"搬过来） ----------------
-# 只产出**可执行的图片提示词与排版建议**，不调用任何图片生成能力。
-
-_IMAGE_STYLE_BY_CHANNEL = {
-    'moments': '手机随手拍风格：自然光、真实桌面、轻微噪点，不要精修海报感',
-    'xiaohongshu': '干净实物特写 + 大字标题：暖色、留白多、字像手写贴纸',
-    'douyin': '竖屏封面：主体占 2/3，画面留出压字位置，高对比',
-    'wechat_group': '实拍直出即可：看得清数量与状态，不用排版',
-    'signboard': '纯文字排版：一个字也不能挤，远看可辨',
-    'groupbuy': '商品平铺 + 价签：信息清晰优先，别做氛围图',
-    'reply': '不用配图',
-}
 
 
-def build_image_plan(combo: dict, shop_name: str = '', extra: str = '',
-                     texts: list[str] | None = None, count: int | None = None) -> dict:
-    """按渠道给出配图方案（封面 / 内容 / 结尾），每张含画面、图上文字、比例、提示词。
-
-    参考 baoyu-xhs-images 的"封面钩子 → 内容承载 → 结尾 CTA"三段式，
-    但**不生成图**：给的是店主/摄影能直接照做的描述，以及可喂给绘图模型的提示词。
-    小店的现实是"拿手机拍一张"，所以默认只要求 1~2 张，不做系列强制。
-    """
-    ch = combo['channel']
-    style = _IMAGE_STYLE_BY_CHANNEL.get(ch, '真实手机实拍')
-    texts = [t for t in (texts or []) if t]
-    n = int(count) if count else (1 if ch in ('moments', 'wechat_group', 'reply', 'signboard') else 3)
-    n = max(1, min(n, 3))
-    plan = []
-    if ch == 'reply':
-        return {'required': False, 'count': 0, 'style': style, 'items': [],
-                'note': '评价回复不需要配图；配了反而像模板回复。'}
-    titles = ('封面', '内容', '结尾')[:n]
-    for i, label in enumerate(titles):
-        head = (extra or shop_name or '今天的东西').strip()
-        if label == '封面':
-            on_image = _cover_words(head)
-            scene = f'主体：{head}；环境：{shop_name or "店里"} 的真实场景，不要摆拍道具'
-        elif label == '内容':
-            on_image = _content_words(head)
-            scene = '细节特写：分量、切面、价签、手上正在做的动作（选一个）'
-        else:
-            on_image = ''
-            scene = '收尾画面：摊位/店面全貌或收摊前的空筐，传递"今天就这样"'
-        plan.append({
-            'index': i + 1, 'role': label, 'on_image_words': on_image,
-            'scene': scene, 'ratio': '1:1' if ch == 'xiaohongshu' else '3:4',
-            'prompt': f'{style}。{scene}。图上文字：{on_image or "不加字"}。'
-                      f'不要水印，不要过度修图，不要出现不存在的食材。',
-        })
-    return {
-        'required': True, 'count': n, 'style': style, 'items': plan,
-        'note': ('封面把"事"放在画面里；图上文字只放一个钩子，'
-                 '别把正文全塞进图里（手机上看不清）。'),
-        'text_hint': (texts[0][:40] + '…') if texts else '',
-    }
+# 配图方案与交付报告见 copy_report.py（搬家，API 不变）。
+# 用模块级 __getattr__ 惰性转发，**不**顶层 import —— copy_report 需要本模块的 review()，
+# 两边顶层互相 import 会 "partially initialized module"（本仓库已踩过两次，故统一用这个写法）。
+_REPORT_EXPORTS = ("build_image_plan", "build_report")
 
 
-def _cover_words(head: str) -> str:
-    """封面图上文字：最多两个字的分量词 + 事由，避免整句塞进画面。"""
-    head = (head or '').strip()
-    if not head:
-        return '今天有'
-    return head[:10]
-
-
-def _content_words(head: str) -> str:
-    return '现做' if head else '分量'
-
-
-# ---------------- 交付报告（对应参考 skill 的 completion report） ----------------
-
-def build_report(combo: dict, texts: list[str], team: dict | None = None,
-                 shop_name: str = '', extra: str = '', biz_type: str = '',
-                 image_count: int | None = None,
-                 candidates: list[str] | None = None) -> dict:
-    """组装交付报告：用了什么组合、正文候选、逐条检查、配图方案、下一步。
-
-    - `candidates` 是模型给出的**全部**稿子（含未进入检查的备选），原样保留 ——
-      备选稿是给店主挑的，不能因为"只检查主文案"就丢掉（实测丢过一次，被既有用例抓到）。
-    - `reviews` 只对 `texts`（默认 = 去重后的 candidates）逐条跑；`verdict` 取**最差**的一条，
-      避免"三条里有一条不合规"被平均掉。
-    """
-    cands = [t for t in (candidates if candidates is not None else texts) or []
-             if (t or '').strip()]
-    texts = [t for t in (texts or []) if (t or '').strip()]
-    if not texts:
-        texts = cands[:1]
-    reviews = [review(t, combo, biz_type=biz_type) for t in texts]
-    worst = 'pass'
-    for r in reviews:
-        if SEVERITY_ORDER.get(r['verdict'], 9) < SEVERITY_ORDER.get(worst, 9):
-            worst = r['verdict']
-    return {
-        'combo': pb.combo_summary(combo),
-        'texts': texts,
-        'candidates': cands or texts,
-        'primary': texts[0] if texts else '',
-        'reviews': reviews,
-        'verdict': worst,
-        'image_plan': build_image_plan(combo, shop_name, extra, texts, image_count),
-        'team_adopted': (team or {}).get('adopted', []),
-        'note': ('这是"发布方案"：正文 + 为什么这么写 + 配图建议 + 发布前要改的地方。'
-                 '检查只标记不改写，违禁词需要你自己确认。'),
-    }
+def __getattr__(name):  # noqa: D401  —— 模块级惰性转发（PEP 562）
+    if name in _REPORT_EXPORTS:
+        from copy_report import __dict__ as _d
+        return _d[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
